@@ -23,13 +23,15 @@ export interface OverpassResponse {
   elements: OverpassElement[]
 }
 
-// The caller supplies the fetch implementation (main process injects
-// Electron's net.fetch, which uses Chromium's network stack and so behaves
-// consistently with the renderer's already-working map tile requests,
-// rather than Node's own fetch/undici, which doesn't pick up OS-level
-// proxy/firewall configuration the same way). Defaults to the global fetch
-// for plain Node contexts like unit tests.
+// The caller may supply a different fetch implementation (e.g. for tests).
+// Defaults to the global fetch.
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
+
+// Overpass's usage policy (https://wiki.openstreetmap.org/wiki/Overpass_API)
+// asks clients to identify themselves via User-Agent; a missing/generic one
+// (or a missing Accept header) has been observed to get a 406 Not
+// Acceptable from the public instance's front end.
+const USER_AGENT = 'ViewFinder/1.0 (+https://github.com/s1xinch/view-finder)'
 
 export async function queryOverpass(
   query: string,
@@ -40,7 +42,11 @@ export async function queryOverpass(
 
   const response = await fetchImpl(endpoint, {
     method: 'POST',
-    headers: { 'Content-Type': 'text/plain' },
+    headers: {
+      'Content-Type': 'text/plain',
+      Accept: 'application/json',
+      'User-Agent': USER_AGENT
+    },
     body: query,
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
   })

@@ -1,4 +1,3 @@
-import { net } from 'electron'
 import type { BBox } from '@core/geo/types'
 import { splitBBox } from '@core/geo/tiling'
 import { queryOverpass } from '@core/osm/overpassClient'
@@ -6,15 +5,6 @@ import { buildViewpointQuery, parseViewpoints } from '@core/osm/viewpointQueries
 import type { Viewpoint } from '@core/osm/types'
 import { MemoryCacheStore } from '@core/cache/MemoryCacheStore'
 import type { CacheStore } from '@core/cache/CacheStore'
-
-// Use Electron's Chromium-network-stack fetch rather than Node's built-in
-// fetch/undici: it behaves consistently with the renderer's own network
-// requests (which already work for map tiles), including OS-level
-// proxy/VPN/firewall configuration that Node's fetch doesn't pick up the
-// same way. `net.fetch`'s type is structurally compatible with our
-// core-level FetchLike (both take a URL + RequestInit and return a
-// Response), so this can be passed straight through without a wrapper.
-const fetchImpl = net.fetch.bind(net)
 
 // OSM tags like tourism=viewpoint change slowly, so a long TTL keeps repeat
 // pans cheap without the data going stale in any way a user would notice.
@@ -50,7 +40,7 @@ export async function getViewpoints(bbox: BBox): Promise<Viewpoint[]> {
 
     if (!viewpoints) {
       console.log(`[coolSpotService] tile ${i + 1}/${tiles.length}: querying Overpass...`)
-      const response = await queryOverpass(buildViewpointQuery(tile), { fetchImpl })
+      const response = await queryOverpass(buildViewpointQuery(tile))
       viewpoints = parseViewpoints(response)
       console.log(
         `[coolSpotService] tile ${i + 1}/${tiles.length}: ${response.elements.length} raw element(s), ${viewpoints.length} matched viewpoint(s)`

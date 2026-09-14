@@ -1,105 +1,77 @@
-import { useEffect } from 'react'
-import { Popup, type GeoJSONSource } from 'maplibre-gl'
+import { useEffect, useRef } from 'react'
+import { Marker, Popup } from 'maplibre-gl'
 import { useViewFinderStore } from '../state/store'
 import { CATEGORY_COLOR, CATEGORY_LABEL } from './categoryStyle'
 import type { Viewpoint } from '@shared/ipcContract'
 
-const SOURCE_ID = 'viewpoints'
-const LAYER_ID = 'viewpoints-layer'
+// Classic map-pin teardrop silhouette (viewBox 0,0,26,34), tip at the
+// bottom-center so `anchor: 'bottom'` plants the point exactly on the
+// coordinate rather than the shape's bounding-box center.
+function buildPinElement(vp: Viewpoint): HTMLDivElement {
+  const color = CATEGORY_COLOR[vp.category]
+  const el = document.createElement('div')
+  el.className = 'vf-pin' + (vp.category === 'computed_peak' ? ' vf-pin--estimated' : '')
+  el.innerHTML = `<svg width="26" height="34" viewBox="0 0 26 34" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M13 0C5.82 0 0 5.82 0 13c0 9.75 13 21 13 21s13-11.25 13-21C26 5.82 20.18 0 13 0z" fill="${color}" />
+    <circle cx="13" cy="12" r="4.5" fill="#ffffff" />
+  </svg>`
+  return el
+}
 
-function toFeatureCollection(viewpoints: Viewpoint[]): GeoJSON.FeatureCollection {
-  return {
-    type: 'FeatureCollection',
-    features: viewpoints.map((vp) => ({
-      type: 'Feature',
-      id: vp.id,
-      geometry: { type: 'Point', coordinates: [vp.lng, vp.lat] },
-      properties: {
-        name: vp.name ?? CATEGORY_LABEL[vp.category],
-        category: vp.category,
-        elevationMeters: vp.elevationMeters ?? null
-      }
-    }))
-  }
+function buildPopupHtml(vp: Viewpoint): string {
+  const elevationLine =
+    vp.elevationMeters != null ? `<div class="vf-popup__elevation">${Math.round(vp.elevationMeters)} m</div>` : ''
+  const estimateNote =
+    vp.category === 'computed_peak'
+      ? '<div class="vf-popup__note">Estimated from elevation data, not confirmed on OpenStreetMap.</div>'
+      : ''
+  return `<div class="vf-popup__title">${vp.name ?? CATEGORY_LABEL[vp.category]}</div><div class="vf-popup__category">${CATEGORY_LABEL[vp.category]}</div>${elevationLine}${estimateNote}`
 }
 
 export function ViewpointLayer(): null {
   const map = useViewFinderStore((s) => s.map)
   const viewpoints = useViewFinderStore((s) => s.viewpoints)
+  const markersRef = useRef<Map<string, Marker>>(new Map())
 
   useEffect(() => {
     if (!map) return
 
-    const data = toFeatureCollection(viewpoints)
+    const markers = markersRef.current
+    const currentIds = new Set(viewpoints.map((vp) => vp.id))
 
-    const addLayer = (): void => {
-      if (map.getSource(SOURCE_ID)) return
+    for (const [id, marker] of markers) {
+      if (!currentIds.has(id)) {
+        marker.remove()
+        markers.delete(id)
+      }
+    }
 
-      map.addSource(SOURCE_ID, { type: 'geojson', data })
-      map.addLayer({
-        id: LAYER_ID,
-        type: 'circle',
-        source: SOURCE_ID,
-        paint: {
-          'circle-radius': 6,
-          'circle-color': [
-            'match',
-            ['get', 'category'],
-            'viewpoint',
-            CATEGORY_COLOR.viewpoint,
-            'peak',
-            CATEGORY_COLOR.peak,
-            'alpine_hut',
-            CATEGORY_COLOR.alpine_hut,
-            'computed_peak',
-            CATEGORY_COLOR.computed_peak,
-            '#888888'
-          ],
-          'circle-opacity-transition': { duration: 200 },
-          'circle-radius-transition': { duration: 200 },
-          'circle-stroke-width': ['match', ['get', 'category'], 'computed_peak', 2.5, 2],
-          'circle-stroke-color': '#ffffff'
-        }
-      })
+    for (const vp of viewpoints) {
+      if (markers.has(vp.id)) continue
 
-      map.on('click', LAYER_ID, (e) => {
-        const feature = e.features?.[0]
-        if (!feature || feature.geometry.type !== 'Point') return
-        const props = feature.properties as { name: string; category: string; elevationMeters: number | null }
-        const coords = feature.geometry.coordinates as [number, number]
-        const category = props.category as Viewpoint['category']
-        const elevationLine =
-          props.elevationMeters !== null ? `<div class="vf-popup__elevation">${Math.round(props.elevationMeters)} m</div>` : ''
-        const estimateNote =
-          category === 'computed_peak'
-            ? '<div class="vf-popup__note">Estimated from elevation data, not confirmed on OpenStreetMap.</div>'
-            : ''
-
-        new Popup({ closeButton: true, className: 'vf-popup', offset: 10 })
-          .setLngLat(coords)
-          .setHTML(
-            `<div class="vf-popup__title">${props.name}</div><div class="vf-popup__category">${CATEGORY_LABEL[category]}</div>${elevationLine}${estimateNote}`
-          )
+      const el = buildPinElement(vp)
+      el.addEventListener('click', (e) => {
+        e.stopPropagation()
+        new Popup({ closeButton: true, className: 'vf-popup', offset: 26 })
+          .setLngLat([vp.lng, vp.lat])
+          .setHTML(buildPopupHtml(vp))
           .addTo(map)
       })
 
-      map.on('mouseenter', LAYER_ID, () => {
-        map.getCanvas().style.cursor = 'pointer'
-      })
-      map.on('mouseleave', LAYER_ID, () => {
-        map.getCanvas().style.cursor = ''
-      })
+      const marker = new Marker({ element: el, anchor: 'bottom' }).setLngLat([vp.lng, vp.lat]).addTo(map)
+      markers.set(vp.id, marker)
     }
-
-    const updateData = (): void => {
-      const source = map.getSource(SOURCE_ID) as GeoJSONSource | undefined
-      if (source) source.setData(data)
-      else addLayer()
-    }
-
-    if (map.isStyleLoaded()) updateData()
-    else map.once('load', updateData)
   }, [map, viewpoints])
+
+  // Separate cleanup effect keyed only on `map` - the effect above re-runs
+  // on every viewpoints change and must not tear down all markers each time.
+  useEffect(() => {
+    const markers = markersRef.current
+    return () => {
+      for (const marker of markers.values()) marker.remove()
+      markers.clear()
+    }
+  }, [map])
 
   return null
 }

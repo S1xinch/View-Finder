@@ -20,7 +20,7 @@ function toFeatureCollection(areas: ExcludedLandArea[]): GeoJSON.FeatureCollecti
 
 // Renders farmland/private-access polygons candidates got excluded for
 // landing inside (see core/scoring/landUseFilter.ts) - shown only while
-// the "Show private land" toggle is on (see the SpotListPanel button and
+// the "Show private land" toggle is on (see the Sidebar checkbox and
 // usePrivateLandSync, which populates this data).
 export function PrivateLandLayer(): null {
   const map = useViewFinderStore((s) => s.map)

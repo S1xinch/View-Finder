@@ -27,6 +27,7 @@ describe('parseExcludedLandAreas', () => {
     })
 
     expect(areas).toHaveLength(1)
+    expect(areas[0].id).toBe('osm:way:1')
     expect(areas[0].ring).toHaveLength(5)
     expect(areas[0].ring[0]).toEqual(areas[0].ring[4])
   })

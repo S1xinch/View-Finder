@@ -7,6 +7,7 @@ function makeViewpoint(id: string, lat: number, lng: number): Viewpoint {
 }
 
 const farmSquare = {
+  id: 'osm:way:1',
   ring: [
     [0, 0],
     [1, 0],

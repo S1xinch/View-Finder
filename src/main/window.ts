@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import { BrowserWindow, shell } from 'electron'
 import { is } from './utils/env'
+import { appUrl } from './protocol'
 
 export function createMainWindow(): BrowserWindow {
   const window = new BrowserWindow({
@@ -43,7 +44,9 @@ export function createMainWindow(): BrowserWindow {
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     window.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
-    window.loadFile(join(__dirname, '../renderer/index.html'))
+    // Not loadFile()/file:// - see protocol.ts for why the packaged
+    // renderer is served over a custom app:// scheme instead.
+    window.loadURL(appUrl())
   }
 
   return window

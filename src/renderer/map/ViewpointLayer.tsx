@@ -47,7 +47,7 @@ export function ViewpointLayer(): null {
         type: 'circle',
         source: SOURCE_ID,
         paint: {
-          'circle-radius': ['match', ['get', 'category'], 'computed_peak', 5, 6],
+          'circle-radius': 6,
           'circle-color': [
             'match',
             ['get', 'category'],
@@ -57,16 +57,16 @@ export function ViewpointLayer(): null {
             '#c2452d',
             'alpine_hut',
             '#4d8f5b',
+            // A deeper, more saturated amber than the original - the lighter
+            // version plus reduced opacity made these hard to spot against
+            // the map's light basemap.
             'computed_peak',
-            '#c9a227',
+            '#b8860b',
             '#888888'
           ],
-          // Estimated/unconfirmed points read as slightly less certain than
-          // an OSM-tagged, human-confirmed one.
-          'circle-opacity': ['match', ['get', 'category'], 'computed_peak', 0.75, 1],
           'circle-opacity-transition': { duration: 200 },
           'circle-radius-transition': { duration: 200 },
-          'circle-stroke-width': 2,
+          'circle-stroke-width': ['match', ['get', 'category'], 'computed_peak', 2.5, 2],
           'circle-stroke-color': '#ffffff'
         }
       })

@@ -21,7 +21,14 @@ const FALLBACK_OVERPASS_ENDPOINT = 'https://overpass.kumi.systems/api/interprete
 // from the UI. This bounds it explicitly.
 const REQUEST_TIMEOUT_MS = 20_000
 
-const MAX_ATTEMPTS = 2
+// A single round already races every configured endpoint in parallel (see
+// queryOverpass below), so this isn't "give up after one try" - it's "give
+// up after one race between all endpoints". A second full retry round used
+// to double the worst-case wait (up to ~40s) on a genuine failure without
+// reliably helping in practice; getViewpoints() in coolSpotService.ts
+// already falls back gracefully to computed-peaks-only when OSM fails, so
+// failing faster into that fallback is the better tradeoff.
+const MAX_ATTEMPTS = 1
 const RETRY_DELAY_MS = 1_500
 
 export interface OverpassElement {

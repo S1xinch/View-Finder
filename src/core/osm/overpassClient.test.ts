@@ -8,27 +8,36 @@ function jsonResponse(body: unknown, init?: { status?: number; statusText?: stri
 describe('queryOverpass', () => {
   it('returns parsed JSON on a successful first attempt', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ elements: [] }))
-    const result = await queryOverpass('query', { fetchImpl })
+    const result = await queryOverpass('query', { fetchImpl, endpoint: DEFAULT_OVERPASS_ENDPOINT })
     expect(result).toEqual({ elements: [] })
     expect(fetchImpl).toHaveBeenCalledTimes(1)
   })
 
-  it('retries the same endpoint on a 504 before succeeding', async () => {
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse({}, { status: 504, statusText: 'Gateway Timeout' }))
-      .mockResolvedValueOnce(jsonResponse({ elements: [] }))
-
-    const result = await queryOverpass('query', { fetchImpl, endpoint: DEFAULT_OVERPASS_ENDPOINT, retryDelayMs: 0 })
-    expect(result).toEqual({ elements: [] })
-    expect(fetchImpl).toHaveBeenCalledTimes(2)
-    expect(fetchImpl.mock.calls[0][0]).toBe(DEFAULT_OVERPASS_ENDPOINT)
-    expect(fetchImpl.mock.calls[1][0]).toBe(DEFAULT_OVERPASS_ENDPOINT)
-  })
-
-  it('falls back to the mirror endpoint after the primary exhausts its retries', async () => {
+  it('races both endpoints and returns whichever succeeds, even if the other is unreachable', async () => {
+    // Simulates the real-world case: the primary is silently unreachable
+    // (its fetch never settles within the request) while the mirror
+    // answers immediately - the mirror's result should win without waiting
+    // out the primary.
     const fetchImpl = vi.fn().mockImplementation((endpoint: string) => {
       if (endpoint === DEFAULT_OVERPASS_ENDPOINT) {
+        return new Promise(() => {
+          /* never resolves - simulates a black-holed connection */
+        })
+      }
+      return Promise.resolve(jsonResponse({ elements: [] }))
+    })
+
+    const result = await queryOverpass('query', { fetchImpl })
+    expect(result).toEqual({ elements: [] })
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries a full round if every endpoint fails, then succeeds', async () => {
+    let callCount = 0
+    const fetchImpl = vi.fn().mockImplementation(() => {
+      callCount++
+      // Both endpoints fail on round 1 (calls 1-2), both succeed on round 2 (calls 3-4)
+      if (callCount <= 2) {
         return Promise.resolve(jsonResponse({}, { status: 503, statusText: 'Service Unavailable' }))
       }
       return Promise.resolve(jsonResponse({ elements: [] }))
@@ -36,17 +45,15 @@ describe('queryOverpass', () => {
 
     const result = await queryOverpass('query', { fetchImpl, retryDelayMs: 0 })
     expect(result).toEqual({ elements: [] })
-    // 2 failed attempts against the primary, then 1 successful attempt against the mirror
-    expect(fetchImpl).toHaveBeenCalledTimes(3)
-    expect(fetchImpl.mock.calls[2][0]).not.toBe(DEFAULT_OVERPASS_ENDPOINT)
+    expect(fetchImpl).toHaveBeenCalledTimes(4)
   })
 
-  it('does not retry a non-retryable 4xx response, and throws once endpoints are exhausted', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({}, { status: 400, statusText: 'Bad Request' }))
+  it('throws once every endpoint fails on every retry round', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({}, { status: 500, statusText: 'Server Error' }))
 
-    await expect(queryOverpass('query', { fetchImpl, retryDelayMs: 0 })).rejects.toThrow('400')
-    // One attempt per endpoint (2 endpoints), no retries within an endpoint since 400 isn't retryable
-    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    await expect(queryOverpass('query', { fetchImpl, retryDelayMs: 0 })).rejects.toThrow()
+    // 2 endpoints x 2 rounds
+    expect(fetchImpl).toHaveBeenCalledTimes(4)
   })
 
   it('aborts immediately (without calling fetch) if the signal is already aborted', async () => {
@@ -54,13 +61,11 @@ describe('queryOverpass', () => {
     const controller = new AbortController()
     controller.abort()
 
-    await expect(queryOverpass('query', { fetchImpl, signal: controller.signal })).rejects.toThrow(
-      'Superseded'
-    )
+    await expect(queryOverpass('query', { fetchImpl, signal: controller.signal })).rejects.toThrow('Superseded')
     expect(fetchImpl).not.toHaveBeenCalled()
   })
 
-  it('aborts an in-flight request when the signal fires mid-request', async () => {
+  it('aborts in-flight requests when the signal fires mid-request', async () => {
     const controller = new AbortController()
     const fetchImpl = vi.fn().mockImplementation((_endpoint: string, init?: RequestInit) => {
       return new Promise((_resolve, reject) => {
@@ -72,6 +77,6 @@ describe('queryOverpass', () => {
     controller.abort()
 
     await expect(promise).rejects.toThrow()
-    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
   })
 })

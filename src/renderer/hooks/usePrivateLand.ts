@@ -2,7 +2,9 @@ import { useEffect, useRef } from 'react'
 import type { Map as MapLibreMap } from 'maplibre-gl'
 import { useViewFinderStore } from '../state/store'
 
-const DEBOUNCE_MS = 300
+// Same 500ms as useViewpoints.ts's DEBOUNCE_MS, for the same reason
+// (coalesce rapid panning into one request rather than a burst).
+const DEBOUNCE_MS = 500
 
 // Only fetches/updates while the "show private land" toggle is on - this
 // is an opt-in, occasional-use overlay, not part of the main pan-and-load

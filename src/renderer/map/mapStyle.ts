@@ -72,3 +72,75 @@ export function applyAppleStyleTweaks(map: MapLibreMap): void {
     }
   }
 }
+
+export const SATELLITE_LAYER_ID = 'satellite-imagery-layer'
+const SATELLITE_SOURCE_ID = 'satellite-imagery'
+
+// Esri's World Imagery basemap - free, no API key or signup, the same
+// standard many hobby/open-source map apps reach for when a $0-cost
+// satellite layer is needed (fair-use rate limited, not meant for heavy
+// production traffic, but fine for this app's scale).
+const SATELLITE_TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+
+// Layers this app adds itself on top of the base style - always left alone
+// by setSatelliteVisible's generic "hide the base style's ground fills"
+// pass below, regardless of which order the various layers got added in.
+const CUSTOM_LAYER_IDS = new Set([
+  SATELLITE_LAYER_ID,
+  'excluded-land-fill',
+  'excluded-land-outline',
+  'route-casing',
+  'route-line',
+  'route-walk-line'
+])
+
+// Adds the satellite raster as one more layer in the existing vector style
+// (hidden by default) rather than swapping styles outright via
+// map.setStyle() - a full style swap would tear down and require
+// re-adding every GeoJSON source/layer this app owns (private land, route
+// line), since those live inside the style itself. A Marker (the pin/GPS
+// dot layers) isn't affected either way - it's a plain DOM overlay, not
+// part of the style.
+export function addSatelliteLayer(map: MapLibreMap): void {
+  if (map.getSource(SATELLITE_SOURCE_ID)) return
+
+  map.addSource(SATELLITE_SOURCE_ID, {
+    type: 'raster',
+    tiles: [SATELLITE_TILE_URL],
+    tileSize: 256,
+    attribution: 'Imagery © Esri'
+  })
+
+  const firstLayerId = map.getStyle()?.layers?.[0]?.id
+  map.addLayer(
+    { id: SATELLITE_LAYER_ID, type: 'raster', source: SATELLITE_SOURCE_ID, layout: { visibility: 'none' } },
+    firstLayerId
+  )
+}
+
+// Toggling satellite on means showing the raster imagery and hiding the
+// base style's own ground-cover fills (and its opaque "background" layer,
+// which would otherwise paint straight over the imagery) so the photo
+// shows through - roads, borders, and labels stay on top for a standard
+// "satellite + labels" hybrid look, the same as Apple/Google Maps' own
+// satellite mode.
+export function setSatelliteVisible(map: MapLibreMap, visible: boolean): void {
+  const style = map.getStyle()
+  if (!style?.layers) return
+
+  if (map.getLayer(SATELLITE_LAYER_ID)) {
+    map.setLayoutProperty(SATELLITE_LAYER_ID, 'visibility', visible ? 'visible' : 'none')
+  }
+
+  for (const layer of style.layers) {
+    if (CUSTOM_LAYER_IDS.has(layer.id)) continue
+    if (layer.type !== 'fill' && layer.type !== 'background') continue
+
+    try {
+      map.setLayoutProperty(layer.id, 'visibility', visible ? 'none' : 'visible')
+    } catch {
+      // Ignore any layer that doesn't accept a visibility override - rare,
+      // but shouldn't stop the rest of the pass.
+    }
+  }
+}

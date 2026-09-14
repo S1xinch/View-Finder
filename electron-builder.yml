@@ -1,5 +1,12 @@
 appId: com.viewfinder.app
 productName: View Finder
+# electron-builder auto-detects CI and otherwise tries to publish straight
+# to GitHub itself (needs its own GH_TOKEN), separate from and redundant
+# with release.yml's own upload-artifact + softprops/action-gh-release
+# steps that already handle attaching the installers to a Release. Without
+# this, a CI build fails outright ("GitHub Personal Access Token is not
+# set") even though the actual installer built successfully.
+publish: never
 directories:
   buildResources: build
   output: release

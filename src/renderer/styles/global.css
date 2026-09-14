@@ -89,6 +89,42 @@ body {
   font-size: 10px;
 }
 
+/* MapLibre's default zoom control is a flat white square box - restyled to
+   match the app's floating-card language instead of looking like an
+   unstyled library default sitting on top of a custom map. The icon glyphs
+   themselves (and their light/dark swap) are left alone; MapLibre already
+   handles that via its own prefers-color-scheme rules. */
+.maplibregl-ctrl-group {
+  background: var(--vf-card-bg);
+  border: 1px solid var(--vf-card-border);
+  border-radius: 12px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  overflow: hidden;
+}
+
+.maplibregl-ctrl-group:not(:empty) {
+  box-shadow: var(--vf-card-shadow);
+}
+
+.maplibregl-ctrl-group button {
+  background-color: transparent;
+}
+
+.maplibregl-ctrl-group button + button {
+  border-top: 1px solid var(--vf-card-border);
+}
+
+.maplibregl-ctrl-group button:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  .maplibregl-ctrl-group button:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+  }
+}
+
 /* Popup card for viewpoint/peak markers, matching the app's floating-card
    visual language instead of MapLibre's default popup chrome. */
 .maplibregl-popup.vf-popup .maplibregl-popup-content {
@@ -194,11 +230,14 @@ body {
   0% {
     width: 0%;
   }
+  /* Deliberately overshoots the card (>100%) so it visibly runs past the
+     edges and gets clipped by .status-hint--loading's overflow: hidden,
+     rather than stopping short with visible margin on both sides. */
   50% {
-    width: 85%;
+    width: 130%;
   }
   100% {
-    width: 85%;
+    width: 130%;
   }
 }
 

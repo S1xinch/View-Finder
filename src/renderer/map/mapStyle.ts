@@ -83,9 +83,13 @@ export function applyAppleStyleTweaks(map: MapLibreMap): void {
 // global.css; this is the map-canvas equivalent of that, applied/toggled
 // from MapView.tsx the same way applyAppleStyleTweaks is for light mode.
 const DARK_BACKGROUND = '#15181c'
-const DARK_LANDCOVER = '#1b1e22'
-const DARK_WATER = '#0e1a24'
-const DARK_BUILDING = '#22262b'
+const DARK_GROUND = '#1b1e22'
+// A deliberately more saturated, distinctly blue tone than the near-black
+// ground/background - previously too close to DARK_BACKGROUND (#0e1a24 vs
+// #15181c) to read as "water" rather than just a slightly different shade
+// of near-black.
+const DARK_WATER = '#153a5c'
+const DARK_BUILDING = '#262a30'
 const DARK_LABEL_TEXT = '#d6dade'
 const DARK_LABEL_HALO = '#0b0c0e'
 
@@ -99,13 +103,25 @@ export function applyDarkMapTweaks(map: MapLibreMap): void {
         map.setPaintProperty(layer.id, 'background-color', DARK_BACKGROUND)
         continue
       }
+      // GeoJSON-sourced layers (this app's own private-land overlay, route
+      // line, etc.) have no "source-layer" - never touch those here, they
+      // already carry their own deliberate colors.
       if (!('source-layer' in layer)) continue
 
-      if (layer.type === 'fill') {
+      if (layer.type === 'fill' || layer.type === 'fill-extrusion') {
         const sourceLayer = layer['source-layer']
-        if (sourceLayer === 'water') map.setPaintProperty(layer.id, 'fill-color', DARK_WATER)
-        else if (sourceLayer === 'landcover' || sourceLayer === 'landuse') map.setPaintProperty(layer.id, 'fill-color', DARK_LANDCOVER)
-        else if (sourceLayer === 'building') map.setPaintProperty(layer.id, 'fill-color', DARK_BUILDING)
+        const property = layer.type === 'fill' ? 'fill-color' : 'fill-extrusion-color'
+        if (sourceLayer === 'water') map.setPaintProperty(layer.id, property, DARK_WATER)
+        else if (sourceLayer === 'building') map.setPaintProperty(layer.id, property, DARK_BUILDING)
+        // Catch-all for every other land fill (landcover, landuse, park,
+        // aeroway, cemetery, and anything else OpenMapTiles' schema adds
+        // that isn't individually named here) - without a fallback, any
+        // source-layer not explicitly listed keeps the light style's
+        // original (light/white) color, showing up as a pale, out-of-place
+        // patch against the dark basemap. A flat dark ground for all of
+        // these, with water/roads/buildings/labels carrying the visual
+        // hierarchy, is the same simplification most dark map styles make.
+        else map.setPaintProperty(layer.id, property, DARK_GROUND)
       } else if (layer.type === 'symbol') {
         // Label halo flips dark<->light along with the basemap so text
         // stays legible against the new background instead of vanishing

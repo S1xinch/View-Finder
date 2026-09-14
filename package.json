@@ -18,14 +18,12 @@
   },
   "dependencies": {
     "@turf/turf": "^7.2.0",
-    "better-sqlite3": "^11.10.0",
     "maplibre-gl": "^6.9.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zustand": "^5.0.8"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
     "@types/react": "^18.3.24",
     "@types/react-dom": "^18.3.7",
     "@typescript-eslint/eslint-plugin": "^8.46.2",

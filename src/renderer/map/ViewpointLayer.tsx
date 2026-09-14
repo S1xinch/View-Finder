@@ -2,9 +2,11 @@ import { useEffect, useRef } from 'react'
 import { Marker, Popup } from 'maplibre-gl'
 import { useViewFinderStore } from '../state/store'
 import { CATEGORY_COLOR, CATEGORY_LABEL } from './categoryStyle'
+import { buildExternalMapsUrl } from '../utils/mapLinks'
 import type { Viewpoint } from '@shared/ipcContract'
 
 const DIRECTIONS_BUTTON_CLASS = 'vf-popup__directions'
+const OPEN_IN_MAPS_BUTTON_CLASS = 'vf-popup__open-in-maps'
 
 // Classic map-pin teardrop silhouette (viewBox 0,0,26,34), tip at the
 // bottom-center so `anchor: 'bottom'` plants the point exactly on the
@@ -27,7 +29,7 @@ function buildPopupHtml(vp: Viewpoint): string {
     vp.category === 'computed_peak'
       ? '<div class="vf-popup__note">Estimated from elevation data, not confirmed on OpenStreetMap.</div>'
       : ''
-  return `<div class="vf-popup__title">${vp.name ?? CATEGORY_LABEL[vp.category]}</div><div class="vf-popup__category">${CATEGORY_LABEL[vp.category]}</div>${elevationLine}${estimateNote}<button type="button" class="${DIRECTIONS_BUTTON_CLASS}">Directions</button>`
+  return `<div class="vf-popup__title">${vp.name ?? CATEGORY_LABEL[vp.category]}</div><div class="vf-popup__category">${CATEGORY_LABEL[vp.category]}</div>${elevationLine}${estimateNote}<div class="vf-popup__actions"><button type="button" class="${DIRECTIONS_BUTTON_CLASS}">Directions</button><button type="button" class="${OPEN_IN_MAPS_BUTTON_CLASS}">Open in Maps</button></div>`
 }
 
 export function ViewpointLayer(): null {
@@ -59,13 +61,14 @@ export function ViewpointLayer(): null {
           .setHTML(buildPopupHtml(vp))
           .addTo(map)
 
-        popup
-          .getElement()
-          .querySelector(`.${DIRECTIONS_BUTTON_CLASS}`)
-          ?.addEventListener('click', () => {
-            useViewFinderStore.getState().requestRoute(vp)
-            popup.remove()
-          })
+        const popupEl = popup.getElement()
+        popupEl.querySelector(`.${DIRECTIONS_BUTTON_CLASS}`)?.addEventListener('click', () => {
+          useViewFinderStore.getState().requestRoute(vp)
+          popup.remove()
+        })
+        popupEl.querySelector(`.${OPEN_IN_MAPS_BUTTON_CLASS}`)?.addEventListener('click', () => {
+          window.open(buildExternalMapsUrl({ lat: vp.lat, lng: vp.lng }, vp.name), '_blank', 'noopener')
+        })
       })
 
       const marker = new Marker({ element: el, anchor: 'bottom' }).setLngLat([vp.lng, vp.lat]).addTo(map)

@@ -1,12 +1,17 @@
 appId: com.viewfinder.app
 productName: View Finder
-# electron-builder auto-detects CI and otherwise tries to publish straight
-# to GitHub itself (needs its own GH_TOKEN), separate from and redundant
-# with release.yml's own upload-artifact + softprops/action-gh-release
-# steps that already handle attaching the installers to a Release. Without
-# this, a CI build fails outright ("GitHub Personal Access Token is not
-# set") even though the actual installer built successfully.
-publish: never
+# NOT `publish: never` (that string gets resolved as a *provider name*,
+# i.e. it looks for a package called "electron-publisher-never" and
+# crashes since no such package exists) and NOT omitting this key entirely
+# (electron-builder then auto-infers a GitHub publish target from the
+# repo's remote and tries to actually publish, needing its own GH_TOKEN -
+# this is what caused the first CI failure). Config with an explicit null
+# is electron-builder's own documented escape hatch (see
+# app-builder-lib's getPublishConfigs: "if explicitly set to null - do not
+# publish") - it skips all publish-target resolution entirely, leaving
+# release.yml's own upload-artifact + softprops/action-gh-release steps as
+# the only thing that actually publishes anything.
+publish: null
 directories:
   buildResources: build
   output: release

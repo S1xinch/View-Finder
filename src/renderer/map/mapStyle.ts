@@ -25,8 +25,9 @@ export const DEFAULT_VIEW = {
 // finds those layers generically rather than guessing at exact ids, and
 // darkens them for real contrast against the light basemap.
 const ROAD_CONTRAST_COLOR = '#4a5157'
+const DARK_ROAD_CONTRAST_COLOR = '#aab3bd'
 
-export function boostRoadContrast(map: MapLibreMap): void {
+export function boostRoadContrast(map: MapLibreMap, color = ROAD_CONTRAST_COLOR): void {
   const style = map.getStyle()
   if (!style?.layers) return
 
@@ -35,7 +36,7 @@ export function boostRoadContrast(map: MapLibreMap): void {
     if (!('source-layer' in layer) || layer['source-layer'] !== 'transportation') continue
 
     try {
-      map.setPaintProperty(layer.id, 'line-color', ROAD_CONTRAST_COLOR)
+      map.setPaintProperty(layer.id, 'line-color', color)
       map.setPaintProperty(layer.id, 'line-opacity', 1)
     } catch {
       // A handful of transportation-layer lines (e.g. patterned casings)
@@ -71,6 +72,56 @@ export function applyAppleStyleTweaks(map: MapLibreMap): void {
       // those rather than let one failure stop the rest of the pass.
     }
   }
+}
+
+// OpenFreeMap doesn't publish a dark-themed style alongside "positron" (no
+// "dark-matter"-style counterpart to swap the style URL to), and repainting
+// the light style we already load avoids a second vector-tile fetch/style
+// parse altogether - strictly cheaper than loading a whole second style
+// just to get dark colors. The rest of the app's chrome (sidebar, popups,
+// controls) already follows prefers-color-scheme via CSS variables in
+// global.css; this is the map-canvas equivalent of that, applied/toggled
+// from MapView.tsx the same way applyAppleStyleTweaks is for light mode.
+const DARK_BACKGROUND = '#15181c'
+const DARK_LANDCOVER = '#1b1e22'
+const DARK_WATER = '#0e1a24'
+const DARK_BUILDING = '#22262b'
+const DARK_LABEL_TEXT = '#d6dade'
+const DARK_LABEL_HALO = '#0b0c0e'
+
+export function applyDarkMapTweaks(map: MapLibreMap): void {
+  const style = map.getStyle()
+  if (!style?.layers) return
+
+  for (const layer of style.layers) {
+    try {
+      if (layer.type === 'background') {
+        map.setPaintProperty(layer.id, 'background-color', DARK_BACKGROUND)
+        continue
+      }
+      if (!('source-layer' in layer)) continue
+
+      if (layer.type === 'fill') {
+        const sourceLayer = layer['source-layer']
+        if (sourceLayer === 'water') map.setPaintProperty(layer.id, 'fill-color', DARK_WATER)
+        else if (sourceLayer === 'landcover' || sourceLayer === 'landuse') map.setPaintProperty(layer.id, 'fill-color', DARK_LANDCOVER)
+        else if (sourceLayer === 'building') map.setPaintProperty(layer.id, 'fill-color', DARK_BUILDING)
+      } else if (layer.type === 'symbol') {
+        // Label halo flips dark<->light along with the basemap so text
+        // stays legible against the new background instead of vanishing
+        // (a light halo on a light style, kept as-is on a dark one, would
+        // blend straight into the dark ground behind the text).
+        map.setPaintProperty(layer.id, 'text-color', DARK_LABEL_TEXT)
+        map.setPaintProperty(layer.id, 'text-halo-color', DARK_LABEL_HALO)
+      }
+    } catch {
+      // As elsewhere in this file: a handful of pattern-filled or
+      // otherwise non-flat-colored layers may not accept these overrides -
+      // skip those rather than let one failure stop the rest of the pass.
+    }
+  }
+
+  boostRoadContrast(map, DARK_ROAD_CONTRAST_COLOR)
 }
 
 export const SATELLITE_LAYER_ID = 'satellite-imagery-layer'

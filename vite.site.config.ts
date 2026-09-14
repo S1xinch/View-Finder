@@ -76,6 +76,18 @@ export default defineConfig({
   plugins: [react(), copyMaplibreSharedChunk()],
   build: {
     outDir: resolve('dist-site'),
-    emptyOutDir: true
+    emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        // Splits the two largest, rarely-changing vendor deps into their
+        // own chunks so a normal app-code change doesn't force visitors to
+        // re-download all of react/react-dom/maplibre-gl too - those chunks
+        // stay cached across deploys that don't touch them.
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-maplibre': ['maplibre-gl']
+        }
+      }
+    }
   }
 })

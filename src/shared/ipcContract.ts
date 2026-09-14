@@ -33,7 +33,7 @@ export interface ExcludedLandArea {
   ring: [number, number][]
 }
 
-export type AppPlatform = 'win32' | 'darwin' | 'linux'
+export type AppPlatform = 'win32' | 'darwin' | 'linux' | 'web'
 
 export interface AppInfo {
   name: string

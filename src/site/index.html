@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; script-src 'self'; worker-src 'self' blob:"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#2f6fed" />
+    <meta name="description" content="Find scenic, car-reachable high-elevation spots by combining terrain data with OpenStreetMap." />
+    <!-- "Add to Home Screen" niceties - a home-screen icon and standalone
+         (no browser chrome) launch, so the site behaves like an installed
+         app on a phone without needing an app-store build at all. -->
+    <!-- Relative, not absolute - GitHub Pages serves a project site from a
+         subpath (e.g. /View-Finder/), and an absolute "/manifest.json"
+         would resolve to the domain root instead. -->
+    <link rel="manifest" href="./manifest.json" />
+    <link rel="icon" href="./icon-source.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="View Finder" />
+    <title>View Finder</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./main.tsx"></script>
+  </body>
+</html>

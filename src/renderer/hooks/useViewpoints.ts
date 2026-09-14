@@ -26,25 +26,44 @@ export function useViewpointsSync(map: MapLibreMap | null): void {
     if (!map) return
 
     const fetchForCurrentView = (): void => {
-      if (map.getZoom() < MIN_ZOOM_FOR_VIEWPOINTS) {
-        setZoomedOut()
-        return
-      }
+      // Wrapped in try/catch because a *synchronous* throw here (e.g. if
+      // window.viewFinderAPI is somehow missing) would otherwise happen
+      // outside the promise chain below - the .catch() wouldn't see it,
+      // and setLoading() having already run would leave the UI stuck on
+      // "Loading..." forever with no visible error at all.
+      try {
+        if (map.getZoom() < MIN_ZOOM_FOR_VIEWPOINTS) {
+          setZoomedOut()
+          return
+        }
 
-      setLoading()
-      const bounds = map.getBounds()
-      window.viewFinderAPI
-        .getViewpoints({
-          west: bounds.getWest(),
-          south: bounds.getSouth(),
-          east: bounds.getEast(),
-          north: bounds.getNorth()
-        })
-        .then(setLoaded)
-        .catch((error: unknown) => {
-          console.error('Failed to load viewpoints', error)
-          setError(error instanceof Error ? error.message : 'Failed to load viewpoints')
-        })
+        setLoading()
+
+        if (!window.viewFinderAPI?.getViewpoints) {
+          throw new Error('viewFinderAPI is unavailable - the preload script did not load correctly')
+        }
+
+        const bounds = map.getBounds()
+        console.log('[useViewpoints] requesting', bounds.toArray())
+        window.viewFinderAPI
+          .getViewpoints({
+            west: bounds.getWest(),
+            south: bounds.getSouth(),
+            east: bounds.getEast(),
+            north: bounds.getNorth()
+          })
+          .then((result) => {
+            console.log('[useViewpoints] received', result.length, 'viewpoint(s)')
+            setLoaded(result)
+          })
+          .catch((error: unknown) => {
+            console.error('[useViewpoints] IPC call rejected', error)
+            setError(error instanceof Error ? error.message : 'Failed to load viewpoints')
+          })
+      } catch (error) {
+        console.error('[useViewpoints] failed before IPC call was made', error)
+        setError(error instanceof Error ? error.message : 'Failed to load viewpoints')
+      }
     }
 
     const onMoveEnd = (): void => {

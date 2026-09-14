@@ -232,3 +232,14 @@ export async function getViewpoints(bbox: BBox): Promise<Viewpoint[]> {
   )
   return ranked
 }
+
+// Exposed separately (rather than folded into getViewpoints' response
+// shape) so the renderer can show/hide the excluded-land overlay
+// independently of the main viewpoints fetch/cancellation lifecycle - this
+// is opt-in, occasional-use ("show me private land"), not part of the
+// core pan-and-load loop. Hits the same cache getViewpoints already
+// populated for the same bbox, so it's typically instant in practice.
+export async function getExcludedLand(bbox: BBox): Promise<ExcludedLandArea[]> {
+  const controller = new AbortController()
+  return getExcludedLandAreas(bbox, controller.signal)
+}

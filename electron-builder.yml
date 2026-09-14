@@ -3,6 +3,10 @@ productName: View Finder
 directories:
   buildResources: build
   output: release
+# A single 1024x1024 source PNG - electron-builder generates the
+# platform-specific .ico (Windows) and .icns (macOS) from it automatically
+# during the build. See build/icon-source.svg for the editable source.
+icon: build/icon.png
 files:
   - out/**/*
   - package.json

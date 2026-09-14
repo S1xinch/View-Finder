@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { Map as MapLibreMap } from 'maplibre-gl'
-import type { Viewpoint } from '@shared/ipcContract'
+import type { ExcludedLandArea, Viewpoint } from '@shared/ipcContract'
 
 export type ViewpointsStatus = 'idle' | 'zoomed-out' | 'loading' | 'error' | 'ready'
 
@@ -35,6 +35,11 @@ interface ViewFinderStore {
 
   listPanelOpen: boolean
   toggleListPanel: () => void
+
+  showPrivateLand: boolean
+  togglePrivateLand: () => void
+  excludedLandAreas: ExcludedLandArea[]
+  setExcludedLandAreas: (areas: ExcludedLandArea[]) => void
 }
 
 export const useViewFinderStore = create<ViewFinderStore>((set) => ({
@@ -53,8 +58,15 @@ export const useViewFinderStore = create<ViewFinderStore>((set) => ({
   setMinElevationMeters: (value) => set((s) => ({ filters: { ...s.filters, minElevationMeters: value } })),
   setMaxDistanceToRoadMeters: (value) => set((s) => ({ filters: { ...s.filters, maxDistanceToRoadMeters: value } })),
 
-  listPanelOpen: false,
-  toggleListPanel: () => set((s) => ({ listPanelOpen: !s.listPanelOpen }))
+  // Open by default: a ranked list nobody notices behind a small pill isn't
+  // useful - the whole point of Phase 4 was to produce this list.
+  listPanelOpen: true,
+  toggleListPanel: () => set((s) => ({ listPanelOpen: !s.listPanelOpen })),
+
+  showPrivateLand: false,
+  togglePrivateLand: () => set((s) => ({ showPrivateLand: !s.showPrivateLand })),
+  excludedLandAreas: [],
+  setExcludedLandAreas: (excludedLandAreas) => set({ excludedLandAreas })
 }))
 
 export { MAX_ROAD_DISTANCE_SLIDER_METERS }

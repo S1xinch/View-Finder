@@ -26,6 +26,13 @@ export interface Viewpoint {
   distanceToRoadMeters?: number | null
 }
 
+// A closed ring of [lng, lat] pairs (first and last point equal) - a
+// farmland or private-access polygon a candidate got excluded for landing
+// inside (see core/scoring/landUseFilter.ts).
+export interface ExcludedLandArea {
+  ring: [number, number][]
+}
+
 export type AppPlatform = 'win32' | 'darwin' | 'linux'
 
 export interface AppInfo {
@@ -37,4 +44,5 @@ export interface AppInfo {
 export interface ViewFinderApi {
   getAppInfo: () => Promise<AppInfo>
   getViewpoints: (bbox: BBox) => Promise<Viewpoint[]>
+  getExcludedLand: (bbox: BBox) => Promise<ExcludedLandArea[]>
 }

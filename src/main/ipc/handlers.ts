@@ -2,7 +2,7 @@ import { app, ipcMain } from 'electron'
 import type { BBox } from '@core/geo/types'
 import type { AppInfo, AppPlatform } from '@shared/ipcContract'
 import { IpcChannels } from './channels'
-import { getViewpoints } from '../services/coolSpotService'
+import { getExcludedLand, getViewpoints } from '../services/coolSpotService'
 
 export function registerIpcHandlers(): void {
   ipcMain.handle(IpcChannels.getAppInfo, (): AppInfo => {
@@ -31,6 +31,12 @@ export function registerIpcHandlers(): void {
     }
   })
 
-  // Phase 3+ will add more coolSpotService-backed handlers here
-  // (getCoolSpots with elevation/scoring/land-use filtering).
+  ipcMain.handle(IpcChannels.getExcludedLand, async (_event, bbox: BBox) => {
+    try {
+      return await getExcludedLand(bbox)
+    } catch (error) {
+      console.error('[ipc] getExcludedLand failed:', error)
+      throw error
+    }
+  })
 }

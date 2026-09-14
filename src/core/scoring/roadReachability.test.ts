@@ -7,15 +7,15 @@ describe('distanceToNearestRoadMeters', () => {
   })
 
   it('returns ~0 for a point on the road itself', () => {
-    const road = { id: 'osm:way:1', coordinates: [[150.3, -33.7], [150.31, -33.71]] as [number, number][] }
+    const road = { coordinates: [[150.3, -33.7], [150.31, -33.71]] as [number, number][] }
     const distance = distanceToNearestRoadMeters({ lat: -33.7, lng: 150.3 }, [road])
     expect(distance).not.toBeNull()
     expect(distance as number).toBeLessThan(1)
   })
 
   it('picks the closest of several roads', () => {
-    const nearRoad = { id: 'osm:way:1', coordinates: [[150.3, -33.7], [150.301, -33.7]] as [number, number][] }
-    const farRoad = { id: 'osm:way:2', coordinates: [[151.3, -34.7], [151.301, -34.7]] as [number, number][] }
+    const nearRoad = { coordinates: [[150.3, -33.7], [150.301, -33.7]] as [number, number][] }
+    const farRoad = { coordinates: [[151.3, -34.7], [151.301, -34.7]] as [number, number][] }
     const distance = distanceToNearestRoadMeters({ lat: -33.7, lng: 150.3005 }, [farRoad, nearRoad])
     expect(distance as number).toBeLessThan(100)
   })

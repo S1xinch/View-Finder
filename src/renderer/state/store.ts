@@ -17,6 +17,12 @@ export interface FilterState {
   maxDistanceToRoadMeters: number
 }
 
+export interface UserLocation {
+  lat: number
+  lng: number
+  accuracyMeters: number
+}
+
 interface ViewFinderStore {
   map: MapLibreMap | null
   setMap: (map: MapLibreMap | null) => void
@@ -33,13 +39,20 @@ interface ViewFinderStore {
   setMinElevationMeters: (value: number) => void
   setMaxDistanceToRoadMeters: (value: number) => void
 
-  listPanelOpen: boolean
-  toggleListPanel: () => void
+  sidebarOpen: boolean
+  toggleSidebar: () => void
 
   showPrivateLand: boolean
   togglePrivateLand: () => void
   excludedLandAreas: ExcludedLandArea[]
   setExcludedLandAreas: (areas: ExcludedLandArea[]) => void
+
+  locationTracking: boolean
+  toggleLocationTracking: () => void
+  userLocation: UserLocation | null
+  locationError: string | null
+  setLocation: (location: UserLocation) => void
+  setLocationError: (message: string) => void
 }
 
 export const useViewFinderStore = create<ViewFinderStore>((set) => ({
@@ -58,15 +71,21 @@ export const useViewFinderStore = create<ViewFinderStore>((set) => ({
   setMinElevationMeters: (value) => set((s) => ({ filters: { ...s.filters, minElevationMeters: value } })),
   setMaxDistanceToRoadMeters: (value) => set((s) => ({ filters: { ...s.filters, maxDistanceToRoadMeters: value } })),
 
-  // Open by default: a ranked list nobody notices behind a small pill isn't
-  // useful - the whole point of Phase 4 was to produce this list.
-  listPanelOpen: true,
-  toggleListPanel: () => set((s) => ({ listPanelOpen: !s.listPanelOpen })),
+  sidebarOpen: true,
+  toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
 
   showPrivateLand: false,
   togglePrivateLand: () => set((s) => ({ showPrivateLand: !s.showPrivateLand })),
   excludedLandAreas: [],
-  setExcludedLandAreas: (excludedLandAreas) => set({ excludedLandAreas })
+  setExcludedLandAreas: (excludedLandAreas) => set({ excludedLandAreas }),
+
+  locationTracking: false,
+  toggleLocationTracking: () =>
+    set((s) => ({ locationTracking: !s.locationTracking, locationError: null })),
+  userLocation: null,
+  locationError: null,
+  setLocation: (userLocation) => set({ userLocation, locationError: null }),
+  setLocationError: (message) => set({ locationError: message })
 }))
 
 export { MAX_ROAD_DISTANCE_SLIDER_METERS }

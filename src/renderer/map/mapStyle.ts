@@ -44,3 +44,31 @@ export function boostRoadContrast(map: MapLibreMap): void {
     }
   }
 }
+
+// Softer, warmer water/landcover tones closer to Apple Maps' palette than
+// the positron style's default near-white land / pale blue-grey water.
+// Targets the standard OpenMapTiles "water"/"landcover" source-layers the
+// same way boostRoadContrast targets "transportation" - generically, since
+// the style JSON isn't directly inspectable from this sandbox.
+const WATER_TINT = '#aad9f0'
+const LANDCOVER_TINT = '#e4ecdb'
+
+export function applyAppleStyleTweaks(map: MapLibreMap): void {
+  const style = map.getStyle()
+  if (!style?.layers) return
+
+  for (const layer of style.layers) {
+    if (layer.type !== 'fill' || !('source-layer' in layer)) continue
+
+    try {
+      if (layer['source-layer'] === 'water') {
+        map.setPaintProperty(layer.id, 'fill-color', WATER_TINT)
+      } else if (layer['source-layer'] === 'landcover') {
+        map.setPaintProperty(layer.id, 'fill-color', LANDCOVER_TINT)
+      }
+    } catch {
+      // Pattern-filled layers may not accept a flat fill-color - skip
+      // those rather than let one failure stop the rest of the pass.
+    }
+  }
+}

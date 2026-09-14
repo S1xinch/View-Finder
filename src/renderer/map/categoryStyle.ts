@@ -8,7 +8,7 @@ export const CATEGORY_LABEL: Record<Viewpoint['category'], string> = {
 }
 
 // Shared with ViewpointLayer.tsx's MapLibre paint expression (which needs
-// these as literal values, not CSS custom properties) and SpotListPanel's
+// these as literal values, not CSS custom properties) and Sidebar's
 // category dots, so the two never drift apart.
 export const CATEGORY_COLOR: Record<Viewpoint['category'], string> = {
   // Matches --vf-accent in global.css - ties the marker palette to the

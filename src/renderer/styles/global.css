@@ -6,6 +6,9 @@
   --vf-text-primary: #1c1c1e;
   --vf-text-secondary: #6e6e73;
   --vf-accent: #2f6fed;
+  --vf-danger: #c2452d;
+  --vf-hover: rgba(0, 0, 0, 0.05);
+  --vf-divider: rgba(0, 0, 0, 0.08);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -15,6 +18,8 @@
     --vf-card-shadow: 0 8px 30px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.3);
     --vf-text-primary: #f5f5f7;
     --vf-text-secondary: #a1a1a6;
+    --vf-hover: rgba(255, 255, 255, 0.08);
+    --vf-divider: rgba(255, 255, 255, 0.1);
   }
 }
 
@@ -46,8 +51,8 @@ body {
   inset: 0;
 }
 
-/* Floating translucent card, Apple Maps-style panel language reused by
-   FilterControls/SpotDetailPanel in later phases. */
+/* Floating translucent card, Apple Maps-style panel language shared by the
+   sidebar, popups, and the restyled map controls below. */
 .vf-card {
   background: var(--vf-card-bg);
   border: 1px solid var(--vf-card-border);
@@ -55,40 +60,6 @@ body {
   box-shadow: var(--vf-card-shadow);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-}
-
-.brand-card {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  padding: 8px 16px 8px 10px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: var(--vf-card-bg);
-  border: 1px solid var(--vf-card-border);
-  border-radius: 14px;
-  box-shadow: var(--vf-card-shadow);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  pointer-events: none;
-}
-
-.brand-card__text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.brand-card__title {
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-.brand-card__subtitle {
-  font-size: 12px;
-  color: var(--vf-text-secondary);
 }
 
 .maplibregl-ctrl-attrib {
@@ -99,7 +70,9 @@ body {
    match the app's floating-card language instead of looking like an
    unstyled library default sitting on top of a custom map. The icon glyphs
    themselves (and their light/dark swap) are left alone; MapLibre already
-   handles that via its own prefers-color-scheme rules. */
+   handles that via its own prefers-color-scheme rules. The locate button
+   (LocateControl.ts) reuses this exact class so it reads as part of the
+   same control family. */
 .maplibregl-ctrl-group {
   background: var(--vf-card-bg);
   border: 1px solid var(--vf-card-border);
@@ -122,13 +95,21 @@ body {
 }
 
 .maplibregl-ctrl-group button:hover {
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: var(--vf-hover);
 }
 
-@media (prefers-color-scheme: dark) {
-  .maplibregl-ctrl-group button:hover {
-    background-color: rgba(255, 255, 255, 0.08);
-  }
+.locate-ctrl__button {
+  width: 29px;
+  height: 29px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--vf-text-primary);
+  cursor: pointer;
+}
+
+.locate-ctrl__button--active {
+  color: var(--vf-accent);
 }
 
 /* Popup card for viewpoint/peak markers, matching the app's floating-card
@@ -168,99 +149,64 @@ body {
   max-width: 220px;
 }
 
-.status-hint {
+/* Teardrop pin markers (ViewpointLayer.tsx) - classic map-pin silhouette,
+   anchored at the tip, replacing the old flat GL circle-layer dots. */
+.vf-pin {
+  cursor: pointer;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
+  transition: transform 120ms ease;
+}
+
+.vf-pin:hover {
+  transform: scale(1.12) translateY(-1px);
+}
+
+.vf-pin--estimated {
+  opacity: 0.88;
+}
+
+/* Blue GPS dot (LocationLayer.tsx), Apple/Google Maps-style: a solid core
+   with a ring that pulses outward to read as "live location" rather than a
+   static marker. */
+.location-dot {
+  position: relative;
+  width: 18px;
+  height: 18px;
+}
+
+.location-dot__core {
   position: absolute;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%) translateY(4px);
-  padding: 8px 16px;
-  font-size: 13px;
-  color: var(--vf-text-secondary);
-  pointer-events: none;
-  max-width: min(80vw, 420px);
-  text-align: center;
-  opacity: 0;
-  transition:
-    opacity 180ms ease,
-    transform 180ms ease;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--vf-accent);
+  border: 2px solid #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
 }
 
-.status-hint--visible {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-}
-
-.status-hint--error {
-  color: #c2452d;
-}
-
-.status-hint--loading {
-  position: absolute; /* re-stated: .status-hint is already absolute, this
-    just keeps the rule grouped with the ones below that depend on it */
-  padding-bottom: 12px;
-  overflow: hidden;
-  border-radius: 14px;
-}
-
-/* Two layers: this element fills from the center outward and then holds
-   at full width; its ::after sits on top and, once the fill is done,
-   grows from the center outward too - covering the fill with the card's
-   own background so it reads as "clearing from the inside out" rather
-   than the bar retracting back into itself. */
-.status-hint__progress {
+.location-dot__pulse {
   position: absolute;
-  bottom: 0;
-  left: 50%;
-  height: 3px;
-  width: 0;
-  border-radius: 2px;
-  background: var(--vf-text-secondary);
-  opacity: 0.45;
-  transform: translateX(-50%);
-  animation: status-hint-buffer-fill 1.6s ease-in-out infinite;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--vf-accent);
+  opacity: 0.35;
+  animation: location-dot-pulse 2.2s ease-out infinite;
 }
 
-.status-hint__progress::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  width: 0;
-  background: var(--vf-card-bg);
-  transform: translateX(-50%);
-  animation: status-hint-buffer-clear 1.6s ease-in-out infinite;
-}
-
-@keyframes status-hint-buffer-fill {
+@keyframes location-dot-pulse {
   0% {
-    width: 0%;
-  }
-  /* Deliberately overshoots the card (>100%) so it visibly runs past the
-     edges and gets clipped by .status-hint--loading's overflow: hidden,
-     rather than stopping short with visible margin on both sides. */
-  50% {
-    width: 130%;
+    transform: scale(0.6);
+    opacity: 0.45;
   }
   100% {
-    width: 130%;
-  }
-}
-
-@keyframes status-hint-buffer-clear {
-  0%,
-  50% {
-    width: 0%;
-  }
-  100% {
-    width: 100%;
+    transform: scale(2.6);
+    opacity: 0;
   }
 }
 
 .version-badge {
   position: absolute;
-  bottom: 8px;
-  left: 8px;
+  top: 16px;
+  right: 16px;
   padding: 3px 8px;
   font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -272,61 +218,100 @@ body {
   z-index: 10;
 }
 
-.spot-list {
+/* Unified left sidebar (panels/Sidebar.tsx) - one persistent Apple-Maps-
+   style panel replacing the old separate brand card, spot list, and
+   status-hint floating pieces. */
+.sidebar {
   position: absolute;
-  /* Was pushed down to clear the brand card when both lived top-left;
-     the brand card moved to top-right, so this can sit flush in the
-     corner like everything else does. */
   top: 16px;
   left: 16px;
+  bottom: 16px;
+  width: 320px;
   z-index: 5;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-width: 300px;
-}
-
-/* Solid accent color, not the translucent vf-card treatment used
-   everywhere else - this is the one floating element meant to read as
-   "press me, there's something worth seeing here" rather than passive
-   status text. */
-.spot-list__toggle {
-  align-self: flex-start;
-  padding: 9px 16px;
-  font-family: var(--vf-font);
-  font-size: 13px;
-  font-weight: 600;
-  color: #ffffff;
-  background: var(--vf-accent);
-  border: none;
-  border-radius: 14px;
-  box-shadow: var(--vf-card-shadow);
-  cursor: pointer;
-}
-
-.spot-list__toggle:hover {
-  filter: brightness(1.08);
-}
-
-.spot-list__panel {
-  padding: 12px;
-  width: 280px;
-  max-height: min(60vh, 480px);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
   overflow: hidden;
 }
 
-.spot-list__filters {
+.sidebar__header {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--vf-card-border);
+  align-items: center;
+  gap: 10px;
+  padding: 14px 10px 12px 14px;
+  border-bottom: 1px solid var(--vf-divider);
 }
 
-.spot-list__filter {
+.sidebar__title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.sidebar__title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.sidebar__subtitle {
+  font-size: 12px;
+  color: var(--vf-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar__collapse {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  color: var(--vf-text-secondary);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.sidebar__collapse:hover {
+  background: var(--vf-hover);
+}
+
+.sidebar-reopen {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 5;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: var(--vf-card-bg);
+  color: var(--vf-text-secondary);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.sidebar-reopen:hover {
+  color: var(--vf-text-primary);
+}
+
+.sidebar__filters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--vf-divider);
+}
+
+.sidebar__filter {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -334,12 +319,12 @@ body {
   color: var(--vf-text-secondary);
 }
 
-.spot-list__filter input[type='range'] {
+.sidebar__filter input[type='range'] {
   width: 100%;
   accent-color: var(--vf-accent);
 }
 
-.spot-list__checkbox {
+.sidebar__checkbox {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -348,29 +333,49 @@ body {
   cursor: pointer;
 }
 
-.spot-list__checkbox input[type='checkbox'] {
+.sidebar__checkbox input[type='checkbox'] {
   accent-color: var(--vf-accent);
 }
 
-.spot-list__rows {
+.sidebar__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 10px 12px;
+  overflow: hidden;
+}
+
+.sidebar__count {
+  padding: 2px 4px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--vf-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.sidebar__rows {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.spot-list__empty {
+.sidebar__empty {
   padding: 12px 4px;
   font-size: 12px;
   color: var(--vf-text-secondary);
   text-align: center;
 }
 
-.spot-list__row {
+.sidebar__row {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 8px;
+  padding: 8px;
   border-radius: 8px;
   border: none;
   background: transparent;
@@ -379,31 +384,25 @@ body {
   font-family: var(--vf-font);
 }
 
-.spot-list__row:hover {
-  background: rgba(0, 0, 0, 0.04);
+.sidebar__row:hover {
+  background: var(--vf-hover);
 }
 
-@media (prefers-color-scheme: dark) {
-  .spot-list__row:hover {
-    background: rgba(255, 255, 255, 0.07);
-  }
-}
-
-.spot-list__dot {
+.sidebar__dot {
   flex: 0 0 auto;
   width: 9px;
   height: 9px;
   border-radius: 50%;
 }
 
-.spot-list__row-text {
+.sidebar__row-text {
   display: flex;
   flex-direction: column;
   gap: 1px;
   min-width: 0;
 }
 
-.spot-list__row-name {
+.sidebar__row-name {
   font-size: 13px;
   font-weight: 500;
   color: var(--vf-text-primary);
@@ -412,7 +411,78 @@ body {
   text-overflow: ellipsis;
 }
 
-.spot-list__row-detail {
+.sidebar__row-detail {
   font-size: 11px;
   color: var(--vf-text-secondary);
+}
+
+.sidebar__status {
+  padding: 12px 4px;
+  font-size: 13px;
+  color: var(--vf-text-secondary);
+}
+
+.sidebar__status--error {
+  color: var(--vf-danger);
+}
+
+.sidebar__status--loading {
+  position: relative;
+  padding-bottom: 14px;
+  overflow: hidden;
+}
+
+/* Two layers: this element fills from the center outward and then holds at
+   full width; its ::after sits on top and, once the fill is done, grows
+   from the center outward too - covering the fill with the panel's own
+   background so it reads as "clearing from the inside out" rather than the
+   bar retracting back into itself. */
+.sidebar__status-progress {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  height: 3px;
+  width: 0;
+  border-radius: 2px;
+  background: var(--vf-text-secondary);
+  opacity: 0.45;
+  transform: translateX(-50%);
+  animation: sidebar-status-buffer-fill 1.6s ease-in-out infinite;
+}
+
+.sidebar__status-progress::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 0;
+  background: var(--vf-card-bg);
+  transform: translateX(-50%);
+  animation: sidebar-status-buffer-clear 1.6s ease-in-out infinite;
+}
+
+@keyframes sidebar-status-buffer-fill {
+  0% {
+    width: 0%;
+  }
+  /* Deliberately overshoots the panel width (>100%) so it visibly runs past
+     the edges and gets clipped by .sidebar__status--loading's
+     overflow: hidden, rather than stopping short with visible margin. */
+  50% {
+    width: 130%;
+  }
+  100% {
+    width: 130%;
+  }
+}
+
+@keyframes sidebar-status-buffer-clear {
+  0%,
+  50% {
+    width: 0%;
+  }
+  100% {
+    width: 100%;
+  }
 }

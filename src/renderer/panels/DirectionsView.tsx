@@ -53,7 +53,14 @@ export function DirectionsView(): React.JSX.Element {
       {status === 'ready' && route && (
         <>
           <div className="sidebar__directions-summary">
-            {formatRouteDistance(route.distanceMeters)} · {formatDuration(route.durationSeconds)}
+            {formatRouteDistance(route.distanceMeters)} · {formatDuration(route.durationSeconds)} drive
+            {/* The route ends at the nearest road, not necessarily right on
+                top of the spot (see RouteLayer.tsx's dashed walk-in segment)
+                - distanceToRoadMeters is the same figure already shown in
+                the spot list, reused here so the two never disagree. */}
+            {destination?.distanceToRoadMeters != null && destination.distanceToRoadMeters >= 15 && (
+              <> · {formatRouteDistance(destination.distanceToRoadMeters)} walk</>
+            )}
           </div>
           <div className="sidebar__rows">
             {route.steps.map((step, i) => (

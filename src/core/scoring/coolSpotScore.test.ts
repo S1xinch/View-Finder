@@ -48,7 +48,7 @@ describe('scoreCandidates', () => {
   })
 
   it('scores a candidate closer to a road higher than one farther away', () => {
-    const road = { id: 'osm:way:1', coordinates: [[150.3, -33.7], [150.301, -33.7]] as [number, number][] }
+    const road = { coordinates: [[150.3, -33.7], [150.301, -33.7]] as [number, number][] }
     const [near, far] = scoreCandidates(
       [makeViewpoint({ id: 'near', lat: -33.7, lng: 150.3 }), makeViewpoint({ id: 'far', lat: -33.71, lng: 150.31 })],
       [road]

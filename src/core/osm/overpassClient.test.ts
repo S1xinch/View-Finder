@@ -29,7 +29,7 @@ describe('queryOverpass', () => {
 
     const result = await queryOverpass('query', { fetchImpl })
     expect(result).toEqual({ elements: [] })
-    expect(fetchImpl).toHaveBeenCalledTimes(3)
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
   })
 
   it('throws once every endpoint fails, without a second retry round', async () => {
@@ -40,8 +40,8 @@ describe('queryOverpass', () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({}, { status: 500, statusText: 'Server Error' }))
 
     await expect(queryOverpass('query', { fetchImpl, retryDelayMs: 0 })).rejects.toThrow()
-    // 3 endpoints x 1 round
-    expect(fetchImpl).toHaveBeenCalledTimes(3)
+    // 2 endpoints x 1 round
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
   })
 
   it('aborts immediately (without calling fetch) if the signal is already aborted', async () => {
@@ -65,6 +65,6 @@ describe('queryOverpass', () => {
     controller.abort()
 
     await expect(promise).rejects.toThrow()
-    expect(fetchImpl).toHaveBeenCalledTimes(3)
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
   })
 })

@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import { Popup, type GeoJSONSource } from 'maplibre-gl'
 import { useViewFinderStore } from '../state/store'
-import { useViewpoints } from '../hooks/useViewpoints'
 import type { Viewpoint } from '@shared/ipcContract'
 
 const SOURCE_ID = 'viewpoints'
@@ -31,7 +30,7 @@ function toFeatureCollection(viewpoints: Viewpoint[]): GeoJSON.FeatureCollection
 
 export function ViewpointLayer(): null {
   const map = useViewFinderStore((s) => s.map)
-  const viewpoints = useViewpoints(map)
+  const viewpoints = useViewFinderStore((s) => s.viewpoints)
 
   useEffect(() => {
     if (!map) return

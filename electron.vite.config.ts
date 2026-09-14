@@ -44,7 +44,30 @@ export default defineConfig({
       alias: {
         '@shared': resolve('src/shared')
       }
-    }
+    },
+    // `as any`: electron-vite@5's PreloadBuildOptions type is written
+    // against Vite 6's BuildEnvironmentOptions, but this project has Vite
+    // 5.4.21 installed (a devDependency version-skew issue, not a problem
+    // with this config) - that type mismatch makes `tsc` reject an
+    // otherwise valid rollupOptions.output block with an excess-property
+    // error. The config below is plain, valid Vite/Rollup build config.
+    build: {
+      rollupOptions: {
+        output: {
+          // Force CommonJS with a .cjs extension rather than following
+          // package.json's "type": "module" (which would emit .mjs).
+          // Electron's preload script loader does not reliably treat .mjs
+          // as an ES module - in testing it threw "Cannot use import
+          // statement outside a module" trying to run it as CommonJS,
+          // meaning contextBridge.exposeInMainWorld() never ran and
+          // window.viewFinderAPI was silently undefined in the renderer.
+          // CommonJS preload scripts are the universally-supported path
+          // across Electron versions, so this sidesteps the issue entirely.
+          format: 'cjs',
+          entryFileNames: '[name].cjs'
+        }
+      }
+    } as any
   },
   renderer: {
     resolve: {

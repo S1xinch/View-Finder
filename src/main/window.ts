@@ -13,22 +13,26 @@ export function createMainWindow(): BrowserWindow {
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     backgroundColor: '#f5f4f0',
     webPreferences: {
-      preload: join(__dirname, '../preload/index.mjs'),
+      // .cjs, not .mjs: see the preload build config in
+      // electron.vite.config.ts for why (Electron's preload loader choked
+      // on an ES module preload script).
+      preload: join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,
-      nodeIntegration: false
-      // Deliberately not setting sandbox: true. Combined with an ES module
-      // preload script (which "type": "module" in package.json forces,
-      // i.e. index.mjs), Electron's sandboxed preload loading has had
-      // long-standing reliability issues across versions - in practice
-      // contextBridge.exposeInMainWorld silently never runs, leaving
-      // window.viewFinderAPI undefined in the renderer with no error
-      // anywhere. contextIsolation + nodeIntegration: false already give
-      // the renderer no direct Node/Electron access; sandbox is stricter
-      // still but not worth this failure mode for what this app needs.
+      nodeIntegration: false,
+      sandbox: true
     }
   })
 
   window.on('ready-to-show', () => window.show())
+
+  // Renderer console.log/error/warn otherwise only go to DevTools, which is
+  // easy to miss (and awkward to ask a non-technical user to open). Forward
+  // it into the same terminal `npm run dev` runs in so both processes' logs
+  // are visible in one place.
+  window.webContents.on('console-message', (event) => {
+    const consoleFn = event.level === 'warning' ? console.warn : event.level === 'error' ? console.error : console.log
+    consoleFn(`[renderer] ${event.message}`)
+  })
 
   // Open external links (e.g. an OSM "view on osm.org" link) in the OS browser.
   window.webContents.setWindowOpenHandler(({ url }) => {

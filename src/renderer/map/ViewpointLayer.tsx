@@ -9,7 +9,8 @@ const LAYER_ID = 'viewpoints-layer'
 const CATEGORY_LABEL: Record<Viewpoint['category'], string> = {
   viewpoint: 'Viewpoint',
   peak: 'Peak',
-  alpine_hut: 'Alpine hut'
+  alpine_hut: 'Alpine hut',
+  computed_peak: 'Possible peak (estimated)'
 }
 
 function toFeatureCollection(viewpoints: Viewpoint[]): GeoJSON.FeatureCollection {
@@ -46,7 +47,7 @@ export function ViewpointLayer(): null {
         type: 'circle',
         source: SOURCE_ID,
         paint: {
-          'circle-radius': 6,
+          'circle-radius': ['match', ['get', 'category'], 'computed_peak', 5, 6],
           'circle-color': [
             'match',
             ['get', 'category'],
@@ -56,8 +57,13 @@ export function ViewpointLayer(): null {
             '#c2452d',
             'alpine_hut',
             '#4d8f5b',
+            'computed_peak',
+            '#c9a227',
             '#888888'
           ],
+          // Estimated/unconfirmed points read as slightly less certain than
+          // an OSM-tagged, human-confirmed one.
+          'circle-opacity': ['match', ['get', 'category'], 'computed_peak', 0.75, 1],
           'circle-stroke-width': 2,
           'circle-stroke-color': '#ffffff'
         }
@@ -68,13 +74,18 @@ export function ViewpointLayer(): null {
         if (!feature || feature.geometry.type !== 'Point') return
         const props = feature.properties as { name: string; category: string; elevationMeters: number | null }
         const coords = feature.geometry.coordinates as [number, number]
+        const category = props.category as Viewpoint['category']
         const elevationLine =
           props.elevationMeters !== null ? `<div class="vf-popup__elevation">${Math.round(props.elevationMeters)} m</div>` : ''
+        const estimateNote =
+          category === 'computed_peak'
+            ? '<div class="vf-popup__note">Estimated from elevation data, not confirmed on OpenStreetMap.</div>'
+            : ''
 
         new Popup({ closeButton: true, className: 'vf-popup', offset: 10 })
           .setLngLat(coords)
           .setHTML(
-            `<div class="vf-popup__title">${props.name}</div><div class="vf-popup__category">${CATEGORY_LABEL[props.category as Viewpoint['category']]}</div>${elevationLine}`
+            `<div class="vf-popup__title">${props.name}</div><div class="vf-popup__category">${CATEGORY_LABEL[category]}</div>${elevationLine}${estimateNote}`
           )
           .addTo(map)
       })

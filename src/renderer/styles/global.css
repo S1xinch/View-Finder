@@ -118,6 +118,14 @@ body {
   color: var(--vf-text-secondary);
 }
 
+.vf-popup__note {
+  margin-top: 4px;
+  font-size: 11px;
+  font-style: italic;
+  color: var(--vf-text-secondary);
+  max-width: 220px;
+}
+
 .status-hint {
   position: absolute;
   bottom: 24px;

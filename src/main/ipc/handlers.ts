@@ -5,11 +5,14 @@ import { IpcChannels } from './channels'
 import { getViewpoints } from '../services/coolSpotService'
 
 export function registerIpcHandlers(): void {
-  ipcMain.handle(IpcChannels.getAppInfo, (): AppInfo => ({
-    name: app.getName(),
-    version: app.getVersion(),
-    platform: process.platform as AppPlatform
-  }))
+  ipcMain.handle(IpcChannels.getAppInfo, (): AppInfo => {
+    console.log('[ipc] getAppInfo invoked - preload/IPC bridge is working')
+    return {
+      name: app.getName(),
+      version: app.getVersion(),
+      platform: process.platform as AppPlatform
+    }
+  })
 
   ipcMain.handle(IpcChannels.getViewpoints, async (_event, bbox: BBox) => {
     try {

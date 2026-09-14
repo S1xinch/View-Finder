@@ -37,6 +37,11 @@ export interface OverpassElement {
   lat?: number
   lon?: number
   tags?: Record<string, string>
+  // Present on way/relation elements when the query uses `out geom;`
+  // instead of `out body;` - gives the actual node coordinates inline
+  // without a separate resolution step, which is what road/land-use
+  // queries need to build LineStrings/polygons.
+  geometry?: { lat: number; lon: number }[]
 }
 
 export interface OverpassResponse {

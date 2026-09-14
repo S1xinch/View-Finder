@@ -3,6 +3,7 @@ import { MapView } from './map/MapView'
 import { ViewpointLayer } from './map/ViewpointLayer'
 import { StatusHint } from './map/StatusHint'
 import { VersionBadge } from './VersionBadge'
+import { SpotListPanel } from './panels/SpotListPanel'
 import { useViewpointsSync } from './hooks/useViewpoints'
 import { useViewFinderStore } from './state/store'
 import './styles/global.css'
@@ -31,6 +32,7 @@ export function App(): React.JSX.Element {
       <ViewpointLayer />
       <StatusHint />
       <VersionBadge />
+      <SpotListPanel />
       <div className="brand-card">
         <span className="brand-card__title">View Finder</span>
         <span className="brand-card__subtitle">Scenic high ground, reachable by car</span>

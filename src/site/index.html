@@ -8,7 +8,15 @@
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#2f6fed" />
-    <meta name="description" content="Find scenic, car-reachable high-elevation spots by combining terrain data with OpenStreetMap." />
+    <meta name="robots" content="index, follow" />
+    <meta
+      name="description"
+      content="View Finder finds scenic, car-reachable high-elevation viewpoints and peaks by combining terrain elevation data with OpenStreetMap road and land-use data."
+    />
+    <!-- No custom domain yet - canonical/OG URLs point at the current
+         GitHub Pages URL and should move to a custom domain's URL (plus a
+         CNAME file) together, in one change, if one is registered later. -->
+    <link rel="canonical" href="https://s1xinch.github.io/View-Finder/" />
     <!-- "Add to Home Screen" niceties - a home-screen icon and standalone
          (no browser chrome) launch, so the site behaves like an installed
          app on a phone without needing an app-store build at all. -->
@@ -18,10 +26,53 @@
     <link rel="manifest" href="./manifest.json" />
     <link rel="icon" href="./icon-source.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="./icon.png" />
+    <!-- Standards-track name; apple-mobile-web-app-capable below is kept
+         alongside it for older Safari, which never picked up the
+         standard one. -->
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="View Finder" />
-    <title>View Finder</title>
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="View Finder" />
+    <meta property="og:title" content="View Finder — scenic, car-reachable high ground" />
+    <meta
+      property="og:description"
+      content="Find scenic, car-reachable high-elevation viewpoints and peaks by combining terrain elevation data with OpenStreetMap."
+    />
+    <meta property="og:url" content="https://s1xinch.github.io/View-Finder/" />
+    <meta property="og:image" content="https://s1xinch.github.io/View-Finder/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="en_US" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="View Finder — scenic, car-reachable high ground" />
+    <meta
+      name="twitter:description"
+      content="Find scenic, car-reachable high-elevation viewpoints and peaks by combining terrain elevation data with OpenStreetMap."
+    />
+    <meta name="twitter:image" content="https://s1xinch.github.io/View-Finder/og-image.png" />
+
+    <title>View Finder — scenic, car-reachable high ground</title>
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "View Finder",
+        "url": "https://s1xinch.github.io/View-Finder/",
+        "description": "Find scenic, car-reachable high-elevation viewpoints and peaks by combining terrain elevation data with OpenStreetMap road and land-use data.",
+        "applicationCategory": "TravelApplication",
+        "operatingSystem": "Web, Windows, macOS",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        }
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

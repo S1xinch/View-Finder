@@ -27,6 +27,15 @@ export default defineConfig({
         '@shared': resolve('src/shared')
       }
     },
+    // maplibre-gl ships a worker file that Vite's esbuild-based dep
+    // optimizer doesn't pre-bundle correctly, causing a
+    // ".vite/deps/maplibre-gl-worker.mjs does not exist" error at runtime.
+    optimizeDeps: {
+      exclude: ['maplibre-gl']
+    },
+    worker: {
+      format: 'es'
+    },
     plugins: [react()]
   }
 })

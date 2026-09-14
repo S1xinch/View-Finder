@@ -1,0 +1,25 @@
+# View Finder
+
+> View Finder finds scenic, car-reachable high-elevation viewpoints and peaks by combining
+> terrain elevation data with OpenStreetMap road and land-use data.
+
+View Finder is a free, single-page web app (also distributed as a desktop app for Windows and
+macOS) that overlays elevation data with OpenStreetMap road and land-use data to surface
+scenic, drivable high ground. Users pan/zoom a map; the app fetches OpenStreetMap-tagged
+viewpoints and summits plus computed elevation local maxima, filters out spots that are on
+private or farm land or too far from a road, and ranks the rest by elevation, prominence, and
+road-reachability.
+
+## Source
+
+- [GitHub repository](https://github.com/S1xinch/View-Finder): source code, issues, and the
+  desktop app releases.
+- [Releases](https://github.com/S1xinch/View-Finder/releases/latest): downloadable Windows and
+  macOS desktop installers.
+
+## Notes for automated crawlers
+
+- The site is a single page; all functionality lives at the root URL.
+- Map data comes from live third-party sources (OpenStreetMap via the Overpass API, an
+  OpenTopoData-style elevation service, and OpenFreeMap map tiles) and is not embedded in the
+  page's static HTML.

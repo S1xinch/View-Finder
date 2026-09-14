@@ -95,7 +95,7 @@ export function Sidebar(): React.JSX.Element {
       <header className="sidebar__header">
         <Logo />
         <div className="sidebar__title-group">
-          <span className="sidebar__title">View Finder</span>
+          <h1 className="sidebar__title">View Finder</h1>
           <span className="sidebar__subtitle">Scenic high ground, reachable by car</span>
         </div>
         <button type="button" className="sidebar__collapse" onClick={toggleSidebar} aria-label="Hide sidebar">
@@ -192,6 +192,20 @@ export function Sidebar(): React.JSX.Element {
           </div>
         </>
       )}
+
+      <footer className="sidebar__footer">
+        <a href="https://github.com/S1xinch/View-Finder" target="_blank" rel="noopener noreferrer">
+          GitHub
+        </a>
+        <span aria-hidden="true">·</span>
+        <a href="https://github.com/S1xinch/View-Finder/releases/latest" target="_blank" rel="noopener noreferrer">
+          Download desktop app
+        </a>
+        <span aria-hidden="true">·</span>
+        <a href="https://github.com/S1xinch/View-Finder#troubleshooting" target="_blank" rel="noopener noreferrer">
+          Troubleshooting
+        </a>
+      </footer>
     </aside>
   )
 }

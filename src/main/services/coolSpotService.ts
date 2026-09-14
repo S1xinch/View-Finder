@@ -116,17 +116,47 @@ async function getComputedPeaks(bbox: BBox, signal: AbortSignal): Promise<PeakCa
   }
 }
 
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError'
+}
+
 export async function getViewpoints(bbox: BBox): Promise<Viewpoint[]> {
   currentRequest?.abort()
   const request = new AbortController()
   currentRequest = request
 
-  const [osmViewpoints, computedPeaks] = await Promise.all([
+  // allSettled, not all: getComputedPeaks() is already fail-soft internally
+  // (see above), but a genuine OSM/Overpass failure used to reject the
+  // whole call via Promise.all even when computed peaks had *already*
+  // succeeded - throwing away a perfectly good result because a separate,
+  // independent data source hiccuped.
+  const [osmResult, elevationResult] = await Promise.allSettled([
     getOsmViewpoints(bbox, request.signal),
     getComputedPeaks(bbox, request.signal)
   ])
 
+  // A supersession-abort should still propagate so the overall call
+  // rejects - the renderer's staleness guard already discards a stale
+  // rejection silently, so this never produces a visible error, but it
+  // does stop us returning a bogus "result" for a viewport the caller has
+  // already moved on from.
+  if (osmResult.status === 'rejected' && isAbortError(osmResult.reason)) throw osmResult.reason
+  if (elevationResult.status === 'rejected' && isAbortError(elevationResult.reason)) throw elevationResult.reason
+
+  const osmViewpoints = osmResult.status === 'fulfilled' ? osmResult.value : []
+  const computedPeaks = elevationResult.status === 'fulfilled' ? elevationResult.value : []
   const merged = mergeCandidates(osmViewpoints, computedPeaks)
+
+  if (osmResult.status === 'rejected') {
+    console.warn('[coolSpotService] OSM viewpoints failed:', osmResult.reason)
+    if (merged.length === 0) {
+      // Nothing useful to show at all - surface the real failure instead
+      // of a misleading "no viewpoints in this area" empty state.
+      throw osmResult.reason
+    }
+    console.log(`[coolSpotService] continuing with ${merged.length} computed peak(s) only`)
+  }
+
   console.log(
     `[coolSpotService] getViewpoints returning ${merged.length} total (${osmViewpoints.length} OSM + ${merged.length - osmViewpoints.length} computed)`
   )

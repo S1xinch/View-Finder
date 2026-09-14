@@ -1,17 +1,11 @@
 import { useEffect } from 'react'
 import { Popup, type GeoJSONSource } from 'maplibre-gl'
 import { useViewFinderStore } from '../state/store'
+import { CATEGORY_COLOR, CATEGORY_LABEL } from './categoryStyle'
 import type { Viewpoint } from '@shared/ipcContract'
 
 const SOURCE_ID = 'viewpoints'
 const LAYER_ID = 'viewpoints-layer'
-
-const CATEGORY_LABEL: Record<Viewpoint['category'], string> = {
-  viewpoint: 'Viewpoint',
-  peak: 'Peak',
-  alpine_hut: 'Alpine hut',
-  computed_peak: 'Possible peak (estimated)'
-}
 
 function toFeatureCollection(viewpoints: Viewpoint[]): GeoJSON.FeatureCollection {
   return {
@@ -51,23 +45,14 @@ export function ViewpointLayer(): null {
           'circle-color': [
             'match',
             ['get', 'category'],
-            // Matches --vf-accent in global.css (MapLibre paint expressions
-            // can't reference CSS custom properties directly) - ties the
-            // marker palette to the app's own defined brand color instead
-            // of a separately-picked, unrelated blue.
             'viewpoint',
-            '#2f6fed',
-            // Muted terracotta/rust rather than a stock alert-red.
+            CATEGORY_COLOR.viewpoint,
             'peak',
-            '#b3543f',
-            // Deeper forest green rather than a generic "success" green.
+            CATEGORY_COLOR.peak,
             'alpine_hut',
-            '#3f6b4a',
-            // A deeper, more saturated amber than the original - the lighter
-            // version plus reduced opacity made these hard to spot against
-            // the map's light basemap.
+            CATEGORY_COLOR.alpine_hut,
             'computed_peak',
-            '#b8860b',
+            CATEGORY_COLOR.computed_peak,
             '#888888'
           ],
           'circle-opacity-transition': { duration: 200 },

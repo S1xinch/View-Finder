@@ -22,6 +22,8 @@ export interface Viewpoint {
   name?: string
   elevationMeters?: number
   tags: Record<string, string>
+  score?: number
+  distanceToRoadMeters?: number | null
 }
 
 export type AppPlatform = 'win32' | 'darwin' | 'linux'

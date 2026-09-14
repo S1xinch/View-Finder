@@ -4,6 +4,19 @@ import type { Viewpoint } from '@shared/ipcContract'
 
 export type ViewpointsStatus = 'idle' | 'zoomed-out' | 'loading' | 'error' | 'ready'
 
+// Matches core/scoring/roadReachability.ts's MAX_WALK_IN_METERS - the
+// renderer doesn't import core/ directly (no path alias set up for it in
+// the web tsconfig, and reaching across that boundary casually would work
+// against the whole point of keeping core/ the single source of truth for
+// business logic), so this is the slider's upper bound, not a re-statement
+// of the actual filtering rule enforced in main/.
+const MAX_ROAD_DISTANCE_SLIDER_METERS = 500
+
+export interface FilterState {
+  minElevationMeters: number
+  maxDistanceToRoadMeters: number
+}
+
 interface ViewFinderStore {
   map: MapLibreMap | null
   setMap: (map: MapLibreMap | null) => void
@@ -15,6 +28,13 @@ interface ViewFinderStore {
   setViewpointsZoomedOut: () => void
   setViewpointsLoaded: (viewpoints: Viewpoint[]) => void
   setViewpointsError: (message: string) => void
+
+  filters: FilterState
+  setMinElevationMeters: (value: number) => void
+  setMaxDistanceToRoadMeters: (value: number) => void
+
+  listPanelOpen: boolean
+  toggleListPanel: () => void
 }
 
 export const useViewFinderStore = create<ViewFinderStore>((set) => ({
@@ -27,5 +47,14 @@ export const useViewFinderStore = create<ViewFinderStore>((set) => ({
   setViewpointsLoading: () => set({ viewpointsStatus: 'loading', viewpointsError: null }),
   setViewpointsZoomedOut: () => set({ viewpoints: [], viewpointsStatus: 'zoomed-out', viewpointsError: null }),
   setViewpointsLoaded: (viewpoints) => set({ viewpoints, viewpointsStatus: 'ready', viewpointsError: null }),
-  setViewpointsError: (message) => set({ viewpointsStatus: 'error', viewpointsError: message })
+  setViewpointsError: (message) => set({ viewpointsStatus: 'error', viewpointsError: message }),
+
+  filters: { minElevationMeters: 0, maxDistanceToRoadMeters: MAX_ROAD_DISTANCE_SLIDER_METERS },
+  setMinElevationMeters: (value) => set((s) => ({ filters: { ...s.filters, minElevationMeters: value } })),
+  setMaxDistanceToRoadMeters: (value) => set((s) => ({ filters: { ...s.filters, maxDistanceToRoadMeters: value } })),
+
+  listPanelOpen: false,
+  toggleListPanel: () => set((s) => ({ listPanelOpen: !s.listPanelOpen }))
 }))
+
+export { MAX_ROAD_DISTANCE_SLIDER_METERS }

@@ -1,0 +1,17 @@
+{
+  "name": "View Finder",
+  "short_name": "View Finder",
+  "description": "Find scenic, car-reachable high-elevation spots by combining terrain data with OpenStreetMap.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f5f4f0",
+  "theme_color": "#2f6fed",
+  "icons": [
+    {
+      "src": "./icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

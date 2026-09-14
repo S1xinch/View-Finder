@@ -29,10 +29,6 @@ const VIEWPOINT_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000
 // "cache forever" within a single app session.
 const ELEVATION_CACHE_TTL_MS = 365 * 24 * 60 * 60 * 1000
 
-// Be polite to the free public Overpass instance when a viewport needed
-// multiple tile requests.
-const INTER_TILE_DELAY_MS = 300
-
 const cache: CacheStore = new MemoryCacheStore()
 
 // Only the most recently requested viewport's viewpoints are ever actually
@@ -45,46 +41,46 @@ const cache: CacheStore = new MemoryCacheStore()
 // both.
 let currentRequest: AbortController | null = null
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
 function bboxKey(prefix: string, bbox: BBox): string {
   const round = (n: number): string => n.toFixed(3)
   return `${prefix}:${round(bbox.west)},${round(bbox.south)},${round(bbox.east)},${round(bbox.north)}`
 }
 
+async function fetchTile(tile: BBox, label: string, signal: AbortSignal): Promise<Viewpoint[]> {
+  const key = bboxKey('viewpoints', tile)
+  const cached = await cache.get<Viewpoint[]>(key)
+  if (cached) {
+    console.log(`[coolSpotService] ${label}: cache hit (${cached.length})`)
+    return cached
+  }
+
+  console.log(`[coolSpotService] ${label}: querying Overpass...`)
+  const response = await queryOverpass(buildViewpointQuery(tile), { fetchImpl, signal })
+  const viewpoints = parseViewpoints(response)
+  console.log(`[coolSpotService] ${label}: ${response.elements.length} raw element(s), ${viewpoints.length} matched viewpoint(s)`)
+  await cache.set(key, viewpoints, VIEWPOINT_CACHE_TTL_MS)
+  return viewpoints
+}
+
 async function getOsmViewpoints(bbox: BBox, signal: AbortSignal): Promise<Viewpoint[]> {
   const tiles = splitBBox(bbox)
-  const byId = new Map<string, Viewpoint>()
 
   console.log(
     `[coolSpotService] getViewpoints bbox=(${bbox.west.toFixed(3)},${bbox.south.toFixed(3)},${bbox.east.toFixed(3)},${bbox.north.toFixed(3)}) -> ${tiles.length} tile(s)`
   )
 
-  for (let i = 0; i < tiles.length; i++) {
-    if (signal.aborted) {
-      console.log(`[coolSpotService] aborted (superseded by a newer viewport request)`)
-      throw new DOMException('Superseded by a newer viewport request', 'AbortError')
-    }
+  // Tiles are fetched in parallel rather than one-at-a-time: a sequential
+  // loop with a delay between tiles meant a 4-tile viewport could take
+  // several seconds even when Overpass itself responds quickly. A typical
+  // viewport only ever produces a handful of tiles (the hard cap in
+  // tiling.ts, combined with the renderer's zoom gate, keeps this from
+  // ever becoming a real burst of concurrent requests).
+  const results = await Promise.all(
+    tiles.map((tile, i) => fetchTile(tile, `tile ${i + 1}/${tiles.length}`, signal))
+  )
 
-    const tile = tiles[i]
-    const key = bboxKey('viewpoints', tile)
-    let viewpoints = await cache.get<Viewpoint[]>(key)
-
-    if (!viewpoints) {
-      console.log(`[coolSpotService] tile ${i + 1}/${tiles.length}: querying Overpass...`)
-      const response = await queryOverpass(buildViewpointQuery(tile), { fetchImpl, signal })
-      viewpoints = parseViewpoints(response)
-      console.log(
-        `[coolSpotService] tile ${i + 1}/${tiles.length}: ${response.elements.length} raw element(s), ${viewpoints.length} matched viewpoint(s)`
-      )
-      await cache.set(key, viewpoints, VIEWPOINT_CACHE_TTL_MS)
-      if (i < tiles.length - 1) await delay(INTER_TILE_DELAY_MS)
-    } else {
-      console.log(`[coolSpotService] tile ${i + 1}/${tiles.length}: cache hit (${viewpoints.length})`)
-    }
-
+  const byId = new Map<string, Viewpoint>()
+  for (const viewpoints of results) {
     for (const vp of viewpoints) byId.set(vp.id, vp)
   }
 

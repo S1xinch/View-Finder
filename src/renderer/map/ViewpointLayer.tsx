@@ -64,6 +64,8 @@ export function ViewpointLayer(): null {
           // Estimated/unconfirmed points read as slightly less certain than
           // an OSM-tagged, human-confirmed one.
           'circle-opacity': ['match', ['get', 'category'], 'computed_peak', 0.75, 1],
+          'circle-opacity-transition': { duration: 200 },
+          'circle-radius-transition': { duration: 200 },
           'circle-stroke-width': 2,
           'circle-stroke-color': '#ffffff'
         }

@@ -57,3 +57,19 @@ export function splitBBox(bbox: BBox, tileSizeDeg = TILE_SIZE_DEG): BBox[] {
   }
   return tiles
 }
+
+// Rounds a bbox outward to the nearest grid lines, without splitting it -
+// for a query that should stay a single request regardless of viewport
+// size (unlike splitBBox, which deliberately caps each piece's area for
+// Overpass fair-use), this is what gives it the same "small pans keep
+// hitting the same cache key" property as tiling does, without also
+// multiplying one query into several and turning a single pan into a
+// burst of simultaneous requests.
+export function snapBBoxToGrid(bbox: BBox, tileSizeDeg = TILE_SIZE_DEG): BBox {
+  return {
+    west: Math.floor(bbox.west / tileSizeDeg) * tileSizeDeg,
+    east: Math.ceil(bbox.east / tileSizeDeg) * tileSizeDeg,
+    south: Math.floor(bbox.south / tileSizeDeg) * tileSizeDeg,
+    north: Math.ceil(bbox.north / tileSizeDeg) * tileSizeDeg
+  }
+}

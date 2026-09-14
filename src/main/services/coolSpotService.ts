@@ -39,20 +39,31 @@ export async function getViewpoints(bbox: BBox): Promise<Viewpoint[]> {
   const tiles = splitBBox(bbox)
   const byId = new Map<string, Viewpoint>()
 
+  console.log(
+    `[coolSpotService] getViewpoints bbox=(${bbox.west.toFixed(3)},${bbox.south.toFixed(3)},${bbox.east.toFixed(3)},${bbox.north.toFixed(3)}) -> ${tiles.length} tile(s)`
+  )
+
   for (let i = 0; i < tiles.length; i++) {
     const tile = tiles[i]
     const key = tileKey(tile)
     let viewpoints = await cache.get<Viewpoint[]>(key)
 
     if (!viewpoints) {
+      console.log(`[coolSpotService] tile ${i + 1}/${tiles.length}: querying Overpass...`)
       const response = await queryOverpass(buildViewpointQuery(tile), { fetchImpl })
       viewpoints = parseViewpoints(response)
+      console.log(
+        `[coolSpotService] tile ${i + 1}/${tiles.length}: ${response.elements.length} raw element(s), ${viewpoints.length} matched viewpoint(s)`
+      )
       await cache.set(key, viewpoints, VIEWPOINT_CACHE_TTL_MS)
       if (i < tiles.length - 1) await delay(INTER_TILE_DELAY_MS)
+    } else {
+      console.log(`[coolSpotService] tile ${i + 1}/${tiles.length}: cache hit (${viewpoints.length})`)
     }
 
     for (const vp of viewpoints) byId.set(vp.id, vp)
   }
 
+  console.log(`[coolSpotService] getViewpoints returning ${byId.size} viewpoint(s) total`)
   return [...byId.values()]
 }

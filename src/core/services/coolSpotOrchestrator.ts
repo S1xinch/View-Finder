@@ -66,6 +66,20 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
   // independent request lifecycle.
   let currentRequest: AbortController | null = null
 
+  // getExcludedLandAreas has two independent callers that can legitimately
+  // both want the exact same snapped bbox at nearly the same instant: the
+  // "show private/farmland" overlay (getExcludedLand) and getViewpoints'
+  // own internal land-use fetch (for exclusion-filtering candidates),
+  // triggered off the same map moveend event by two separate hooks. With a
+  // cold cache both would otherwise fire an identical Overpass query at
+  // once - this tracks an in-flight fetch per cache key so the second
+  // caller awaits the first's result instead of duplicating the request.
+  // Deliberately not tied to either caller's AbortSignal - like a losing
+  // endpoint race in overpassClient.ts, a caller that's since been
+  // superseded just stops waiting on it, but the fetch itself keeps
+  // running and still populates the cache for whoever asks next.
+  const inFlightExcludedLand = new Map<string, Promise<ExcludedLandArea[]>>()
+
   async function fetchTile(tile: BBox, label: string, signal: AbortSignal): Promise<Viewpoint[]> {
     const key = bboxKey('viewpoints', tile)
     const cached = await cache.get<Viewpoint[]>(key)
@@ -216,13 +230,25 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
       return cached
     }
 
+    let fetchPromise = inFlightExcludedLand.get(key)
+    if (fetchPromise) {
+      console.log('[coolSpotOrchestrator] excluded land: joining an already in-flight fetch for this area')
+    } else {
+      fetchPromise = (async () => {
+        console.log('[coolSpotOrchestrator] querying land-use exclusions...')
+        const response = await queryOverpass(buildLandUseQuery(snapped), { fetchImpl })
+        const areas = parseExcludedLandAreas(response)
+        console.log(`[coolSpotOrchestrator] excluded land: ${areas.length} area(s)`)
+        await cache.set(key, areas, OSM_CACHE_TTL_MS)
+        return areas
+      })()
+      inFlightExcludedLand.set(key, fetchPromise)
+      fetchPromise.finally(() => inFlightExcludedLand.delete(key)).catch(() => {})
+    }
+
     try {
-      console.log('[coolSpotOrchestrator] querying land-use exclusions...')
-      const response = await queryOverpass(buildLandUseQuery(snapped), { fetchImpl, signal })
-      const areas = parseExcludedLandAreas(response)
-      console.log(`[coolSpotOrchestrator] excluded land: ${areas.length} area(s)`)
-      await cache.set(key, areas, OSM_CACHE_TTL_MS)
-      return areas
+      if (signal.aborted) throw new DOMException('Superseded by a newer viewport request', 'AbortError')
+      return await fetchPromise
     } catch (error) {
       if (isAbortError(error)) throw error
       console.warn('[coolSpotOrchestrator] land-use query failed (continuing without exclusion filtering):', error)

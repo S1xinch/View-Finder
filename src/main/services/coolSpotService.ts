@@ -1,4 +1,5 @@
-import { net } from 'electron'
+import { app, net } from 'electron'
+import { join } from 'node:path'
 import type { BBox } from '@core/geo/types'
 import { splitBBox } from '@core/geo/tiling'
 import { queryOverpass } from '@core/osm/overpassClient'
@@ -16,6 +17,8 @@ import { filterExcludedLand } from '@core/scoring/landUseFilter'
 import { scoreCandidates } from '@core/scoring/coolSpotScore'
 import { isReachableByRoad } from '@core/scoring/roadReachability'
 import { MemoryCacheStore } from '@core/cache/MemoryCacheStore'
+import { DiskCacheStore } from '@core/cache/DiskCacheStore'
+import { TieredCacheStore } from '@core/cache/TieredCacheStore'
 import type { CacheStore } from '@core/cache/CacheStore'
 
 // Confirmed by a real ConnectTimeoutError from a user's machine: Node's
@@ -37,7 +40,12 @@ const OSM_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000
 // "cache forever" within a single app session.
 const ELEVATION_CACHE_TTL_MS = 365 * 24 * 60 * 60 * 1000
 
-const cache: CacheStore = new MemoryCacheStore()
+// In-memory for same-session repeat pans (no disk I/O at all), backed by a
+// disk-backed store keyed under Electron's userData dir so the same
+// benefit carries across app restarts too - panning back to an area you
+// already visited last time you had the app open is then an instant local
+// read instead of a fresh Overpass/OpenTopoData round trip.
+const cache: CacheStore = new TieredCacheStore(new MemoryCacheStore(), new DiskCacheStore(join(app.getPath('userData'), 'cache')))
 
 // Only the most recently requested viewport's viewpoints are ever actually
 // wanted (the renderer already discards stale results client-side - see

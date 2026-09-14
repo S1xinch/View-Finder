@@ -112,6 +112,20 @@ body {
   color: var(--vf-accent);
 }
 
+.satellite-ctrl__button {
+  width: 29px;
+  height: 29px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--vf-text-primary);
+  cursor: pointer;
+}
+
+.satellite-ctrl__button--active {
+  color: var(--vf-accent);
+}
+
 /* Popup card for viewpoint/peak markers, matching the app's floating-card
    visual language instead of MapLibre's default popup chrome. */
 .maplibregl-popup.vf-popup .maplibregl-popup-content {

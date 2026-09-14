@@ -64,6 +64,9 @@ interface ViewFinderStore {
   setRouteLoading: () => void
   setRouteLoaded: (route: RouteResult) => void
   setRouteError: (message: string) => void
+
+  satelliteView: boolean
+  toggleSatelliteView: () => void
 }
 
 export const useViewFinderStore = create<ViewFinderStore>((set) => ({
@@ -113,7 +116,10 @@ export const useViewFinderStore = create<ViewFinderStore>((set) => ({
   clearRoute: () => set({ routeDestination: null, route: null, routeStatus: 'idle', routeError: null }),
   setRouteLoading: () => set({ routeStatus: 'loading', routeError: null }),
   setRouteLoaded: (route) => set({ route, routeStatus: 'ready', routeError: null }),
-  setRouteError: (message) => set({ routeStatus: 'error', routeError: message })
+  setRouteError: (message) => set({ routeStatus: 'error', routeError: message }),
+
+  satelliteView: false,
+  toggleSatelliteView: () => set((s) => ({ satelliteView: !s.satelliteView }))
 }))
 
 export { MAX_ROAD_DISTANCE_SLIDER_METERS }

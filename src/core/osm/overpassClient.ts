@@ -3,9 +3,14 @@
 // swapped in later without touching any caller.
 export const DEFAULT_OVERPASS_ENDPOINT = 'https://overpass-api.de/api/interpreter'
 
-// A well-known public mirror, tried after the primary endpoint exhausts its
-// retries. The shared free instances occasionally return 502/503/504 under
-// load; a different mirror is often unaffected.
+// A well-known public mirror. Confirmed in the field: one endpoint can be
+// silently unreachable (a firewall/ISP dropping packets to that specific
+// host rather than actively rejecting the connection - PingSucceeded but
+// TcpTestSucceeded:False) while the other connects fine, with no way to
+// know in advance which. Both are raced in parallel (see queryOverpass)
+// rather than tried strictly in order, so a dead endpoint costs nothing
+// beyond the round's timeout instead of blocking the whole request behind
+// it.
 const FALLBACK_OVERPASS_ENDPOINT = 'https://overpass.kumi.systems/api/interpreter'
 
 // Overpass's own [timeout:25] in the query only bounds how long the SERVER
@@ -16,7 +21,7 @@ const FALLBACK_OVERPASS_ENDPOINT = 'https://overpass.kumi.systems/api/interprete
 // from the UI. This bounds it explicitly.
 const REQUEST_TIMEOUT_MS = 20_000
 
-const MAX_ATTEMPTS_PER_ENDPOINT = 2
+const MAX_ATTEMPTS = 2
 const RETRY_DELAY_MS = 1_500
 
 export interface OverpassElement {
@@ -45,11 +50,28 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-function isRetryableStatus(status: number): boolean {
-  // 502/503/504 are the shared public instance being overloaded/restarting
-  // - worth a retry or a different mirror. Other statuses (4xx) won't
-  // change on retry.
-  return status === 502 || status === 503 || status === 504
+async function attemptEndpoint(
+  endpoint: string,
+  query: string,
+  fetchImpl: FetchLike,
+  signal: AbortSignal
+): Promise<OverpassResponse> {
+  const response = await fetchImpl(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/plain',
+      Accept: 'application/json',
+      'User-Agent': USER_AGENT
+    },
+    body: query,
+    signal
+  })
+
+  if (!response.ok) {
+    throw new Error(`Overpass request failed (${endpoint}): ${response.status} ${response.statusText}`)
+  }
+
+  return (await response.json()) as OverpassResponse
 }
 
 export async function queryOverpass(
@@ -62,41 +84,32 @@ export async function queryOverpass(
   const supersededSignal = options?.signal
   let lastError: unknown = new Error('Overpass request failed: no endpoints configured')
 
-  endpointLoop: for (const endpoint of endpoints) {
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_ENDPOINT; attempt++) {
-      if (supersededSignal?.aborted) {
-        throw new DOMException('Superseded by a newer viewport request', 'AbortError')
-      }
-
-      try {
-        const timeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
-        const signal = supersededSignal ? AbortSignal.any([timeoutSignal, supersededSignal]) : timeoutSignal
-
-        const response = await fetchImpl(endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'text/plain',
-            Accept: 'application/json',
-            'User-Agent': USER_AGENT
-          },
-          body: query,
-          signal
-        })
-
-        if (response.ok) {
-          return (await response.json()) as OverpassResponse
-        }
-
-        lastError = new Error(`Overpass request failed: ${response.status} ${response.statusText}`)
-        console.warn(`[overpassClient] ${endpoint} attempt ${attempt} -> ${response.status} ${response.statusText}`)
-        if (!isRetryableStatus(response.status)) continue endpointLoop
-      } catch (error) {
-        lastError = error
-        console.warn(`[overpassClient] ${endpoint} attempt ${attempt} -> ${String(error)}`)
-      }
-
-      if (attempt < MAX_ATTEMPTS_PER_ENDPOINT) await delay(retryDelayMs)
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    if (supersededSignal?.aborted) {
+      throw new DOMException('Superseded by a newer viewport request', 'AbortError')
     }
+
+    const timeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    const signal = supersededSignal ? AbortSignal.any([timeoutSignal, supersededSignal]) : timeoutSignal
+
+    try {
+      // Whichever endpoint responds successfully first wins; a losing
+      // endpoint (including one that's silently unreachable) just keeps
+      // running in the background until its own signal fires, but nothing
+      // waits on it.
+      return await Promise.any(endpoints.map((endpoint) => attemptEndpoint(endpoint, query, fetchImpl, signal)))
+    } catch (error) {
+      lastError = error
+      if (error instanceof AggregateError) {
+        error.errors.forEach((individual: unknown, i: number) => {
+          console.warn(`[overpassClient] ${endpoints[i]} attempt ${attempt} -> ${String(individual)}`)
+        })
+      } else {
+        console.warn(`[overpassClient] attempt ${attempt} -> ${String(error)}`)
+      }
+    }
+
+    if (attempt < MAX_ATTEMPTS) await delay(retryDelayMs)
   }
 
   throw lastError

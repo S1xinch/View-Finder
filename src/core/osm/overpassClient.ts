@@ -3,21 +3,26 @@
 // swapped in later without touching any caller.
 export const DEFAULT_OVERPASS_ENDPOINT = 'https://overpass-api.de/api/interpreter'
 
-// Well-known public mirrors. Confirmed in the field: one endpoint can be
+// A well-known public mirror. Confirmed in the field: one endpoint can be
 // unreachable for a given client - anything from a firewall/ISP dropping
 // packets to that specific host (PingSucceeded but TcpTestSucceeded:False)
 // to it actively refusing the connection - while another connects fine,
-// with no way to know in advance which. Also seen: overpass-api.de itself
-// returning connection-refused while its own kumi.systems mirror times out
-// for the same client at the same time - two DIFFERENT failure modes on
-// the two original endpoints simultaneously, which a straight retry of
-// either wouldn't fix. All configured endpoints are raced in parallel (see
+// with no way to know in advance which. Both are raced in parallel (see
 // queryOverpass) rather than tried strictly in order, so a dead endpoint
 // costs nothing beyond the round's timeout instead of blocking the whole
-// request behind it - a third mirror gives a real chance of getting
-// through even when two are unreachable at once for one client.
+// request behind it.
+//
+// A third mirror (overpass.osm.ch) was tried here briefly to cover the
+// case of both of these being unreachable for one client at once - but it
+// turned out to return a plausible-looking *empty* success response
+// (valid JSON, zero elements) for a real, dense urban bbox that
+// definitely has OSM data, rather than erroring - worse than not
+// racing it at all, since queryOverpass has no way to tell "genuinely
+// no data here" apart from "this mirror's data is incomplete for this
+// region", and Promise.any happily accepts either as a win. Removed
+// until a replacement mirror's coverage can actually be verified rather
+// than assumed from its being publicly listed somewhere.
 const FALLBACK_OVERPASS_ENDPOINT = 'https://overpass.kumi.systems/api/interpreter'
-const SECOND_FALLBACK_OVERPASS_ENDPOINT = 'https://overpass.osm.ch/api/interpreter'
 
 // Overpass's own [timeout:25] in the query only bounds how long the SERVER
 // spends running the query - it does nothing if the connection itself never
@@ -89,16 +94,22 @@ async function attemptEndpoint(
     throw new Error(`Overpass request failed (${endpoint}): ${response.status} ${response.statusText}`)
   }
 
-  return (await response.json()) as OverpassResponse
+  const parsed = (await response.json()) as OverpassResponse
+  // A valid, successful response from a mirror with bad/incomplete data
+  // for the queried region looks identical to a genuine "no results here"
+  // - logging which endpoint actually answered (and how many elements it
+  // returned) is the only way to tell those apart after the fact, and is
+  // what would have made the overpass.osm.ch regression diagnosable in
+  // one round instead of several - see the comment on FALLBACK_OVERPASS_ENDPOINT.
+  console.log(`[overpassClient] ${endpoint} answered with ${parsed.elements.length} element(s)`)
+  return parsed
 }
 
 export async function queryOverpass(
   query: string,
   options?: { endpoint?: string; fetchImpl?: FetchLike; retryDelayMs?: number; signal?: AbortSignal }
 ): Promise<OverpassResponse> {
-  const endpoints = options?.endpoint
-    ? [options.endpoint]
-    : [DEFAULT_OVERPASS_ENDPOINT, FALLBACK_OVERPASS_ENDPOINT, SECOND_FALLBACK_OVERPASS_ENDPOINT]
+  const endpoints = options?.endpoint ? [options.endpoint] : [DEFAULT_OVERPASS_ENDPOINT, FALLBACK_OVERPASS_ENDPOINT]
   const fetchImpl = options?.fetchImpl ?? fetch
   const retryDelayMs = options?.retryDelayMs ?? RETRY_DELAY_MS
   const supersededSignal = options?.signal

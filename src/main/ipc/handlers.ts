@@ -11,7 +11,14 @@ export function registerIpcHandlers(): void {
     platform: process.platform as AppPlatform
   }))
 
-  ipcMain.handle(IpcChannels.getViewpoints, (_event, bbox: BBox) => getViewpoints(bbox))
+  ipcMain.handle(IpcChannels.getViewpoints, async (_event, bbox: BBox) => {
+    try {
+      return await getViewpoints(bbox)
+    } catch (error) {
+      console.error('[ipc] getViewpoints failed:', error)
+      throw error
+    }
+  })
 
   // Phase 3+ will add more coolSpotService-backed handlers here
   // (getCoolSpots with elevation/scoring/land-use filtering).

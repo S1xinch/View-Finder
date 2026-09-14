@@ -1,6 +1,8 @@
 import { app, ipcMain } from 'electron'
+import type { BBox } from '@core/geo/types'
 import type { AppInfo, AppPlatform } from '@shared/ipcContract'
 import { IpcChannels } from './channels'
+import { getViewpoints } from '../services/coolSpotService'
 
 export function registerIpcHandlers(): void {
   ipcMain.handle(IpcChannels.getAppInfo, (): AppInfo => ({
@@ -9,6 +11,8 @@ export function registerIpcHandlers(): void {
     platform: process.platform as AppPlatform
   }))
 
-  // Phase 2+ will add coolSpotService-backed handlers here
-  // (getViewpoints, getCoolSpots, ...).
+  ipcMain.handle(IpcChannels.getViewpoints, (_event, bbox: BBox) => getViewpoints(bbox))
+
+  // Phase 3+ will add more coolSpotService-backed handlers here
+  // (getCoolSpots with elevation/scoring/land-use filtering).
 }

@@ -1,4 +1,11 @@
+import { useEffect, useState } from 'react'
 import { useViewFinderStore } from '../state/store'
+
+// Most fetches (especially cache hits, which are common while re-panning
+// over recently-viewed areas) resolve faster than this - showing a loading
+// message for those just adds visual noise/flicker rather than useful
+// feedback. Only reveal it if a fetch is still running after a brief delay.
+const LOADING_REVEAL_DELAY_MS = 250
 
 // Maps the raw error text (network error codes, HTTP statuses, etc.) to a
 // plain-language explanation. The exact original message is still kept as
@@ -23,24 +30,41 @@ export function StatusHint(): React.JSX.Element | null {
   const error = useViewFinderStore((s) => s.viewpointsError)
   const count = useViewFinderStore((s) => s.viewpoints.length)
 
+  const [showLoading, setShowLoading] = useState(false)
+
+  useEffect(() => {
+    if (status !== 'loading') {
+      setShowLoading(false)
+      return
+    }
+    const timer = setTimeout(() => setShowLoading(true), LOADING_REVEAL_DELAY_MS)
+    return () => clearTimeout(timer)
+  }, [status])
+
   if (status === 'zoomed-out') {
-    return <div className="vf-card status-hint">Zoom in to see viewpoints and peaks</div>
+    return (
+      <div className="vf-card status-hint status-hint--visible">Zoom in to see viewpoints and peaks</div>
+    )
   }
 
   if (status === 'loading') {
-    return <div className="vf-card status-hint">Loading viewpoints…</div>
+    return <div className={`vf-card status-hint ${showLoading ? 'status-hint--visible' : ''}`}>Loading viewpoints…</div>
   }
 
   if (status === 'error') {
     return (
-      <div className="vf-card status-hint status-hint--error" title={error ?? undefined}>
+      <div className="vf-card status-hint status-hint--error status-hint--visible" title={error ?? undefined}>
         {friendlyMessage(error ?? '')}
       </div>
     )
   }
 
   if (status === 'ready' && count === 0) {
-    return <div className="vf-card status-hint">No OSM-tagged viewpoints found in this area — try panning</div>
+    return (
+      <div className="vf-card status-hint status-hint--visible">
+        No OSM-tagged viewpoints found in this area — try panning
+      </div>
+    )
   }
 
   return null

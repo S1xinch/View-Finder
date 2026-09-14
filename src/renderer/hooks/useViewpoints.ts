@@ -3,8 +3,11 @@ import type { Map as MapLibreMap } from 'maplibre-gl'
 import { useViewFinderStore } from '../state/store'
 
 // Wait for panning/zooming to settle before fetching, so rapid movement
-// doesn't fire a burst of IPC calls that each fan out to Overpass.
-const DEBOUNCE_MS = 500
+// doesn't fire a burst of IPC calls that each fan out to Overpass. Kept
+// short since a superseded in-flight request now gets cancelled properly
+// (both client-side and on the network) rather than piling up, so there's
+// much less downside to reacting quickly.
+const DEBOUNCE_MS = 250
 
 // Below this zoom the viewport covers a huge area (a whole country/continent
 // at zoom ~4-5) — querying that would mean hundreds of Overpass tile

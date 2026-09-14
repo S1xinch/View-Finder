@@ -21,11 +21,20 @@ export function useViewpointsSync(map: MapLibreMap | null): void {
   const setLoaded = useViewFinderStore((s) => s.setViewpointsLoaded)
   const setError = useViewFinderStore((s) => s.setViewpointsError)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  // Requests can resolve out of order (e.g. a slow retry/fallback for a
+  // viewport the user has since panned away from finishing after a later,
+  // faster request already succeeded). Only the response matching the most
+  // recently *started* request is allowed to update the UI; anything else
+  // is a stale result and gets dropped.
+  const latestRequestIdRef = useRef(0)
 
   useEffect(() => {
     if (!map) return
 
     const fetchForCurrentView = (): void => {
+      const requestId = ++latestRequestIdRef.current
+      const isStale = (): boolean => latestRequestIdRef.current !== requestId
+
       // Wrapped in try/catch because a *synchronous* throw here (e.g. if
       // window.viewFinderAPI is somehow missing) would otherwise happen
       // outside the promise chain below - the .catch() wouldn't see it,
@@ -44,7 +53,7 @@ export function useViewpointsSync(map: MapLibreMap | null): void {
         }
 
         const bounds = map.getBounds()
-        console.log('[useViewpoints] requesting', bounds.toArray())
+        console.log(`[useViewpoints] requesting (request #${requestId})`, bounds.toArray())
         window.viewFinderAPI
           .getViewpoints({
             west: bounds.getWest(),
@@ -53,14 +62,23 @@ export function useViewpointsSync(map: MapLibreMap | null): void {
             north: bounds.getNorth()
           })
           .then((result) => {
+            if (isStale()) {
+              console.log(`[useViewpoints] discarding stale response for request #${requestId}`)
+              return
+            }
             console.log('[useViewpoints] received', result.length, 'viewpoint(s)')
             setLoaded(result)
           })
           .catch((error: unknown) => {
+            if (isStale()) {
+              console.log(`[useViewpoints] discarding stale error for request #${requestId}`)
+              return
+            }
             console.error('[useViewpoints] IPC call rejected', error)
             setError(error instanceof Error ? error.message : 'Failed to load viewpoints')
           })
       } catch (error) {
+        if (isStale()) return
         console.error('[useViewpoints] failed before IPC call was made', error)
         setError(error instanceof Error ? error.message : 'Failed to load viewpoints')
       }

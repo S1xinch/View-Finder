@@ -15,8 +15,16 @@ export function createMainWindow(): BrowserWindow {
     webPreferences: {
       preload: join(__dirname, '../preload/index.mjs'),
       contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true
+      nodeIntegration: false
+      // Deliberately not setting sandbox: true. Combined with an ES module
+      // preload script (which "type": "module" in package.json forces,
+      // i.e. index.mjs), Electron's sandboxed preload loading has had
+      // long-standing reliability issues across versions - in practice
+      // contextBridge.exposeInMainWorld silently never runs, leaving
+      // window.viewFinderAPI undefined in the renderer with no error
+      // anywhere. contextIsolation + nodeIntegration: false already give
+      // the renderer no direct Node/Electron access; sandbox is stricter
+      // still but not worth this failure mode for what this app needs.
     }
   })
 

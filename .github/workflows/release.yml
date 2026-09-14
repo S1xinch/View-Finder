@@ -46,11 +46,22 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      # softprops/action-gh-release infers its tag from the ref that
+      # triggered the run - that only exists for an actual `v*` tag push.
+      # A workflow_dispatch run (e.g. a manual re-run with no new tag)
+      # has no such ref, so it needs an explicit tag_name; the action
+      # creates that tag pointing at the current commit if it doesn't
+      # already exist.
+      - name: Read version
+        id: version
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v4
         with:
           path: dist
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.version.outputs.version }}
           prerelease: true
           files: dist/**/*
           generate_release_notes: true

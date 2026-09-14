@@ -3,11 +3,13 @@ import { MapView } from './map/MapView'
 import { ViewpointLayer } from './map/ViewpointLayer'
 import { PrivateLandLayer } from './map/PrivateLandLayer'
 import { LocationLayer } from './map/LocationLayer'
+import { RouteLayer } from './map/RouteLayer'
 import { VersionBadge } from './VersionBadge'
 import { Sidebar } from './panels/Sidebar'
 import { useViewpointsSync } from './hooks/useViewpoints'
 import { usePrivateLandSync } from './hooks/usePrivateLand'
 import { useGeolocation } from './hooks/useGeolocation'
+import { useRoute } from './hooks/useRoute'
 import { useViewFinderStore } from './state/store'
 import './styles/global.css'
 
@@ -16,6 +18,7 @@ export function App(): React.JSX.Element {
   useViewpointsSync(map)
   usePrivateLandSync(map)
   useGeolocation()
+  useRoute()
 
   // No-network sanity check for the preload/IPC bridge itself (getAppInfo
   // touches no external service), logged to the renderer console so it's
@@ -37,6 +40,7 @@ export function App(): React.JSX.Element {
       <PrivateLandLayer />
       <ViewpointLayer />
       <LocationLayer />
+      <RouteLayer />
       <Sidebar />
       <VersionBadge />
     </div>

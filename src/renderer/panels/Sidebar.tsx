@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useViewFinderStore } from '../state/store'
 import { CATEGORY_COLOR, CATEGORY_LABEL } from '../map/categoryStyle'
 import { Logo } from '../Logo'
+import { DirectionsView } from './DirectionsView'
 import type { Viewpoint } from '@shared/ipcContract'
 
 // Most fetches (especially cache hits, common while re-panning over
@@ -58,6 +59,8 @@ export function Sidebar(): React.JSX.Element {
   const toggleSidebar = useViewFinderStore((s) => s.toggleSidebar)
   const showPrivateLand = useViewFinderStore((s) => s.showPrivateLand)
   const togglePrivateLand = useViewFinderStore((s) => s.togglePrivateLand)
+  const routeDestination = useViewFinderStore((s) => s.routeDestination)
+  const requestRoute = useViewFinderStore((s) => s.requestRoute)
 
   const [showLoading, setShowLoading] = useState(false)
 
@@ -100,76 +103,95 @@ export function Sidebar(): React.JSX.Element {
         </button>
       </header>
 
-      <div className="sidebar__filters">
-        <label className="sidebar__filter">
-          <span>Min elevation: {filters.minElevationMeters} m</span>
-          <input
-            type="range"
-            min={0}
-            max={4000}
-            step={50}
-            value={filters.minElevationMeters}
-            onChange={(e) => setMinElevationMeters(Number(e.target.value))}
-          />
-        </label>
-        <label className="sidebar__filter">
-          <span>Max distance to road: {filters.maxDistanceToRoadMeters} m</span>
-          <input
-            type="range"
-            min={0}
-            max={500}
-            step={25}
-            value={filters.maxDistanceToRoadMeters}
-            onChange={(e) => setMaxDistanceToRoadMeters(Number(e.target.value))}
-          />
-        </label>
-        <label className="sidebar__checkbox">
-          <input type="checkbox" checked={showPrivateLand} onChange={togglePrivateLand} />
-          <span>Show private/farmland</span>
-        </label>
-      </div>
-
-      <div className="sidebar__body">
-        {status === 'zoomed-out' && <div className="sidebar__status">Zoom in to see viewpoints and peaks</div>}
-
-        {status === 'idle' && <div className="sidebar__status">Pan the map to find scenic spots</div>}
-
-        {status === 'loading' && showLoading && (
-          <div className="sidebar__status sidebar__status--loading">
-            Loading viewpoints…
-            <div className="sidebar__status-progress" />
+      {routeDestination ? (
+        <div className="sidebar__body">
+          <DirectionsView />
+        </div>
+      ) : (
+        <>
+          <div className="sidebar__filters">
+            <label className="sidebar__filter">
+              <span>Min elevation: {filters.minElevationMeters} m</span>
+              <input
+                type="range"
+                min={0}
+                max={4000}
+                step={50}
+                value={filters.minElevationMeters}
+                onChange={(e) => setMinElevationMeters(Number(e.target.value))}
+              />
+            </label>
+            <label className="sidebar__filter">
+              <span>Max distance to road: {filters.maxDistanceToRoadMeters} m</span>
+              <input
+                type="range"
+                min={0}
+                max={500}
+                step={25}
+                value={filters.maxDistanceToRoadMeters}
+                onChange={(e) => setMaxDistanceToRoadMeters(Number(e.target.value))}
+              />
+            </label>
+            <label className="sidebar__checkbox">
+              <input type="checkbox" checked={showPrivateLand} onChange={togglePrivateLand} />
+              <span>Show private/farmland</span>
+            </label>
           </div>
-        )}
 
-        {status === 'error' && (
-          <div className="sidebar__status sidebar__status--error" title={error ?? undefined}>
-            {friendlyMessage(error ?? '')}
+          <div className="sidebar__body">
+            {status === 'zoomed-out' && <div className="sidebar__status">Zoom in to see viewpoints and peaks</div>}
+
+            {status === 'idle' && <div className="sidebar__status">Pan the map to find scenic spots</div>}
+
+            {status === 'loading' && showLoading && (
+              <div className="sidebar__status sidebar__status--loading">
+                Loading viewpoints…
+                <div className="sidebar__status-progress" />
+              </div>
+            )}
+
+            {status === 'error' && (
+              <div className="sidebar__status sidebar__status--error" title={error ?? undefined}>
+                {friendlyMessage(error ?? '')}
+              </div>
+            )}
+
+            {status === 'ready' && (
+              <>
+                <div className="sidebar__count">
+                  {filtered.length} cool spot{filtered.length === 1 ? '' : 's'}
+                </div>
+                <div className="sidebar__rows">
+                  {filtered.length === 0 && <div className="sidebar__empty">No spots match these filters</div>}
+                  {filtered.map((vp) => (
+                    <div className="sidebar__row" key={vp.id}>
+                      <button type="button" className="sidebar__row-main" onClick={() => flyTo(vp)}>
+                        <span className="sidebar__dot" style={{ backgroundColor: CATEGORY_COLOR[vp.category] }} />
+                        <span className="sidebar__row-text">
+                          <span className="sidebar__row-name">{vp.name ?? CATEGORY_LABEL[vp.category]}</span>
+                          <span className="sidebar__row-detail">
+                            {vp.elevationMeters != null ? `${Math.round(vp.elevationMeters)} m` : 'elevation unknown'}{' '}
+                            · {formatDistance(vp.distanceToRoadMeters)}
+                          </span>
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className="sidebar__row-directions"
+                        onClick={() => requestRoute(vp)}
+                        aria-label={`Directions to ${vp.name ?? CATEGORY_LABEL[vp.category]}`}
+                        title="Directions"
+                      >
+                        →
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
-        )}
-
-        {status === 'ready' && (
-          <>
-            <div className="sidebar__count">
-              {filtered.length} cool spot{filtered.length === 1 ? '' : 's'}
-            </div>
-            <div className="sidebar__rows">
-              {filtered.length === 0 && <div className="sidebar__empty">No spots match these filters</div>}
-              {filtered.map((vp) => (
-                <button type="button" key={vp.id} className="sidebar__row" onClick={() => flyTo(vp)}>
-                  <span className="sidebar__dot" style={{ backgroundColor: CATEGORY_COLOR[vp.category] }} />
-                  <span className="sidebar__row-text">
-                    <span className="sidebar__row-name">{vp.name ?? CATEGORY_LABEL[vp.category]}</span>
-                    <span className="sidebar__row-detail">
-                      {vp.elevationMeters != null ? `${Math.round(vp.elevationMeters)} m` : 'elevation unknown'} ·{' '}
-                      {formatDistance(vp.distanceToRoadMeters)}
-                    </span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
+        </>
+      )}
     </aside>
   )
 }

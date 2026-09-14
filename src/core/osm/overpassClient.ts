@@ -3,15 +3,21 @@
 // swapped in later without touching any caller.
 export const DEFAULT_OVERPASS_ENDPOINT = 'https://overpass-api.de/api/interpreter'
 
-// A well-known public mirror. Confirmed in the field: one endpoint can be
-// silently unreachable (a firewall/ISP dropping packets to that specific
-// host rather than actively rejecting the connection - PingSucceeded but
-// TcpTestSucceeded:False) while the other connects fine, with no way to
-// know in advance which. Both are raced in parallel (see queryOverpass)
-// rather than tried strictly in order, so a dead endpoint costs nothing
-// beyond the round's timeout instead of blocking the whole request behind
-// it.
+// Well-known public mirrors. Confirmed in the field: one endpoint can be
+// unreachable for a given client - anything from a firewall/ISP dropping
+// packets to that specific host (PingSucceeded but TcpTestSucceeded:False)
+// to it actively refusing the connection - while another connects fine,
+// with no way to know in advance which. Also seen: overpass-api.de itself
+// returning connection-refused while its own kumi.systems mirror times out
+// for the same client at the same time - two DIFFERENT failure modes on
+// the two original endpoints simultaneously, which a straight retry of
+// either wouldn't fix. All configured endpoints are raced in parallel (see
+// queryOverpass) rather than tried strictly in order, so a dead endpoint
+// costs nothing beyond the round's timeout instead of blocking the whole
+// request behind it - a third mirror gives a real chance of getting
+// through even when two are unreachable at once for one client.
 const FALLBACK_OVERPASS_ENDPOINT = 'https://overpass.kumi.systems/api/interpreter'
+const SECOND_FALLBACK_OVERPASS_ENDPOINT = 'https://overpass.osm.ch/api/interpreter'
 
 // Overpass's own [timeout:25] in the query only bounds how long the SERVER
 // spends running the query - it does nothing if the connection itself never
@@ -90,7 +96,9 @@ export async function queryOverpass(
   query: string,
   options?: { endpoint?: string; fetchImpl?: FetchLike; retryDelayMs?: number; signal?: AbortSignal }
 ): Promise<OverpassResponse> {
-  const endpoints = options?.endpoint ? [options.endpoint] : [DEFAULT_OVERPASS_ENDPOINT, FALLBACK_OVERPASS_ENDPOINT]
+  const endpoints = options?.endpoint
+    ? [options.endpoint]
+    : [DEFAULT_OVERPASS_ENDPOINT, FALLBACK_OVERPASS_ENDPOINT, SECOND_FALLBACK_OVERPASS_ENDPOINT]
   const fetchImpl = options?.fetchImpl ?? fetch
   const retryDelayMs = options?.retryDelayMs ?? RETRY_DELAY_MS
   const supersededSignal = options?.signal

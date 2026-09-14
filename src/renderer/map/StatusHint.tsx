@@ -48,7 +48,12 @@ export function StatusHint(): React.JSX.Element | null {
   }
 
   if (status === 'loading') {
-    return <div className={`vf-card status-hint ${showLoading ? 'status-hint--visible' : ''}`}>Loading viewpoints…</div>
+    return (
+      <div className={`vf-card status-hint status-hint--loading ${showLoading ? 'status-hint--visible' : ''}`}>
+        Loading viewpoints…
+        <div className="status-hint__progress" />
+      </div>
+    )
   }
 
   if (status === 'error') {

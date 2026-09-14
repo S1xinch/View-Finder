@@ -32,28 +32,16 @@ describe('queryOverpass', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2)
   })
 
-  it('retries a full round if every endpoint fails, then succeeds', async () => {
-    let callCount = 0
-    const fetchImpl = vi.fn().mockImplementation(() => {
-      callCount++
-      // Both endpoints fail on round 1 (calls 1-2), both succeed on round 2 (calls 3-4)
-      if (callCount <= 2) {
-        return Promise.resolve(jsonResponse({}, { status: 503, statusText: 'Service Unavailable' }))
-      }
-      return Promise.resolve(jsonResponse({ elements: [] }))
-    })
-
-    const result = await queryOverpass('query', { fetchImpl, retryDelayMs: 0 })
-    expect(result).toEqual({ elements: [] })
-    expect(fetchImpl).toHaveBeenCalledTimes(4)
-  })
-
-  it('throws once every endpoint fails on every retry round', async () => {
+  it('throws once every endpoint fails, without a second retry round', async () => {
+    // A second full round used to double the worst-case wait on a genuine
+    // failure without reliably helping in practice - see the comment on
+    // MAX_ATTEMPTS in overpassClient.ts. One round races every endpoint in
+    // parallel; if all of them fail, it gives up rather than trying again.
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({}, { status: 500, statusText: 'Server Error' }))
 
     await expect(queryOverpass('query', { fetchImpl, retryDelayMs: 0 })).rejects.toThrow()
-    // 2 endpoints x 2 rounds
-    expect(fetchImpl).toHaveBeenCalledTimes(4)
+    // 2 endpoints x 1 round
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
   })
 
   it('aborts immediately (without calling fetch) if the signal is already aborted', async () => {

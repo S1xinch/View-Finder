@@ -152,6 +152,42 @@ body {
   color: #c2452d;
 }
 
+.status-hint--loading {
+  position: absolute; /* re-stated: .status-hint is already absolute, this
+    just keeps the rule grouped with the ones below that depend on it */
+  padding-bottom: 12px;
+  overflow: hidden;
+  border-radius: 14px;
+}
+
+.status-hint__progress {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  height: 3px;
+  width: 0;
+  border-radius: 2px;
+  background: var(--vf-text-secondary);
+  opacity: 0.45;
+  transform: translateX(-50%);
+  animation: status-hint-buffer 1.3s ease-in-out infinite;
+}
+
+/* Grows from the center outward to both edges, then shrinks back - reads
+   as an indeterminate "still working on it" buffer rather than a real
+   percentage, since we have no actual progress fraction to report. */
+@keyframes status-hint-buffer {
+  0% {
+    width: 0%;
+  }
+  50% {
+    width: 85%;
+  }
+  100% {
+    width: 0%;
+  }
+}
+
 .version-badge {
   position: absolute;
   bottom: 8px;

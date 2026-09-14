@@ -160,6 +160,11 @@ body {
   border-radius: 14px;
 }
 
+/* Two layers: this element fills from the center outward and then holds
+   at full width; its ::after sits on top and, once the fill is done,
+   grows from the center outward too - covering the fill with the card's
+   own background so it reads as "clearing from the inside out" rather
+   than the bar retracting back into itself. */
 .status-hint__progress {
   position: absolute;
   bottom: 0;
@@ -170,13 +175,22 @@ body {
   background: var(--vf-text-secondary);
   opacity: 0.45;
   transform: translateX(-50%);
-  animation: status-hint-buffer 1.3s ease-in-out infinite;
+  animation: status-hint-buffer-fill 1.6s ease-in-out infinite;
 }
 
-/* Grows from the center outward to both edges, then shrinks back - reads
-   as an indeterminate "still working on it" buffer rather than a real
-   percentage, since we have no actual progress fraction to report. */
-@keyframes status-hint-buffer {
+.status-hint__progress::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 0;
+  background: var(--vf-card-bg);
+  transform: translateX(-50%);
+  animation: status-hint-buffer-clear 1.6s ease-in-out infinite;
+}
+
+@keyframes status-hint-buffer-fill {
   0% {
     width: 0%;
   }
@@ -184,7 +198,17 @@ body {
     width: 85%;
   }
   100% {
+    width: 85%;
+  }
+}
+
+@keyframes status-hint-buffer-clear {
+  0%,
+  50% {
     width: 0%;
+  }
+  100% {
+    width: 100%;
   }
 }
 

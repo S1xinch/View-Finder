@@ -232,6 +232,16 @@ body {
   z-index: 10;
 }
 
+/* Same breakpoint as .sidebar's full-width mobile rule above - at that
+   width the full-width sidebar would sit right under this badge's
+   top-right corner, and this dev-info badge (version/commit/API status)
+   isn't worth the visual clutter on a small screen. */
+@media (max-width: 600px) {
+  .version-badge {
+    display: none;
+  }
+}
+
 /* Unified left sidebar (panels/Sidebar.tsx) - one persistent Apple-Maps-
    style panel replacing the old separate brand card, spot list, and
    status-hint floating pieces. */
@@ -245,6 +255,20 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* On a phone-width viewport, a fixed 320px sidebar would eat almost the
+   whole screen while still leaving an awkward sliver of map visible -
+   instead it takes the full width (minus the same side margins used
+   everywhere else) so it reads as a deliberate full-screen panel, the
+   same pattern Apple/Google Maps use on mobile (either the map or the
+   list has focus, not a cramped mix of both). */
+@media (max-width: 600px) {
+  .sidebar {
+    left: 16px;
+    right: 16px;
+    width: auto;
+  }
 }
 
 .sidebar__header {
@@ -577,6 +601,24 @@ body {
   color: var(--vf-text-primary);
 }
 
+/* Hands off to the device's own maps app for real turn-by-turn navigation
+   (live traffic, voice guidance) rather than our in-app route preview. */
+.sidebar__open-in-maps {
+  padding: 8px 12px;
+  font-family: var(--vf-font);
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+  background: var(--vf-accent);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.sidebar__open-in-maps:hover {
+  filter: brightness(1.08);
+}
+
 .sidebar__step {
   display: flex;
   align-items: flex-start;
@@ -603,20 +645,43 @@ body {
   font-weight: 600;
 }
 
-/* "Directions" button inside the map-pin popup (ViewpointLayer.tsx). */
-.vf-popup__directions {
+/* "Directions" / "Open in Maps" buttons inside the map-pin popup
+   (ViewpointLayer.tsx). */
+.vf-popup__actions {
+  display: flex;
+  gap: 6px;
   margin-top: 8px;
+}
+
+.vf-popup__directions,
+.vf-popup__open-in-maps {
   padding: 6px 12px;
   font-family: var(--vf-font);
   font-size: 12px;
   font-weight: 600;
-  color: #ffffff;
-  background: var(--vf-accent);
-  border: none;
   border-radius: 8px;
   cursor: pointer;
 }
 
+.vf-popup__directions {
+  color: #ffffff;
+  background: var(--vf-accent);
+  border: none;
+}
+
 .vf-popup__directions:hover {
   filter: brightness(1.08);
+}
+
+/* Secondary/outline style - hands off to the device's own maps app rather
+   than staying in-app, so it reads as a different kind of action than the
+   primary "Directions" button. */
+.vf-popup__open-in-maps {
+  color: var(--vf-accent);
+  background: transparent;
+  border: 1px solid var(--vf-accent);
+}
+
+.vf-popup__open-in-maps:hover {
+  background: var(--vf-hover);
 }

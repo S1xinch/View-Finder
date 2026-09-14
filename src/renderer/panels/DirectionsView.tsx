@@ -1,5 +1,6 @@
 import { useViewFinderStore } from '../state/store'
 import { CATEGORY_LABEL } from '../map/categoryStyle'
+import { buildExternalMapsUrl } from '../utils/mapLinks'
 
 function formatRouteDistance(meters: number): string {
   if (meters < 1000) return `${Math.round(meters)} m`
@@ -26,6 +27,15 @@ export function DirectionsView(): React.JSX.Element {
   const userLocation = useViewFinderStore((s) => s.userLocation)
   const locationError = useViewFinderStore((s) => s.locationError)
 
+  const openInMaps = (): void => {
+    if (!destination) return
+    window.open(
+      buildExternalMapsUrl({ lat: destination.lat, lng: destination.lng }, destination.name ?? undefined),
+      '_blank',
+      'noopener'
+    )
+  }
+
   return (
     <div className="sidebar__directions">
       <div className="sidebar__directions-header">
@@ -39,6 +49,13 @@ export function DirectionsView(): React.JSX.Element {
           <span className="sidebar__row-detail">Driving directions</span>
         </div>
       </div>
+
+      {/* Independent of our own route status - only needs the destination,
+          not a fetched OSRM route - so it's available immediately and
+          doesn't depend on location tracking either. */}
+      <button type="button" className="sidebar__open-in-maps" onClick={openInMaps}>
+        Open in Maps
+      </button>
 
       {status === 'loading' && !userLocation && locationError && (
         <div className="sidebar__status sidebar__status--error">{locationError}</div>

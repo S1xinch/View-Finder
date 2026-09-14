@@ -29,6 +29,8 @@ export function SpotListPanel(): React.JSX.Element | null {
   const setMaxDistanceToRoadMeters = useViewFinderStore((s) => s.setMaxDistanceToRoadMeters)
   const listPanelOpen = useViewFinderStore((s) => s.listPanelOpen)
   const toggleListPanel = useViewFinderStore((s) => s.toggleListPanel)
+  const showPrivateLand = useViewFinderStore((s) => s.showPrivateLand)
+  const togglePrivateLand = useViewFinderStore((s) => s.togglePrivateLand)
 
   const filtered = useMemo(
     () => viewpoints.filter((vp) => passesFilters(vp, filters.minElevationMeters, filters.maxDistanceToRoadMeters)),
@@ -43,7 +45,7 @@ export function SpotListPanel(): React.JSX.Element | null {
 
   return (
     <div className="spot-list">
-      <button type="button" className="vf-card spot-list__toggle" onClick={toggleListPanel}>
+      <button type="button" className="spot-list__toggle" onClick={toggleListPanel}>
         {filtered.length} cool spot{filtered.length === 1 ? '' : 's'} {listPanelOpen ? '▲' : '▼'}
       </button>
 
@@ -71,6 +73,10 @@ export function SpotListPanel(): React.JSX.Element | null {
                 value={filters.maxDistanceToRoadMeters}
                 onChange={(e) => setMaxDistanceToRoadMeters(Number(e.target.value))}
               />
+            </label>
+            <label className="spot-list__checkbox">
+              <input type="checkbox" checked={showPrivateLand} onChange={togglePrivateLand} />
+              <span>Show private/farmland</span>
             </label>
           </div>
 

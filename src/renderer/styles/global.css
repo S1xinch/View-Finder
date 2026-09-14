@@ -60,11 +60,11 @@ body {
 .brand-card {
   position: absolute;
   top: 16px;
-  left: 16px;
-  padding: 10px 16px;
+  right: 16px;
+  padding: 8px 16px 8px 10px;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 10px;
   background: var(--vf-card-bg);
   border: 1px solid var(--vf-card-border);
   border-radius: 14px;
@@ -72,6 +72,12 @@ body {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   pointer-events: none;
+}
+
+.brand-card__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .brand-card__title {
@@ -277,25 +283,26 @@ body {
   max-width: 300px;
 }
 
+/* Solid accent color, not the translucent vf-card treatment used
+   everywhere else - this is the one floating element meant to read as
+   "press me, there's something worth seeing here" rather than passive
+   status text. */
 .spot-list__toggle {
   align-self: flex-start;
-  padding: 8px 14px;
+  padding: 9px 16px;
   font-family: var(--vf-font);
   font-size: 13px;
   font-weight: 600;
-  color: var(--vf-text-primary);
-  border: 1px solid var(--vf-card-border);
+  color: #ffffff;
+  background: var(--vf-accent);
+  border: none;
+  border-radius: 14px;
+  box-shadow: var(--vf-card-shadow);
   cursor: pointer;
 }
 
 .spot-list__toggle:hover {
-  background: rgba(0, 0, 0, 0.03);
-}
-
-@media (prefers-color-scheme: dark) {
-  .spot-list__toggle:hover {
-    background: rgba(255, 255, 255, 0.06);
-  }
+  filter: brightness(1.08);
 }
 
 .spot-list__panel {
@@ -326,6 +333,19 @@ body {
 
 .spot-list__filter input[type='range'] {
   width: 100%;
+  accent-color: var(--vf-accent);
+}
+
+.spot-list__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--vf-text-primary);
+  cursor: pointer;
+}
+
+.spot-list__checkbox input[type='checkbox'] {
   accent-color: var(--vf-accent);
 }
 

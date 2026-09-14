@@ -73,3 +73,15 @@ export function snapBBoxToGrid(bbox: BBox, tileSizeDeg = TILE_SIZE_DEG): BBox {
     north: Math.ceil(bbox.north / tileSizeDeg) * tileSizeDeg
   }
 }
+
+// splitBBox's tiles are always full grid cells, so querying them returns
+// results for however much extra area those cells cover beyond the
+// original bbox - at typical zoom levels a 0.25 degree tile is
+// considerably bigger than the actual viewport. Callers that tile purely
+// for cache-friendliness (not because they actually want the padded
+// area) should filter results back down to the real bbox with this
+// before showing/counting them, or the UI ends up listing/searching
+// spots the user can't actually see on screen.
+export function isPointInBBox(point: { lat: number; lng: number }, bbox: BBox): boolean {
+  return point.lng >= bbox.west && point.lng <= bbox.east && point.lat >= bbox.south && point.lat <= bbox.north
+}

@@ -1,5 +1,5 @@
 import type { BBox } from '../geo/types'
-import { splitBBox, snapBBoxToGrid } from '../geo/tiling'
+import { splitBBox, snapBBoxToGrid, isPointInBBox } from '../geo/tiling'
 import { queryOverpass, type FetchLike } from '../osm/overpassClient'
 import { buildViewpointQuery, parseViewpoints } from '../osm/viewpointQueries'
 import { buildRoadQuery, parseRoads } from '../osm/roadQueries'
@@ -136,7 +136,14 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
       throw firstRejection?.status === 'rejected' ? firstRejection.reason : new Error('All viewpoint tile requests failed')
     }
 
-    return [...byId.values()]
+    // Tiles are always full grid cells (see splitBBox), so they cover more
+    // area than the viewport actually asked for - without this, panning a
+    // little reveals spots that were already counted/listed while still
+    // off-screen (fetched as part of a wider tile), which reads as the
+    // search covering an area bigger than what's on screen. Trimming back
+    // to the real bbox here keeps the wider tiles' caching benefit while
+    // making results match what the viewport actually shows.
+    return [...byId.values()].filter((vp) => isPointInBBox(vp, bbox))
   }
 
   // Computes likely scenic high points directly from elevation data, so

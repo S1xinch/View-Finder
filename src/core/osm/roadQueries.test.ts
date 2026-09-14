@@ -35,6 +35,7 @@ describe('parseRoads', () => {
     })
 
     expect(roads).toHaveLength(1)
+    expect(roads[0].id).toBe('osm:way:1')
     expect(roads[0].coordinates).toEqual([
       [150.3, -33.7],
       [150.31, -33.71]

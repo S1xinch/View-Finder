@@ -140,21 +140,41 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
   // load-bearing": if either fetch fails, we fall back to not filtering
   // on it at all (see roadReachability.ts / landUseFilter.ts) rather than
   // blocking the whole response on a secondary data source.
-  async function getRoads(bbox: BBox, signal: AbortSignal): Promise<RoadSegment[]> {
-    const key = bboxKey('roads', bbox)
+  // Tiled to the same fixed grid as viewpoints (see splitBBox) so a small
+  // pan reuses roads/land-use tiles it already has instead of re-querying
+  // the whole viewport from scratch every time - previously these were
+  // single whole-viewport queries keyed by the viewport's own (constantly
+  // shifting) bounds, so they never hit cache across pans at all and were
+  // a steady, avoidable contributor to Overpass rate-limiting during
+  // normal panning.
+  async function fetchRoadTile(tile: BBox, label: string, signal: AbortSignal): Promise<RoadSegment[]> {
+    const key = bboxKey('roads', tile)
     const cached = await cache.get<RoadSegment[]>(key)
     if (cached) {
-      console.log(`[coolSpotOrchestrator] roads: cache hit (${cached.length})`)
+      console.log(`[coolSpotOrchestrator] ${label}: cache hit (${cached.length})`)
       return cached
     }
 
+    console.log(`[coolSpotOrchestrator] ${label}: querying Overpass...`)
+    const response = await queryOverpass(buildRoadQuery(tile), { fetchImpl, signal })
+    const roads = parseRoads(response)
+    console.log(`[coolSpotOrchestrator] ${label}: ${roads.length} segment(s)`)
+    await cache.set(key, roads, OSM_CACHE_TTL_MS)
+    return roads
+  }
+
+  async function getRoads(bbox: BBox, signal: AbortSignal): Promise<RoadSegment[]> {
+    const tiles = splitBBox(bbox)
+
     try {
-      console.log('[coolSpotOrchestrator] querying roads...')
-      const response = await queryOverpass(buildRoadQuery(bbox), { fetchImpl, signal })
-      const roads = parseRoads(response)
-      console.log(`[coolSpotOrchestrator] roads: ${roads.length} segment(s)`)
-      await cache.set(key, roads, OSM_CACHE_TTL_MS)
-      return roads
+      const results = await Promise.all(
+        tiles.map((tile, i) => fetchRoadTile(tile, `roads tile ${i + 1}/${tiles.length}`, signal))
+      )
+      const byId = new Map<string, RoadSegment>()
+      for (const roads of results) {
+        for (const road of roads) byId.set(road.id, road)
+      }
+      return [...byId.values()]
     } catch (error) {
       if (isAbortError(error)) throw error
       console.warn('[coolSpotOrchestrator] road query failed (continuing without road-reachability filtering):', error)
@@ -162,21 +182,34 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
     }
   }
 
-  async function getExcludedLandAreas(bbox: BBox, signal: AbortSignal): Promise<ExcludedLandArea[]> {
-    const key = bboxKey('excludedLand', bbox)
+  async function fetchLandUseTile(tile: BBox, label: string, signal: AbortSignal): Promise<ExcludedLandArea[]> {
+    const key = bboxKey('excludedLand', tile)
     const cached = await cache.get<ExcludedLandArea[]>(key)
     if (cached) {
-      console.log(`[coolSpotOrchestrator] excluded land: cache hit (${cached.length})`)
+      console.log(`[coolSpotOrchestrator] ${label}: cache hit (${cached.length})`)
       return cached
     }
 
+    console.log(`[coolSpotOrchestrator] ${label}: querying Overpass...`)
+    const response = await queryOverpass(buildLandUseQuery(tile), { fetchImpl, signal })
+    const areas = parseExcludedLandAreas(response)
+    console.log(`[coolSpotOrchestrator] ${label}: ${areas.length} area(s)`)
+    await cache.set(key, areas, OSM_CACHE_TTL_MS)
+    return areas
+  }
+
+  async function getExcludedLandAreas(bbox: BBox, signal: AbortSignal): Promise<ExcludedLandArea[]> {
+    const tiles = splitBBox(bbox)
+
     try {
-      console.log('[coolSpotOrchestrator] querying land-use exclusions...')
-      const response = await queryOverpass(buildLandUseQuery(bbox), { fetchImpl, signal })
-      const areas = parseExcludedLandAreas(response)
-      console.log(`[coolSpotOrchestrator] excluded land: ${areas.length} area(s)`)
-      await cache.set(key, areas, OSM_CACHE_TTL_MS)
-      return areas
+      const results = await Promise.all(
+        tiles.map((tile, i) => fetchLandUseTile(tile, `land-use tile ${i + 1}/${tiles.length}`, signal))
+      )
+      const byId = new Map<string, ExcludedLandArea>()
+      for (const areas of results) {
+        for (const area of areas) byId.set(area.id, area)
+      }
+      return [...byId.values()]
     } catch (error) {
       if (isAbortError(error)) throw error
       console.warn('[coolSpotOrchestrator] land-use query failed (continuing without exclusion filtering):', error)

@@ -88,3 +88,32 @@ body {
 .maplibregl-ctrl-attrib {
   font-size: 10px;
 }
+
+/* Popup card for viewpoint/peak markers, matching the app's floating-card
+   visual language instead of MapLibre's default popup chrome. */
+.maplibregl-popup.vf-popup .maplibregl-popup-content {
+  background: var(--vf-card-bg);
+  border: 1px solid var(--vf-card-border);
+  border-radius: 12px;
+  box-shadow: var(--vf-card-shadow);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  padding: 10px 14px;
+  font-family: var(--vf-font);
+  color: var(--vf-text-primary);
+}
+
+.maplibregl-popup.vf-popup .maplibregl-popup-tip {
+  display: none;
+}
+
+.vf-popup__title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.vf-popup__category,
+.vf-popup__elevation {
+  font-size: 12px;
+  color: var(--vf-text-secondary);
+}

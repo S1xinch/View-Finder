@@ -2,10 +2,12 @@ import { useEffect, useRef } from 'react'
 import { Map as MapLibreMap, NavigationControl } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { DEFAULT_VIEW, MAP_STYLE_URL } from './mapStyle'
+import { useViewFinderStore } from '../state/store'
 
 export function MapView(): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
+  const setMap = useViewFinderStore((s) => s.setMap)
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
@@ -20,12 +22,14 @@ export function MapView(): React.JSX.Element {
 
     map.addControl(new NavigationControl({ showCompass: false }), 'bottom-right')
     mapRef.current = map
+    setMap(map)
 
     return () => {
+      setMap(null)
       map.remove()
       mapRef.current = null
     }
-  }, [])
+  }, [setMap])
 
   return <div ref={containerRef} className="map-view" />
 }

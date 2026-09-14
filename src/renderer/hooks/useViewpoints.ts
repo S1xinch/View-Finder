@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import type { Map as MapLibreMap } from 'maplibre-gl'
-import type { Viewpoint } from '@shared/ipcContract'
+import { useViewFinderStore } from '../state/store'
 
 // Wait for panning/zooming to settle before fetching, so rapid movement
 // doesn't fire a burst of IPC calls that each fan out to Overpass.
@@ -12,8 +12,14 @@ const DEBOUNCE_MS = 500
 // also better UX (a screen full of markers at continent scale isn't useful).
 export const MIN_ZOOM_FOR_VIEWPOINTS = 8
 
-export function useViewpoints(map: MapLibreMap | null): Viewpoint[] {
-  const [viewpoints, setViewpoints] = useState<Viewpoint[]>([])
+// Performs the viewport -> Overpass fetch side effect and writes results
+// into the shared store. Call this once near the top of the tree; anything
+// that needs the data or its loading/error state reads it from the store.
+export function useViewpointsSync(map: MapLibreMap | null): void {
+  const setLoading = useViewFinderStore((s) => s.setViewpointsLoading)
+  const setZoomedOut = useViewFinderStore((s) => s.setViewpointsZoomedOut)
+  const setLoaded = useViewFinderStore((s) => s.setViewpointsLoaded)
+  const setError = useViewFinderStore((s) => s.setViewpointsError)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>()
 
   useEffect(() => {
@@ -21,10 +27,11 @@ export function useViewpoints(map: MapLibreMap | null): Viewpoint[] {
 
     const fetchForCurrentView = (): void => {
       if (map.getZoom() < MIN_ZOOM_FOR_VIEWPOINTS) {
-        setViewpoints([])
+        setZoomedOut()
         return
       }
 
+      setLoading()
       const bounds = map.getBounds()
       window.viewFinderAPI
         .getViewpoints({
@@ -33,8 +40,11 @@ export function useViewpoints(map: MapLibreMap | null): Viewpoint[] {
           east: bounds.getEast(),
           north: bounds.getNorth()
         })
-        .then(setViewpoints)
-        .catch((error: unknown) => console.error('Failed to load viewpoints', error))
+        .then(setLoaded)
+        .catch((error: unknown) => {
+          console.error('Failed to load viewpoints', error)
+          setError(error instanceof Error ? error.message : 'Failed to load viewpoints')
+        })
     }
 
     const onMoveEnd = (): void => {
@@ -50,7 +60,5 @@ export function useViewpoints(map: MapLibreMap | null): Viewpoint[] {
       map.off('moveend', onMoveEnd)
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [map])
-
-  return viewpoints
+  }, [map, setLoading, setZoomedOut, setLoaded, setError])
 }

@@ -118,7 +118,7 @@ body {
   color: var(--vf-text-secondary);
 }
 
-.zoom-hint {
+.status-hint {
   position: absolute;
   bottom: 24px;
   left: 50%;
@@ -127,4 +127,10 @@ body {
   font-size: 13px;
   color: var(--vf-text-secondary);
   pointer-events: none;
+  max-width: min(80vw, 420px);
+  text-align: center;
+}
+
+.status-hint--error {
+  color: #c2452d;
 }

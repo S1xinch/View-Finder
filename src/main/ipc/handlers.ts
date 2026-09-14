@@ -18,7 +18,15 @@ export function registerIpcHandlers(): void {
     try {
       return await getViewpoints(bbox)
     } catch (error) {
-      console.error('[ipc] getViewpoints failed:', error)
+      // A superseded-by-a-newer-request abort is expected/benign during
+      // rapid panning, not a real failure - log it quietly rather than as
+      // an error, and the renderer's staleness guard already drops it
+      // silently from the UI either way.
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('[ipc] getViewpoints aborted (superseded)')
+      } else {
+        console.error('[ipc] getViewpoints failed:', error)
+      }
       throw error
     }
   })

@@ -54,16 +54,24 @@ function isRetryableStatus(status: number): boolean {
 
 export async function queryOverpass(
   query: string,
-  options?: { endpoint?: string; fetchImpl?: FetchLike; retryDelayMs?: number }
+  options?: { endpoint?: string; fetchImpl?: FetchLike; retryDelayMs?: number; signal?: AbortSignal }
 ): Promise<OverpassResponse> {
   const endpoints = options?.endpoint ? [options.endpoint] : [DEFAULT_OVERPASS_ENDPOINT, FALLBACK_OVERPASS_ENDPOINT]
   const fetchImpl = options?.fetchImpl ?? fetch
   const retryDelayMs = options?.retryDelayMs ?? RETRY_DELAY_MS
+  const supersededSignal = options?.signal
   let lastError: unknown = new Error('Overpass request failed: no endpoints configured')
 
   endpointLoop: for (const endpoint of endpoints) {
     for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_ENDPOINT; attempt++) {
+      if (supersededSignal?.aborted) {
+        throw new DOMException('Superseded by a newer viewport request', 'AbortError')
+      }
+
       try {
+        const timeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+        const signal = supersededSignal ? AbortSignal.any([timeoutSignal, supersededSignal]) : timeoutSignal
+
         const response = await fetchImpl(endpoint, {
           method: 'POST',
           headers: {
@@ -72,7 +80,7 @@ export async function queryOverpass(
             'User-Agent': USER_AGENT
           },
           body: query,
-          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+          signal
         })
 
         if (response.ok) {

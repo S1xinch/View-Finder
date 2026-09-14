@@ -12,7 +12,7 @@ export interface BBox {
   north: number
 }
 
-export type ViewpointCategory = 'viewpoint' | 'peak' | 'alpine_hut'
+export type ViewpointCategory = 'viewpoint' | 'peak' | 'alpine_hut' | 'computed_peak'
 
 export interface Viewpoint {
   id: string

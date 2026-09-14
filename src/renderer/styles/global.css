@@ -274,7 +274,10 @@ body {
 
 .spot-list {
   position: absolute;
-  top: 78px;
+  /* Was pushed down to clear the brand card when both lived top-left;
+     the brand card moved to top-right, so this can sit flush in the
+     corner like everything else does. */
+  top: 16px;
   left: 16px;
   z-index: 5;
   display: flex;

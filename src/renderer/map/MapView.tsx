@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Map as MapLibreMap, NavigationControl } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { DEFAULT_VIEW, MAP_STYLE_URL } from './mapStyle'
+import { DEFAULT_VIEW, MAP_STYLE_URL, boostRoadContrast } from './mapStyle'
 import { useViewFinderStore } from '../state/store'
 
 export function MapView(): React.JSX.Element {
@@ -21,6 +21,8 @@ export function MapView(): React.JSX.Element {
     })
 
     map.addControl(new NavigationControl({ showCompass: false }), 'bottom-right')
+    if (map.isStyleLoaded()) boostRoadContrast(map)
+    else map.once('load', () => boostRoadContrast(map))
     mapRef.current = map
     setMap(map)
 

@@ -25,10 +25,6 @@ out geom;`
 }
 
 export interface RoadSegment {
-  // Stable across tiles (unlike array position), so results from
-  // different tiles - a way spanning a tile boundary matches the query in
-  // more than one tile - can be deduped by id instead of double-counted.
-  id: string
   // [lng, lat] pairs, matching GeoJSON coordinate order (turf expects this).
   coordinates: [number, number][]
 }
@@ -40,7 +36,6 @@ export function parseRoads(response: OverpassResponse): RoadSegment[] {
     if (el.type !== 'way' || !el.geometry || el.geometry.length < 2) continue
 
     roads.push({
-      id: `osm:way:${el.id}`,
       coordinates: el.geometry.map((node) => [node.lon, node.lat])
     })
   }

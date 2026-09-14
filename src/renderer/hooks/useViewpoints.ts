@@ -6,6 +6,12 @@ import type { Viewpoint } from '@shared/ipcContract'
 // doesn't fire a burst of IPC calls that each fan out to Overpass.
 const DEBOUNCE_MS = 500
 
+// Below this zoom the viewport covers a huge area (a whole country/continent
+// at zoom ~4-5) — querying that would mean hundreds of Overpass tile
+// requests. Instead we just wait for the user to zoom in further, which is
+// also better UX (a screen full of markers at continent scale isn't useful).
+export const MIN_ZOOM_FOR_VIEWPOINTS = 8
+
 export function useViewpoints(map: MapLibreMap | null): Viewpoint[] {
   const [viewpoints, setViewpoints] = useState<Viewpoint[]>([])
   const debounceRef = useRef<ReturnType<typeof setTimeout>>()
@@ -14,6 +20,11 @@ export function useViewpoints(map: MapLibreMap | null): Viewpoint[] {
     if (!map) return
 
     const fetchForCurrentView = (): void => {
+      if (map.getZoom() < MIN_ZOOM_FOR_VIEWPOINTS) {
+        setViewpoints([])
+        return
+      }
+
       const bounds = map.getBounds()
       window.viewFinderAPI
         .getViewpoints({

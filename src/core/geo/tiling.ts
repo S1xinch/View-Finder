@@ -4,6 +4,14 @@ import type { BBox } from './types'
 // by splitting a large viewport bbox into a grid of smaller tiles.
 const MAX_TILE_AREA_DEG2 = 0.0625 // ~0.25° x 0.25°
 
+// Hard safety cap: without this, a very zoomed-out viewport (e.g. a whole
+// continent) computes a grid side in the hundreds, producing tens of
+// thousands of tiles that would be queried one at a time with a delay
+// between each — effectively hanging forever. Callers should also gate on
+// zoom level before fetching at all (see renderer/hooks/useViewpoints.ts);
+// this cap is the last line of defense.
+const MAX_GRID_SIDE = 8 // at most 8x8 = 64 tiles
+
 export function splitBBox(bbox: BBox, maxAreaDeg2 = MAX_TILE_AREA_DEG2): BBox[] {
   const width = bbox.east - bbox.west
   const height = bbox.north - bbox.south
@@ -12,7 +20,7 @@ export function splitBBox(bbox: BBox, maxAreaDeg2 = MAX_TILE_AREA_DEG2): BBox[] 
   const area = width * height
   if (area <= maxAreaDeg2) return [bbox]
 
-  const cols = Math.max(1, Math.ceil(Math.sqrt(area / maxAreaDeg2)))
+  const cols = Math.min(MAX_GRID_SIDE, Math.max(1, Math.ceil(Math.sqrt(area / maxAreaDeg2))))
   const rows = cols
   const tileWidth = width / cols
   const tileHeight = height / rows

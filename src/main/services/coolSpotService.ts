@@ -1,3 +1,4 @@
+import { net } from 'electron'
 import type { BBox } from '@core/geo/types'
 import { splitBBox } from '@core/geo/tiling'
 import { queryOverpass } from '@core/osm/overpassClient'
@@ -5,6 +6,16 @@ import { buildViewpointQuery, parseViewpoints } from '@core/osm/viewpointQueries
 import type { Viewpoint } from '@core/osm/types'
 import { MemoryCacheStore } from '@core/cache/MemoryCacheStore'
 import type { CacheStore } from '@core/cache/CacheStore'
+
+// Confirmed by a real ConnectTimeoutError from a user's machine: Node's
+// plain fetch (undici) genuinely cannot reach overpass-api.de directly on
+// some networks/VPNs, while net.fetch (Chromium's network stack, same path
+// the renderer's already-working map tile requests use) does connect. So
+// net.fetch is needed for connectivity; the Accept/User-Agent headers in
+// overpassClient.ts are needed on top of that to avoid a 406 from
+// Overpass's front end, which net.fetch's browser-style request triggered
+// without them.
+const fetchImpl = net.fetch.bind(net)
 
 // OSM tags like tourism=viewpoint change slowly, so a long TTL keeps repeat
 // pans cheap without the data going stale in any way a user would notice.
@@ -40,7 +51,7 @@ export async function getViewpoints(bbox: BBox): Promise<Viewpoint[]> {
 
     if (!viewpoints) {
       console.log(`[coolSpotService] tile ${i + 1}/${tiles.length}: querying Overpass...`)
-      const response = await queryOverpass(buildViewpointQuery(tile))
+      const response = await queryOverpass(buildViewpointQuery(tile), { fetchImpl })
       viewpoints = parseViewpoints(response)
       console.log(
         `[coolSpotService] tile ${i + 1}/${tiles.length}: ${response.elements.length} raw element(s), ${viewpoints.length} matched viewpoint(s)`

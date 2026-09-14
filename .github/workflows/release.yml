@@ -1,0 +1,56 @@
+name: Release
+
+# Builds installers on real Windows/Mac runners (electron-builder's .dmg
+# target needs actual macOS, which this repo's dev sandbox can't provide)
+# and publishes them as a GitHub Release. Triggered by pushing a `v*` tag,
+# or manually via workflow_dispatch for a re-run without a new tag.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            build_script: build:win
+            artifact_glob: release/*.exe
+            artifact_name: windows-installer
+          - os: macos-latest
+            build_script: build:mac
+            artifact_glob: release/*.dmg
+            artifact_name: mac-installer
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run ${{ matrix.build_script }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_glob }}
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          prerelease: true
+          files: dist/**/*
+          generate_release_notes: true

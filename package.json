@@ -1,0 +1,40 @@
+{
+  "name": "view-finder",
+  "version": "1.0.0",
+  "description": "Find scenic, car-reachable high-elevation spots by combining terrain data with OpenStreetMap.",
+  "main": "./out/main/index.js",
+  "author": "s1xinch",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && electron-vite build",
+    "preview": "electron-vite preview",
+    "lint": "eslint . --ext .ts,.tsx",
+    "test:core": "vitest run",
+    "build:win": "npm run build && electron-builder --win",
+    "build:mac": "npm run build && electron-builder --mac"
+  },
+  "dependencies": {
+    "@turf/turf": "^7.2.0",
+    "maplibre-gl": "^6.9.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.24",
+    "@types/react-dom": "^18.3.7",
+    "@typescript-eslint/eslint-plugin": "^8.46.2",
+    "@typescript-eslint/parser": "^8.46.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^44.3.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^5.0.0",
+    "eslint": "^8.57.1",
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.9"
+  }
+}

@@ -1,8 +1,10 @@
 import { app, ipcMain } from 'electron'
 import type { BBox } from '@core/geo/types'
+import type { LatLng } from '@core/routing/types'
 import type { AppInfo, AppPlatform } from '@shared/ipcContract'
 import { IpcChannels } from './channels'
 import { getExcludedLand, getViewpoints } from '../services/coolSpotService'
+import { getRoute } from '../services/routeService'
 
 export function registerIpcHandlers(): void {
   ipcMain.handle(IpcChannels.getAppInfo, (): AppInfo => {
@@ -36,6 +38,19 @@ export function registerIpcHandlers(): void {
       return await getExcludedLand(bbox)
     } catch (error) {
       console.error('[ipc] getExcludedLand failed:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle(IpcChannels.getRoute, async (_event, from: LatLng, to: LatLng) => {
+    try {
+      return await getRoute(from, to)
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('[ipc] getRoute aborted (superseded)')
+      } else {
+        console.error('[ipc] getRoute failed:', error)
+      }
       throw error
     }
   })

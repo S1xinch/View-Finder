@@ -41,8 +41,26 @@ export interface AppInfo {
   platform: AppPlatform
 }
 
+export interface LatLng {
+  lat: number
+  lng: number
+}
+
+export interface RouteStep {
+  instruction: string
+  distanceMeters: number
+}
+
+export interface RouteResult {
+  coordinates: [number, number][]
+  distanceMeters: number
+  durationSeconds: number
+  steps: RouteStep[]
+}
+
 export interface ViewFinderApi {
   getAppInfo: () => Promise<AppInfo>
   getViewpoints: (bbox: BBox) => Promise<Viewpoint[]>
   getExcludedLand: (bbox: BBox) => Promise<ExcludedLandArea[]>
+  getRoute: (from: LatLng, to: LatLng) => Promise<RouteResult>
 }

@@ -4,6 +4,8 @@ import { useViewFinderStore } from '../state/store'
 import { CATEGORY_COLOR, CATEGORY_LABEL } from './categoryStyle'
 import type { Viewpoint } from '@shared/ipcContract'
 
+const DIRECTIONS_BUTTON_CLASS = 'vf-popup__directions'
+
 // Classic map-pin teardrop silhouette (viewBox 0,0,26,34), tip at the
 // bottom-center so `anchor: 'bottom'` plants the point exactly on the
 // coordinate rather than the shape's bounding-box center.
@@ -25,7 +27,7 @@ function buildPopupHtml(vp: Viewpoint): string {
     vp.category === 'computed_peak'
       ? '<div class="vf-popup__note">Estimated from elevation data, not confirmed on OpenStreetMap.</div>'
       : ''
-  return `<div class="vf-popup__title">${vp.name ?? CATEGORY_LABEL[vp.category]}</div><div class="vf-popup__category">${CATEGORY_LABEL[vp.category]}</div>${elevationLine}${estimateNote}`
+  return `<div class="vf-popup__title">${vp.name ?? CATEGORY_LABEL[vp.category]}</div><div class="vf-popup__category">${CATEGORY_LABEL[vp.category]}</div>${elevationLine}${estimateNote}<button type="button" class="${DIRECTIONS_BUTTON_CLASS}">Directions</button>`
 }
 
 export function ViewpointLayer(): null {
@@ -52,10 +54,18 @@ export function ViewpointLayer(): null {
       const el = buildPinElement(vp)
       el.addEventListener('click', (e) => {
         e.stopPropagation()
-        new Popup({ closeButton: true, className: 'vf-popup', offset: 26 })
+        const popup = new Popup({ closeButton: true, className: 'vf-popup', offset: 26 })
           .setLngLat([vp.lng, vp.lat])
           .setHTML(buildPopupHtml(vp))
           .addTo(map)
+
+        popup
+          .getElement()
+          .querySelector(`.${DIRECTIONS_BUTTON_CLASS}`)
+          ?.addEventListener('click', () => {
+            useViewFinderStore.getState().requestRoute(vp)
+            popup.remove()
+          })
       })
 
       const marker = new Marker({ element: el, anchor: 'bottom' }).setLngLat([vp.lng, vp.lat]).addTo(map)

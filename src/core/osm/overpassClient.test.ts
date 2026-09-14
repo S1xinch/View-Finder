@@ -48,4 +48,30 @@ describe('queryOverpass', () => {
     // One attempt per endpoint (2 endpoints), no retries within an endpoint since 400 isn't retryable
     expect(fetchImpl).toHaveBeenCalledTimes(2)
   })
+
+  it('aborts immediately (without calling fetch) if the signal is already aborted', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ elements: [] }))
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(queryOverpass('query', { fetchImpl, signal: controller.signal })).rejects.toThrow(
+      'Superseded'
+    )
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
+  it('aborts an in-flight request when the signal fires mid-request', async () => {
+    const controller = new AbortController()
+    const fetchImpl = vi.fn().mockImplementation((_endpoint: string, init?: RequestInit) => {
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+      })
+    })
+
+    const promise = queryOverpass('query', { fetchImpl, signal: controller.signal, retryDelayMs: 0 })
+    controller.abort()
+
+    await expect(promise).rejects.toThrow()
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+  })
 })

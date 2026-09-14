@@ -27,6 +27,16 @@ const INTER_TILE_DELAY_MS = 300
 
 const cache: CacheStore = new MemoryCacheStore()
 
+// Only the most recently requested viewport's viewpoints are ever actually
+// wanted (the renderer already discards stale results client-side - see
+// useViewpointsSync). Without this, rapid panning piles up several
+// concurrent multi-tile Overpass queries that all keep running for
+// viewports the user has since left, burning through the free public
+// instance's rate limit and slowing down the request that actually
+// matters. Aborting the previous one as soon as a new one starts fixes
+// both.
+let currentRequest: AbortController | null = null
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -37,6 +47,10 @@ function tileKey(bbox: BBox): string {
 }
 
 export async function getViewpoints(bbox: BBox): Promise<Viewpoint[]> {
+  currentRequest?.abort()
+  const request = new AbortController()
+  currentRequest = request
+
   const tiles = splitBBox(bbox)
   const byId = new Map<string, Viewpoint>()
 
@@ -45,13 +59,18 @@ export async function getViewpoints(bbox: BBox): Promise<Viewpoint[]> {
   )
 
   for (let i = 0; i < tiles.length; i++) {
+    if (request.signal.aborted) {
+      console.log(`[coolSpotService] aborted (superseded by a newer viewport request)`)
+      throw new DOMException('Superseded by a newer viewport request', 'AbortError')
+    }
+
     const tile = tiles[i]
     const key = tileKey(tile)
     let viewpoints = await cache.get<Viewpoint[]>(key)
 
     if (!viewpoints) {
       console.log(`[coolSpotService] tile ${i + 1}/${tiles.length}: querying Overpass...`)
-      const response = await queryOverpass(buildViewpointQuery(tile), { fetchImpl })
+      const response = await queryOverpass(buildViewpointQuery(tile), { fetchImpl, signal: request.signal })
       viewpoints = parseViewpoints(response)
       console.log(
         `[coolSpotService] tile ${i + 1}/${tiles.length}: ${response.elements.length} raw element(s), ${viewpoints.length} matched viewpoint(s)`

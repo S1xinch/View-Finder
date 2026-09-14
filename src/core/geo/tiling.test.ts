@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { splitBBox } from './tiling'
+import { splitBBox, snapBBoxToGrid } from './tiling'
 
 describe('splitBBox', () => {
   it('returns a single grid-aligned tile when the bbox fits within one cell', () => {
@@ -36,5 +36,24 @@ describe('splitBBox', () => {
     const continentBBox = { west: 110, south: -45, east: 155, north: -10 } // roughly all of Australia
     const tiles = splitBBox(continentBBox)
     expect(tiles.length).toBeLessThanOrEqual(64)
+  })
+})
+
+describe('snapBBoxToGrid', () => {
+  it('rounds a bbox outward to the nearest grid lines as a single bbox, without splitting it', () => {
+    const bbox = { west: 0.1, south: 0.1, east: 0.3, north: 0.3 }
+    expect(snapBBoxToGrid(bbox, 0.25)).toEqual({ west: 0, east: 0.5, south: 0, north: 0.5 })
+  })
+
+  it('leaves a bbox already aligned to grid boundaries unchanged', () => {
+    const bbox = { west: 0, south: 0, east: 0.25, north: 0.25 }
+    expect(snapBBoxToGrid(bbox, 0.25)).toEqual(bbox)
+  })
+
+  it('returns the same snapped bbox for two different viewports that round to the same grid lines - what lets a small pan reuse the cache instead of invalidating it', () => {
+    const tileSizeDeg = 0.25
+    const viewportA = { west: 0.05, south: 0.05, east: 0.2, north: 0.2 }
+    const viewportB = { west: 0.1, south: 0.02, east: 0.24, north: 0.18 }
+    expect(snapBBoxToGrid(viewportA, tileSizeDeg)).toEqual(snapBBoxToGrid(viewportB, tileSizeDeg))
   })
 })

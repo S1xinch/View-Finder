@@ -1,5 +1,5 @@
 import type { BBox } from '../geo/types'
-import { splitBBox } from '../geo/tiling'
+import { splitBBox, snapBBoxToGrid } from '../geo/tiling'
 import { queryOverpass, type FetchLike } from '../osm/overpassClient'
 import { buildViewpointQuery, parseViewpoints } from '../osm/viewpointQueries'
 import { buildRoadQuery, parseRoads } from '../osm/roadQueries'
@@ -97,11 +97,43 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
     // quickly. A typical viewport only ever produces a handful of tiles
     // (the hard cap in tiling.ts, combined with the caller's zoom gate,
     // keeps this from ever becoming a real burst of concurrent requests).
-    const results = await Promise.all(tiles.map((tile, i) => fetchTile(tile, `tile ${i + 1}/${tiles.length}`, signal)))
+    //
+    // allSettled, not all: under real-world rate-limiting a single tile
+    // out of several can fail (e.g. transient 429) while its neighbors
+    // succeed just fine - Promise.all would throw away every already-
+    // fetched, perfectly good tile just because one other tile hiccuped,
+    // which is exactly the kind of wasted request this tiling exists to
+    // avoid repeating.
+    const results = await Promise.allSettled(
+      tiles.map((tile, i) => fetchTile(tile, `tile ${i + 1}/${tiles.length}`, signal))
+    )
+
+    // A supersession-abort on any tile should still propagate as a real
+    // rejection, same as a total failure below - the caller's staleness
+    // guard (see getViewpoints) discards a stale rejection silently, but
+    // only if it actually sees one, rather than a confusingly-partial
+    // "result" for a viewport already left behind.
+    for (const result of results) {
+      if (result.status === 'rejected' && isAbortError(result.reason)) throw result.reason
+    }
 
     const byId = new Map<string, Viewpoint>()
-    for (const viewpoints of results) {
-      for (const vp of viewpoints) byId.set(vp.id, vp)
+    let anyTileSucceeded = false
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        anyTileSucceeded = true
+        for (const vp of result.value) byId.set(vp.id, vp)
+      } else {
+        console.warn('[coolSpotOrchestrator] a viewpoint tile failed (keeping the other tiles\' results):', result.reason)
+      }
+    }
+
+    // Only a total failure needs to propagate - see getViewpoints' fallback
+    // to computed-peaks-only when this throws. Some tiles failing while
+    // others succeeded is exactly the case this is meant to tolerate.
+    if (!anyTileSucceeded) {
+      const firstRejection = results.find((result) => result.status === 'rejected')
+      throw firstRejection?.status === 'rejected' ? firstRejection.reason : new Error('All viewpoint tile requests failed')
     }
 
     return [...byId.values()]
@@ -140,41 +172,34 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
   // load-bearing": if either fetch fails, we fall back to not filtering
   // on it at all (see roadReachability.ts / landUseFilter.ts) rather than
   // blocking the whole response on a secondary data source.
-  // Tiled to the same fixed grid as viewpoints (see splitBBox) so a small
-  // pan reuses roads/land-use tiles it already has instead of re-querying
-  // the whole viewport from scratch every time - previously these were
-  // single whole-viewport queries keyed by the viewport's own (constantly
-  // shifting) bounds, so they never hit cache across pans at all and were
-  // a steady, avoidable contributor to Overpass rate-limiting during
-  // normal panning.
-  async function fetchRoadTile(tile: BBox, label: string, signal: AbortSignal): Promise<RoadSegment[]> {
-    const key = bboxKey('roads', tile)
+  // Snapped to the same fixed grid viewpoints tile against (see
+  // snapBBoxToGrid), but kept as a single request rather than split into
+  // several: these were previously single whole-viewport queries keyed by
+  // the viewport's own (constantly shifting) bounds, so they never hit
+  // cache across pans at all - snapping the query bbox itself to the grid
+  // gets the same "small pans keep hitting the same cache key" benefit
+  // without multiplying one query into several. (An earlier version of
+  // this DID tile roads/land-use the same way viewpoints are tiled below,
+  // but that turned one query each into up to eight - on top of
+  // viewpoints' own tiles - and firing that many requests at once in a
+  // single burst is exactly what triggers fresh rate-limiting on a pan
+  // into brand new territory, the opposite of the goal.)
+  async function getRoads(bbox: BBox, signal: AbortSignal): Promise<RoadSegment[]> {
+    const snapped = snapBBoxToGrid(bbox)
+    const key = bboxKey('roads', snapped)
     const cached = await cache.get<RoadSegment[]>(key)
     if (cached) {
-      console.log(`[coolSpotOrchestrator] ${label}: cache hit (${cached.length})`)
+      console.log(`[coolSpotOrchestrator] roads: cache hit (${cached.length})`)
       return cached
     }
 
-    console.log(`[coolSpotOrchestrator] ${label}: querying Overpass...`)
-    const response = await queryOverpass(buildRoadQuery(tile), { fetchImpl, signal })
-    const roads = parseRoads(response)
-    console.log(`[coolSpotOrchestrator] ${label}: ${roads.length} segment(s)`)
-    await cache.set(key, roads, OSM_CACHE_TTL_MS)
-    return roads
-  }
-
-  async function getRoads(bbox: BBox, signal: AbortSignal): Promise<RoadSegment[]> {
-    const tiles = splitBBox(bbox)
-
     try {
-      const results = await Promise.all(
-        tiles.map((tile, i) => fetchRoadTile(tile, `roads tile ${i + 1}/${tiles.length}`, signal))
-      )
-      const byId = new Map<string, RoadSegment>()
-      for (const roads of results) {
-        for (const road of roads) byId.set(road.id, road)
-      }
-      return [...byId.values()]
+      console.log('[coolSpotOrchestrator] querying roads...')
+      const response = await queryOverpass(buildRoadQuery(snapped), { fetchImpl, signal })
+      const roads = parseRoads(response)
+      console.log(`[coolSpotOrchestrator] roads: ${roads.length} segment(s)`)
+      await cache.set(key, roads, OSM_CACHE_TTL_MS)
+      return roads
     } catch (error) {
       if (isAbortError(error)) throw error
       console.warn('[coolSpotOrchestrator] road query failed (continuing without road-reachability filtering):', error)
@@ -182,34 +207,22 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
     }
   }
 
-  async function fetchLandUseTile(tile: BBox, label: string, signal: AbortSignal): Promise<ExcludedLandArea[]> {
-    const key = bboxKey('excludedLand', tile)
+  async function getExcludedLandAreas(bbox: BBox, signal: AbortSignal): Promise<ExcludedLandArea[]> {
+    const snapped = snapBBoxToGrid(bbox)
+    const key = bboxKey('excludedLand', snapped)
     const cached = await cache.get<ExcludedLandArea[]>(key)
     if (cached) {
-      console.log(`[coolSpotOrchestrator] ${label}: cache hit (${cached.length})`)
+      console.log(`[coolSpotOrchestrator] excluded land: cache hit (${cached.length})`)
       return cached
     }
 
-    console.log(`[coolSpotOrchestrator] ${label}: querying Overpass...`)
-    const response = await queryOverpass(buildLandUseQuery(tile), { fetchImpl, signal })
-    const areas = parseExcludedLandAreas(response)
-    console.log(`[coolSpotOrchestrator] ${label}: ${areas.length} area(s)`)
-    await cache.set(key, areas, OSM_CACHE_TTL_MS)
-    return areas
-  }
-
-  async function getExcludedLandAreas(bbox: BBox, signal: AbortSignal): Promise<ExcludedLandArea[]> {
-    const tiles = splitBBox(bbox)
-
     try {
-      const results = await Promise.all(
-        tiles.map((tile, i) => fetchLandUseTile(tile, `land-use tile ${i + 1}/${tiles.length}`, signal))
-      )
-      const byId = new Map<string, ExcludedLandArea>()
-      for (const areas of results) {
-        for (const area of areas) byId.set(area.id, area)
-      }
-      return [...byId.values()]
+      console.log('[coolSpotOrchestrator] querying land-use exclusions...')
+      const response = await queryOverpass(buildLandUseQuery(snapped), { fetchImpl, signal })
+      const areas = parseExcludedLandAreas(response)
+      console.log(`[coolSpotOrchestrator] excluded land: ${areas.length} area(s)`)
+      await cache.set(key, areas, OSM_CACHE_TTL_MS)
+      return areas
     } catch (error) {
       if (isAbortError(error)) throw error
       console.warn('[coolSpotOrchestrator] land-use query failed (continuing without exclusion filtering):', error)

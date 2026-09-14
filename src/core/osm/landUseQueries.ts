@@ -14,10 +14,6 @@ out geom;`
 // A closed ring of [lng, lat] pairs (first and last point equal), matching
 // GeoJSON polygon-ring coordinate order.
 export interface ExcludedLandArea {
-  // Stable across tiles (unlike array position), so results from
-  // different tiles - a way spanning a tile boundary matches the query in
-  // more than one tile - can be deduped by id instead of double-counted.
-  id: string
   ring: [number, number][]
 }
 
@@ -35,7 +31,7 @@ export function parseExcludedLandAreas(response: OverpassResponse): ExcludedLand
     // isn't an area we can test point-in-polygon against.
     if (firstLng !== lastLng || firstLat !== lastLat) continue
 
-    areas.push({ id: `osm:way:${el.id}`, ring })
+    areas.push({ ring })
   }
 
   return areas

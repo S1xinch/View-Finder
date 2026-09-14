@@ -19,4 +19,10 @@ describe('splitBBox', () => {
     expect(Math.min(...tiles.map((t) => t.west))).toBeCloseTo(bbox.west)
     expect(Math.max(...tiles.map((t) => t.east))).toBeCloseTo(bbox.east)
   })
+
+  it('caps the grid so a huge (e.g. whole-continent) bbox never explodes into thousands of tiles', () => {
+    const continentBBox = { west: 110, south: -45, east: 155, north: -10 } // roughly all of Australia
+    const tiles = splitBBox(continentBBox)
+    expect(tiles.length).toBeLessThanOrEqual(64)
+  })
 })

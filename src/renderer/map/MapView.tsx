@@ -7,6 +7,7 @@ import {
   MAP_STYLE_URL,
   addSatelliteLayer,
   applyAppleStyleTweaks,
+  applyDarkMapTweaks,
   boostRoadContrast,
   setSatelliteVisible
 } from './mapStyle'
@@ -50,9 +51,16 @@ export function MapView(): React.JSX.Element {
     map.addControl(new SatelliteControl(), 'bottom-right')
     map.addControl(new LocateControl(), 'bottom-right')
 
+    const applyBaseStyleTweaks = (): void => {
+      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        applyDarkMapTweaks(map)
+      } else {
+        boostRoadContrast(map)
+        applyAppleStyleTweaks(map)
+      }
+    }
     const applyStyleTweaks = (): void => {
-      boostRoadContrast(map)
-      applyAppleStyleTweaks(map)
+      applyBaseStyleTweaks()
       addSatelliteLayer(map)
       setSatelliteVisible(map, useViewFinderStore.getState().satelliteView)
     }
@@ -61,7 +69,20 @@ export function MapView(): React.JSX.Element {
     mapRef.current = map
     setMap(map)
 
+    // Repaints the map's own base colors to follow the OS-level light/dark
+    // setting, the same way the rest of the app's chrome already does via
+    // CSS (see global.css's prefers-color-scheme rules) - repainting the
+    // existing style's layers rather than swapping to a whole separate
+    // dark style URL, since OpenFreeMap doesn't publish one and reusing
+    // the already-loaded style avoids a second vector-tile fetch.
+    const colorSchemeQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    const onColorSchemeChange = (): void => {
+      if (map.isStyleLoaded()) applyBaseStyleTweaks()
+    }
+    colorSchemeQuery.addEventListener('change', onColorSchemeChange)
+
     return () => {
+      colorSchemeQuery.removeEventListener('change', onColorSchemeChange)
       setMap(null)
       map.remove()
       mapRef.current = null

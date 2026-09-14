@@ -89,8 +89,18 @@ export async function queryRoute(from: LatLng, to: LatLng, options?: QueryRouteO
 
   const url = `${endpoint}/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson&steps=true`
 
+  // Accept is on the CORS "safelisted" header list, so this stays a
+  // simple request with no preflight - unlike overpassClient.ts's
+  // User-Agent header (fine there since Overpass's CORS config happens to
+  // allow it), OSRM's public demo server's CORS preflight response
+  // doesn't include User-Agent in Access-Control-Allow-Headers, so
+  // sending it here made every browser (website) request to OSRM fail
+  // outright before it left the browser - surfaced as a generic "Load
+  // failed" (Safari) / "Failed to fetch" (Chrome) with no useful detail,
+  // while working fine from Electron's net.fetch (a main-process fetch,
+  // not subject to page-level CORS at all).
   const response = await fetchImpl(url, {
-    headers: { Accept: 'application/json', 'User-Agent': 'ViewFinder/1.0 (+https://github.com/s1xinch/view-finder)' },
+    headers: { Accept: 'application/json' },
     signal
   })
 

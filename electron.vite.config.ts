@@ -28,6 +28,33 @@ const buildInfo = {
   __GIT_COMMIT__: JSON.stringify(getGitCommit())
 }
 
+// maplibre-gl's worker file (imported via `?url` in MapView.tsx - see the
+// comment there for why) has its own hardcoded
+// `import {...} from "./maplibre-gl-shared.mjs"` - a plain relative import
+// to an exact, unhashed sibling file it expects to be sitting right next
+// to it. Vite's `?url` import only copies the worker file itself
+// byte-for-byte; it has no idea that file has its own further import to
+// satisfy, so without this plugin the worker loads fine but then fails at
+// runtime (`net::ERR_UNEXPECTED`) trying to fetch a sibling file that was
+// never emitted. Dev mode never hits this: with maplibre-gl excluded from
+// pre-bundling (see optimizeDeps below), Vite's dev server serves straight
+// from node_modules/maplibre-gl/dist/, where both files already sit side
+// by side. This plugin emits that one missing sibling, unhashed, into the
+// same assets/ directory the worker chunk itself lands in for a real
+// build.
+function copyMaplibreSharedChunk() {
+  return {
+    name: 'copy-maplibre-gl-shared-chunk',
+    generateBundle(this: { emitFile: (opts: { type: 'asset'; fileName: string; source: Buffer }) => void }) {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'assets/maplibre-gl-shared.mjs',
+        source: readFileSync(resolve('node_modules/maplibre-gl/dist/maplibre-gl-shared.mjs'))
+      })
+    }
+  }
+}
+
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
@@ -86,6 +113,6 @@ export default defineConfig({
       format: 'es'
     },
     define: buildInfo,
-    plugins: [react()]
+    plugins: [react(), copyMaplibreSharedChunk()]
   }
 })

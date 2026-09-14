@@ -134,3 +134,18 @@ body {
 .status-hint--error {
   color: #c2452d;
 }
+
+.version-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--vf-text-secondary);
+  background: var(--vf-card-bg);
+  border: 1px solid var(--vf-card-border);
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 10;
+}

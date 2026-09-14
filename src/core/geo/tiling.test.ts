@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { splitBBox, snapBBoxToGrid } from './tiling'
+import { splitBBox, snapBBoxToGrid, isPointInBBox } from './tiling'
 
 describe('splitBBox', () => {
   it('returns a single grid-aligned tile when the bbox fits within one cell', () => {
@@ -55,5 +55,23 @@ describe('snapBBoxToGrid', () => {
     const viewportA = { west: 0.05, south: 0.05, east: 0.2, north: 0.2 }
     const viewportB = { west: 0.1, south: 0.02, east: 0.24, north: 0.18 }
     expect(snapBBoxToGrid(viewportA, tileSizeDeg)).toEqual(snapBBoxToGrid(viewportB, tileSizeDeg))
+  })
+})
+
+describe('isPointInBBox', () => {
+  const bbox = { west: 0, south: 0, east: 1, north: 1 }
+
+  it('accepts a point strictly inside the bbox', () => {
+    expect(isPointInBBox({ lat: 0.5, lng: 0.5 }, bbox)).toBe(true)
+  })
+
+  it('accepts a point exactly on the bbox boundary', () => {
+    expect(isPointInBBox({ lat: 0, lng: 0 }, bbox)).toBe(true)
+    expect(isPointInBBox({ lat: 1, lng: 1 }, bbox)).toBe(true)
+  })
+
+  it('rejects a point outside the bbox - e.g. one only returned because splitBBox padded the query out to a full grid cell', () => {
+    expect(isPointInBBox({ lat: 0.5, lng: 1.1 }, bbox)).toBe(false)
+    expect(isPointInBBox({ lat: 1.1, lng: 0.5 }, bbox)).toBe(false)
   })
 })

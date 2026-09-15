@@ -279,6 +279,95 @@ body {
   border-bottom: 1px solid var(--vf-divider);
 }
 
+/* Global "jump to a place" search (SearchBar.tsx) - distinct from the
+   "Search this area" button further down, which re-queries the current
+   viewport instead of moving the map. Positioned relatively so its result
+   dropdown can be an absolutely-positioned overlay without pushing the
+   rest of the sidebar's layout around while open. */
+.search-bar {
+  position: relative;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--vf-divider);
+}
+
+.search-bar__field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--vf-card-border);
+  border-radius: 8px;
+  background: var(--vf-hover);
+}
+
+.search-bar__icon {
+  flex: 0 0 auto;
+  color: var(--vf-text-secondary);
+}
+
+.search-bar__input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--vf-text-primary);
+  font-size: 13px;
+  font-family: var(--vf-font);
+}
+
+.search-bar__input:focus {
+  outline: none;
+}
+
+.search-bar__input::placeholder {
+  color: var(--vf-text-secondary);
+}
+
+.search-bar__results {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: 100%;
+  z-index: 6;
+  margin: 4px 0 0;
+  padding: 6px;
+  list-style: none;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--vf-card-bg);
+  border: 1px solid var(--vf-card-border);
+  border-radius: 12px;
+  box-shadow: var(--vf-card-shadow);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.search-bar__results button {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--vf-text-primary);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-bar__results button:hover {
+  background: var(--vf-hover);
+}
+
+.search-bar__empty {
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--vf-text-secondary);
+}
+
 .sidebar__title-group {
   display: flex;
   flex-direction: column;
@@ -364,6 +453,26 @@ body {
   color: var(--vf-text-primary);
 }
 
+/* Makes a fetch in progress visible even with the sidebar collapsed, where
+   the loading status row/progress bar aren't on screen at all - a gentle
+   breathing pulse on the arrow itself rather than a separate spinner, so
+   it stays a one-glyph button. */
+.sidebar-reopen--loading {
+  animation: sidebar-reopen-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes sidebar-reopen-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.88);
+  }
+}
+
 .sidebar__filters {
   display: flex;
   flex-direction: column;
@@ -396,6 +505,45 @@ body {
 
 .sidebar__checkbox input[type='checkbox'] {
   accent-color: var(--vf-accent);
+}
+
+/* Manual override for the auto-search debounce (see DEBOUNCE_MS in
+   useViewpoints.ts) - searches the current view immediately on demand. */
+.sidebar__search-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1px solid var(--vf-card-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--vf-text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.sidebar__search-button:hover:not(:disabled) {
+  background: var(--vf-hover);
+}
+
+.sidebar__search-button:disabled {
+  color: var(--vf-text-secondary);
+  cursor: default;
+}
+
+.sidebar__refresh-icon--spinning {
+  animation: sidebar-refresh-spin 0.9s linear infinite;
+}
+
+@keyframes sidebar-refresh-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .sidebar__body {
@@ -517,6 +665,23 @@ body {
 
 .sidebar__status--error {
   color: var(--vf-danger);
+}
+
+.sidebar__retry {
+  display: block;
+  margin-top: 8px;
+  padding: 6px 12px;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--vf-danger);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sidebar__retry:hover {
+  background: var(--vf-hover);
 }
 
 .sidebar__status--loading {

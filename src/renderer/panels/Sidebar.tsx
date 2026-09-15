@@ -3,6 +3,7 @@ import { useViewFinderStore } from '../state/store'
 import { CATEGORY_COLOR, CATEGORY_LABEL } from '../map/categoryStyle'
 import { Logo } from '../Logo'
 import { DirectionsView } from './DirectionsView'
+import { SearchBar } from './SearchBar'
 import type { Viewpoint } from '@shared/ipcContract'
 
 // Most fetches (especially cache hits, common while re-panning over
@@ -26,6 +27,26 @@ function formatDistance(meters: number | null | undefined): string {
   if (meters == null) return 'distance to road unknown'
   if (meters < 30) return 'right on a road'
   return `${Math.round(meters)} m from road`
+}
+
+// Shared by the "Search this area" button (spins while a fetch is running)
+// and reused as-is for the "Try again" affordance on error - one glyph for
+// every manual-refresh action in the sidebar.
+function RefreshIcon({ spinning }: { spinning: boolean }): React.JSX.Element {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      className={spinning ? 'sidebar__refresh-icon sidebar__refresh-icon--spinning' : 'sidebar__refresh-icon'}
+    >
+      <path d="M20 12a8 8 0 1 1-2.34-5.66" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M20 4v5h-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
 }
 
 // Maps the raw error text (network error codes, HTTP statuses, etc.) to a
@@ -61,6 +82,7 @@ export function Sidebar(): React.JSX.Element {
   const togglePrivateLand = useViewFinderStore((s) => s.togglePrivateLand)
   const routeDestination = useViewFinderStore((s) => s.routeDestination)
   const requestRoute = useViewFinderStore((s) => s.requestRoute)
+  const requestViewpointsRefresh = useViewFinderStore((s) => s.requestViewpointsRefresh)
 
   const [showLoading, setShowLoading] = useState(false)
 
@@ -84,7 +106,12 @@ export function Sidebar(): React.JSX.Element {
 
   if (!sidebarOpen) {
     return (
-      <button type="button" className="sidebar-reopen vf-card" onClick={toggleSidebar} aria-label="Show sidebar">
+      <button
+        type="button"
+        className={`sidebar-reopen vf-card${status === 'loading' ? ' sidebar-reopen--loading' : ''}`}
+        onClick={toggleSidebar}
+        aria-label={status === 'loading' ? 'Show sidebar (loading viewpoints)' : 'Show sidebar'}
+      >
         ›
       </button>
     )
@@ -102,6 +129,8 @@ export function Sidebar(): React.JSX.Element {
           ‹
         </button>
       </header>
+
+      <SearchBar />
 
       {routeDestination ? (
         <div className="sidebar__body">
@@ -136,6 +165,20 @@ export function Sidebar(): React.JSX.Element {
               <input type="checkbox" checked={showPrivateLand} onChange={togglePrivateLand} />
               <span>Show private/farmland</span>
             </label>
+
+            {/* Auto-search waits for panning to genuinely stop before
+                firing (see DEBOUNCE_MS in useViewpoints.ts) - this lets
+                the search happen immediately on demand instead, without
+                waiting or needing to nudge the map. */}
+            <button
+              type="button"
+              className="sidebar__search-button"
+              onClick={requestViewpointsRefresh}
+              disabled={status === 'loading'}
+            >
+              <RefreshIcon spinning={status === 'loading'} />
+              Search this area
+            </button>
           </div>
 
           <div className="sidebar__body">
@@ -153,6 +196,9 @@ export function Sidebar(): React.JSX.Element {
             {status === 'error' && (
               <div className="sidebar__status sidebar__status--error" title={error ?? undefined}>
                 {friendlyMessage(error ?? '')}
+                <button type="button" className="sidebar__retry" onClick={requestViewpointsRefresh}>
+                  Try again
+                </button>
               </div>
             )}
 

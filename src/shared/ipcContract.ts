@@ -58,9 +58,25 @@ export interface RouteResult {
   steps: RouteStep[]
 }
 
+export interface PlaceBoundingBox {
+  south: number
+  north: number
+  west: number
+  east: number
+}
+
+export interface PlaceResult {
+  id: string
+  name: string
+  lat: number
+  lng: number
+  boundingBox?: PlaceBoundingBox
+}
+
 export interface ViewFinderApi {
   getAppInfo: () => Promise<AppInfo>
   getViewpoints: (bbox: BBox) => Promise<Viewpoint[]>
   getExcludedLand: (bbox: BBox) => Promise<ExcludedLandArea[]>
   getRoute: (from: LatLng, to: LatLng) => Promise<RouteResult>
+  searchPlaces: (query: string) => Promise<PlaceResult[]>
 }

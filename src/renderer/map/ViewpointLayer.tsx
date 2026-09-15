@@ -63,8 +63,12 @@ function toFeatureCollection(viewpoints: Viewpoint[]): GeoJSON.FeatureCollection
     type: 'FeatureCollection',
     features: viewpoints.map((vp) => ({
       type: 'Feature',
-      id: vp.id,
-      properties: { icon: iconIdFor(vp.category), estimated: vp.category === 'computed_peak' },
+      // vp.id is a string like "osm:node:12345" - GeoJSON sources require
+      // integer feature ids internally (geojson-vt) and silently replace any
+      // non-integer id with an auto-generated sequential one, so a real click
+      // handler reading e.features[0].id back would never see this value.
+      // Carried in properties instead, which preserve arbitrary strings as-is.
+      properties: { id: vp.id, icon: iconIdFor(vp.category), estimated: vp.category === 'computed_peak' },
       geometry: { type: 'Point', coordinates: [vp.lng, vp.lat] }
     }))
   }
@@ -141,7 +145,7 @@ export function ViewpointLayer(): null {
       })
 
       map.on('click', LAYER_ID, (e: MapLayerMouseEvent) => {
-        const id = e.features?.[0]?.id
+        const id = e.features?.[0]?.properties?.id as string | undefined
         const vp = id == null ? undefined : viewpointsRef.current.find((v) => v.id === id)
         if (!vp) return
 

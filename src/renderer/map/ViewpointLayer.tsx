@@ -1,25 +1,73 @@
 import { useEffect, useRef } from 'react'
-import { Marker, Popup } from 'maplibre-gl'
+import { Popup } from 'maplibre-gl'
+import type { GeoJSONSource, MapLayerMouseEvent } from 'maplibre-gl'
 import { useViewFinderStore } from '../state/store'
 import { CATEGORY_COLOR, CATEGORY_LABEL } from './categoryStyle'
 import { buildExternalMapsUrl } from '../utils/mapLinks'
-import type { Viewpoint } from '@shared/ipcContract'
+import type { Viewpoint, ViewpointCategory } from '@shared/ipcContract'
 
+const SOURCE_ID = 'viewpoints'
+const LAYER_ID = 'viewpoints-pins'
 const DIRECTIONS_BUTTON_CLASS = 'vf-popup__directions'
 const OPEN_IN_MAPS_BUTTON_CLASS = 'vf-popup__open-in-maps'
 
-// Classic map-pin teardrop silhouette (viewBox 0,0,26,34), tip at the
-// bottom-center so `anchor: 'bottom'` plants the point exactly on the
-// coordinate rather than the shape's bounding-box center.
-function buildPinElement(vp: Viewpoint): HTMLDivElement {
-  const color = CATEGORY_COLOR[vp.category]
-  const el = document.createElement('div')
-  el.className = 'vf-pin' + (vp.category === 'computed_peak' ? ' vf-pin--estimated' : '')
-  el.innerHTML = `<svg width="26" height="34" viewBox="0 0 26 34" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-    <path d="M13 0C5.82 0 0 5.82 0 13c0 9.75 13 21 13 21s13-11.25 13-21C26 5.82 20.18 0 13 0z" fill="${color}" />
-    <circle cx="13" cy="12" r="4.5" fill="#ffffff" />
-  </svg>`
-  return el
+function iconIdFor(category: ViewpointCategory): string {
+  return `vf-pin-${category}`
+}
+
+// Same teardrop silhouette (viewBox 0,0,26,34) the old per-marker DOM
+// element used, now rasterized once per category and registered as a
+// MapLibre image instead of built as a real DOM element for every pin.
+// Hundreds of DOM markers each need repositioning via a synchronous
+// main-thread style write on *every* pan/zoom frame - a well-known
+// MapLibre performance trap, and the actual cause of "pins lag behind
+// while panning quickly". A symbol layer's icons are drawn from a single
+// GPU buffer alongside the rest of the map, with zero per-marker
+// main-thread work during a pan - the map's own basemap tiles already
+// render this way. The drop-shadow is baked into the raster (canvas
+// shadow* properties) since a symbol layer can't apply a CSS filter per
+// icon the way the old DOM version's .vf-pin class did.
+function buildPinIcon(color: string, pixelRatio: number): { width: number; height: number; data: Uint8ClampedArray } {
+  const width = Math.round(26 * pixelRatio)
+  const height = Math.round(34 * pixelRatio)
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+  // Only fails in a context without 2D canvas support at all (never in
+  // any real browser this app targets) - an empty transparent icon is a
+  // harmless fallback rather than a hard crash.
+  if (!ctx) return { width, height, data: new Uint8ClampedArray(width * height * 4) }
+
+  ctx.scale(pixelRatio, pixelRatio)
+  const pinPath = new Path2D('M13 0C5.82 0 0 5.82 0 13c0 9.75 13 21 13 21s13-11.25 13-21C26 5.82 20.18 0 13 0z')
+
+  ctx.save()
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.35)'
+  ctx.shadowBlur = 3
+  ctx.shadowOffsetY = 2
+  ctx.fillStyle = color
+  ctx.fill(pinPath)
+  ctx.restore()
+
+  ctx.beginPath()
+  ctx.arc(13, 12, 4.5, 0, Math.PI * 2)
+  ctx.fillStyle = '#ffffff'
+  ctx.fill()
+
+  return { width, height, data: ctx.getImageData(0, 0, width, height).data }
+}
+
+function toFeatureCollection(viewpoints: Viewpoint[]): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: viewpoints.map((vp) => ({
+      type: 'Feature',
+      id: vp.id,
+      properties: { icon: iconIdFor(vp.category), estimated: vp.category === 'computed_peak' },
+      geometry: { type: 'Point', coordinates: [vp.lng, vp.lat] }
+    }))
+  }
 }
 
 function buildPopupHtml(vp: Viewpoint): string {
@@ -35,27 +83,78 @@ function buildPopupHtml(vp: Viewpoint): string {
 export function ViewpointLayer(): null {
   const map = useViewFinderStore((s) => s.map)
   const viewpoints = useViewFinderStore((s) => s.viewpoints)
-  const markersRef = useRef<Map<string, Marker>>(new Map())
+  // The click/hover listeners below are registered once (inside the
+  // layer-creation branch, which only runs the first time) rather than
+  // re-subscribed on every viewpoints change - they read the *current*
+  // list through this ref instead, the same pattern useViewpoints.ts uses
+  // for its own map reference.
+  const viewpointsRef = useRef<Viewpoint[]>(viewpoints)
+  viewpointsRef.current = viewpoints
 
   useEffect(() => {
     if (!map) return
 
-    const markers = markersRef.current
-    const currentIds = new Set(viewpoints.map((vp) => vp.id))
+    const data = toFeatureCollection(viewpoints)
 
-    for (const [id, marker] of markers) {
-      if (!currentIds.has(id)) {
-        marker.remove()
-        markers.delete(id)
+    const addLayer = (): void => {
+      if (map.getSource(SOURCE_ID)) return
+
+      // Capped at 3x - a pin only needs to look crisp, not consume 4x+ the
+      // raster memory on very-high-DPI devices for no visible benefit.
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, 3)
+      for (const category of Object.keys(CATEGORY_COLOR) as ViewpointCategory[]) {
+        const id = iconIdFor(category)
+        if (!map.hasImage(id)) map.addImage(id, buildPinIcon(CATEGORY_COLOR[category], pixelRatio), { pixelRatio })
       }
-    }
 
-    for (const vp of viewpoints) {
-      if (markers.has(vp.id)) continue
+      map.addSource(SOURCE_ID, { type: 'geojson', data })
+      map.addLayer({
+        id: LAYER_ID,
+        type: 'symbol',
+        source: SOURCE_ID,
+        layout: {
+          'icon-image': ['get', 'icon'],
+          'icon-anchor': 'bottom',
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
+          // Matches the old DOM version's :hover { transform: scale(1.12) }
+          // - driven by feature-state instead of a CSS pseudo-class, the
+          // symbol-layer equivalent.
+          'icon-size': ['case', ['boolean', ['feature-state', 'hover'], false], 1.12, 1]
+        },
+        paint: {
+          // Matches the old .vf-pin--estimated { opacity: 0.88 } for
+          // computed (not OSM-tagged) peaks.
+          'icon-opacity': ['case', ['get', 'estimated'], 0.88, 1]
+        }
+      })
 
-      const el = buildPinElement(vp)
-      el.addEventListener('click', (e) => {
-        e.stopPropagation()
+      let hoveredId: string | number | undefined
+      const clearHover = (): void => {
+        if (hoveredId === undefined) return
+        map.setFeatureState({ source: SOURCE_ID, id: hoveredId }, { hover: false })
+        hoveredId = undefined
+      }
+
+      map.on('mousemove', LAYER_ID, (e) => {
+        const feature = e.features?.[0]
+        if (!feature || feature.id === hoveredId) return
+        clearHover()
+        hoveredId = feature.id
+        map.setFeatureState({ source: SOURCE_ID, id: hoveredId }, { hover: true })
+        map.getCanvas().style.cursor = 'pointer'
+      })
+      map.on('mouseleave', LAYER_ID, () => {
+        clearHover()
+        map.getCanvas().style.cursor = ''
+      })
+
+      map.on('click', LAYER_ID, (e: MapLayerMouseEvent) => {
+        const id = e.features?.[0]?.id
+        const vp = id == null ? undefined : viewpointsRef.current.find((v) => v.id === id)
+        if (!vp) return
+
+        e.originalEvent.stopPropagation()
         const popup = new Popup({ closeButton: true, className: 'vf-popup', offset: 26 })
           .setLngLat([vp.lng, vp.lat])
           .setHTML(buildPopupHtml(vp))
@@ -70,19 +169,23 @@ export function ViewpointLayer(): null {
           window.open(buildExternalMapsUrl({ lat: vp.lat, lng: vp.lng }, vp.name), '_blank', 'noopener')
         })
       })
-
-      const marker = new Marker({ element: el, anchor: 'bottom' }).setLngLat([vp.lng, vp.lat]).addTo(map)
-      markers.set(vp.id, marker)
     }
+
+    const updateData = (): void => {
+      const source = map.getSource(SOURCE_ID) as GeoJSONSource | undefined
+      if (source) source.setData(data)
+      else addLayer()
+    }
+
+    if (map.isStyleLoaded()) updateData()
+    else map.once('load', updateData)
   }, [map, viewpoints])
 
-  // Separate cleanup effect keyed only on `map` - the effect above re-runs
-  // on every viewpoints change and must not tear down all markers each time.
   useEffect(() => {
-    const markers = markersRef.current
+    if (!map) return
     return () => {
-      for (const marker of markers.values()) marker.remove()
-      markers.clear()
+      if (map.getLayer(LAYER_ID)) map.removeLayer(LAYER_ID)
+      if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID)
     }
   }, [map])
 

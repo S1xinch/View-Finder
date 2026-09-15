@@ -436,10 +436,17 @@ button {
      back, which is what makes the gesture feel continuous instead of one
      element vanishing and a different one appearing. Stays interactive
      (no pointer-events: none needed) precisely so the peeking search
-     field can be tapped while collapsed. */
+     field can be tapped while collapsed.
+
+     touch-action: none here (not on .sidebar generally - that would
+     break scrolling the open list) because useSheetDrag's onPointerDown
+     now treats the whole collapsed card as a drag surface, not just the
+     grabber strip - without this the browser's own pan/scroll gesture
+     recognition competes with that drag on a real touchscreen. */
   .sidebar--hidden {
     display: flex;
     height: var(--vf-sheet-peek);
+    touch-action: none;
   }
 
   /* Phone portrait has no separate collapsed control at all - the sheet

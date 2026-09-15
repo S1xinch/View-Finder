@@ -59,6 +59,13 @@ const TAP_THRESHOLD_PX = 8
 // what made quick swipes feel like they did nothing.
 const FLICK_VELOCITY_PX_PER_MS = 0.35
 
+// A click landing within this long after a real pointer sequence ended on
+// the sheet is treated as part of that same gesture, not a fresh one -
+// see pointerHandledAtRef in useSheetDrag for why a plain one-shot flag
+// isn't enough (a <label>'s native click-forwarding to its checkbox fires
+// a second click for one physical tap).
+const CLICK_FROM_POINTER_WINDOW_MS = 500
+
 // Kept a little longer than the CSS transform transition (see .sidebar in
 // global.css) so the inline transform is only dropped once the snap has
 // finished playing out.
@@ -101,7 +108,8 @@ const SHEET_MAX_VIEWPORT_FRACTION = 0.65
 // setPointerCapture keeps pointerup coming to this element even if the
 // finger drifts off it mid-drag. onClick remains only for keyboard
 // activation (Enter/Space fires a click with no pointer sequence at all);
-// pointerHandledRef stops a real gesture's trailing click double-toggling.
+// pointerHandledAtRef stops a real gesture's trailing click(s) - plural,
+// see its own comment - from double-toggling.
 function useSheetDrag(
   sheetRef: React.RefObject<HTMLElement | null>,
   open: boolean,
@@ -110,9 +118,17 @@ function useSheetDrag(
   onPointerDown: (e: React.PointerEvent) => void
   onPointerMove: (e: React.PointerEvent) => void
   onPointerUp: (e: React.PointerEvent) => void
-  onClick: () => void
+  onClick: (e: React.MouseEvent) => void
 } {
-  const pointerHandledRef = useRef(false)
+  // A timestamp, not a one-shot boolean: clicking a <label> (the filter
+  // chips) makes the browser fire a SECOND click, forwarded to the
+  // checkbox it wraps, for one physical tap. A boolean flag that resets
+  // itself the first time onClick sees it correctly swallows that first
+  // click but then leaves the forwarded second one unguarded, so it fell
+  // through to setOpen() and closed the sheet on every filter-chip tap.
+  // Comparing timestamps instead means every click within the window
+  // after a real pointer sequence is swallowed, not just the first.
+  const pointerHandledAtRef = useRef(0)
   const startYRef = useRef<number | null>(null)
   const startTimeRef = useRef(0)
   const baseHeightRef = useRef(0)
@@ -131,6 +147,20 @@ function useSheetDrag(
     onPointerDown: (e) => {
       const el = sheetRef.current
       if (!el) return
+      const target = e.target as HTMLElement
+      const onGrabber = target.closest('.sidebar__grabber') != null
+      // The grabber strip is always a drag surface. Elsewhere on the
+      // sheet: only while collapsed, and only outside anything that's
+      // genuinely interactive on its own (the search input, the collapse
+      // button) - a 44px-tall handle is still a thin, precise target to
+      // land a thumb on ("often doesn't recognize you've touched it"),
+      // whereas the whole peeking card is a much harder miss. Once open,
+      // the body has real content of its own (sliders, checkboxes, a
+      // scrolling list) that needs ordinary touch/click behavior, so only
+      // the grabber keeps working there.
+      if (!onGrabber) {
+        if (open || target.closest('input, button, a, textarea, select')) return
+      }
       // A synthetic PointerEvent with an id that was never a real pointer
       // throws here - swallowed so it can't skip the setup below and wedge
       // every later gesture on this element.
@@ -158,7 +188,7 @@ function useSheetDrag(
       const el = sheetRef.current
       const startY = startYRef.current
       startYRef.current = null
-      pointerHandledRef.current = true
+      pointerHandledAtRef.current = e.timeStamp
       if (!el || startY == null) return
 
       const delta = e.clientY - startY
@@ -183,11 +213,8 @@ function useSheetDrag(
       }, SNAP_SETTLE_MS)
       if (toOpen !== open) setOpen(toOpen)
     },
-    onClick: () => {
-      if (pointerHandledRef.current) {
-        pointerHandledRef.current = false
-        return
-      }
+    onClick: (e) => {
+      if (e.timeStamp - pointerHandledAtRef.current < CLICK_FROM_POINTER_WINDOW_MS) return
       setOpen(!open)
     }
   }
@@ -346,17 +373,25 @@ export function Sidebar(): React.JSX.Element {
           ›
         </span>
       </button>
-      <aside ref={sheetRef} className={`vf-card sidebar${sidebarOpen ? '' : ' sidebar--hidden'}`}>
       {/* Phone-portrait drag surface (hidden elsewhere, see global.css):
           drags the whole sheet between peeking and open via sheetRef. The
-          explicit collapse button in the header below still covers
-          desktop/non-touch use. */}
+          handlers live on the whole <aside> (not just the grabber row
+          below) so any non-interactive spot on the visible card works,
+          not just a thin handle strip - useSheetDrag's own onPointerDown
+          decides per-touch whether that's appropriate (always on the
+          grabber itself; elsewhere only while collapsed, and never on a
+          real control like the search input). The explicit collapse
+          button in the header still covers desktop/non-touch use. */}
+      <aside
+        ref={sheetRef}
+        className={`vf-card sidebar${sidebarOpen ? '' : ' sidebar--hidden'}`}
+        {...sheetDragHandlers}
+      >
       <div
         className="sidebar__grabber"
         role="button"
         tabIndex={0}
         aria-label={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
-        {...sheetDragHandlers}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') toggleSidebar()
         }}

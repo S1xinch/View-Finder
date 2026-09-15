@@ -12,7 +12,16 @@ import type { Viewpoint } from '@shared/ipcContract'
 // feedback. Only reveal it if a fetch is still running after a brief delay.
 const LOADING_REVEAL_DELAY_MS = 250
 
-function passesFilters(vp: Viewpoint, minElevationMeters: number, maxDistanceToRoadMeters: number): boolean {
+function passesFilters(
+  vp: Viewpoint,
+  minElevationMeters: number,
+  maxDistanceToRoadMeters: number,
+  showOsmViewpoints: boolean,
+  showComputedPeaks: boolean
+): boolean {
+  const isComputed = vp.category === 'computed_peak'
+  if (isComputed && !showComputedPeaks) return false
+  if (!isComputed && !showOsmViewpoints) return false
   if ((vp.elevationMeters ?? 0) < minElevationMeters) return false
   const distance = vp.distanceToRoadMeters
   // Unknown distance (no road data) is never excluded here - matches the
@@ -22,6 +31,17 @@ function passesFilters(vp: Viewpoint, minElevationMeters: number, maxDistanceToR
   if (distance != null && distance > maxDistanceToRoadMeters) return false
   return true
 }
+
+// Threshold for the "zoom in for a clearer view" hint - past this many
+// pins on screen at once, individual markers start overlapping/clustering
+// visually rather than being individually useful.
+const MANY_RESULTS_THRESHOLD = 40
+
+// Tile count above which a failed search was covering enough ground that
+// "try a smaller area" is genuinely good advice, not just noise - matches
+// what a typical viewport already produces well before MIN_ZOOM_FOR_VIEWPOINTS
+// (see useViewpoints.ts), so this only fires for real "too much at once" cases.
+const MANY_TILES_THRESHOLD = 4
 
 function formatDistance(meters: number | null | undefined): string {
   if (meters == null) return 'distance to road unknown'
@@ -95,7 +115,18 @@ function RefreshIcon({ spinning }: { spinning: boolean }): React.JSX.Element {
 // Maps the raw error text (network error codes, HTTP statuses, etc.) to a
 // plain-language explanation. The exact original message is kept as the
 // element's `title` (a hover tooltip) so it's not lost for troubleshooting.
-function friendlyMessage(error: string): string {
+// tilesTotal (the failed request's own tile count, if known - see the
+// store's setViewpointsError comment for why progress survives into the
+// error state) lets a timeout specifically suggest zooming in: a request
+// covering many tiles is both more likely to time out and has an easy fix
+// the generic "try again" advice doesn't mention.
+function friendlyMessage(error: string, tilesTotal: number | null): string {
+  const searchedManyTiles = tilesTotal != null && tilesTotal >= MANY_TILES_THRESHOLD
+  if (/timeout|timed out/i.test(error)) {
+    return searchedManyTiles
+      ? "That search covered a lot of ground and timed out — try zooming in to search a smaller area."
+      : "The search timed out — try again in a moment."
+  }
   if (/ERR_CONNECTION|ConnectTimeout|ETIMEDOUT|ENOTFOUND|ERR_NAME_NOT_RESOLVED|ERR_INTERNET_DISCONNECTED/i.test(error)) {
     return "Couldn't reach OpenStreetMap's servers — check your internet connection and try again."
   }
@@ -105,7 +136,9 @@ function friendlyMessage(error: string): string {
   if (/\b50[234]\b/.test(error)) {
     return "OpenStreetMap's free server is temporarily unavailable — try again in a moment."
   }
-  return "Couldn't load viewpoints — try again in a moment."
+  return searchedManyTiles
+    ? "Couldn't load viewpoints — try zooming in to search a smaller area, or try again in a moment."
+    : "Couldn't load viewpoints — try again in a moment."
 }
 
 // Single unified left panel - the app's one persistent floating card,
@@ -124,6 +157,10 @@ export function Sidebar(): React.JSX.Element {
   const toggleSidebar = useViewFinderStore((s) => s.toggleSidebar)
   const showPrivateLand = useViewFinderStore((s) => s.showPrivateLand)
   const togglePrivateLand = useViewFinderStore((s) => s.togglePrivateLand)
+  const showOsmViewpoints = useViewFinderStore((s) => s.showOsmViewpoints)
+  const toggleShowOsmViewpoints = useViewFinderStore((s) => s.toggleShowOsmViewpoints)
+  const showComputedPeaks = useViewFinderStore((s) => s.showComputedPeaks)
+  const toggleShowComputedPeaks = useViewFinderStore((s) => s.toggleShowComputedPeaks)
   const routeDestination = useViewFinderStore((s) => s.routeDestination)
   const requestRoute = useViewFinderStore((s) => s.requestRoute)
   const requestViewpointsRefresh = useViewFinderStore((s) => s.requestViewpointsRefresh)
@@ -145,9 +182,20 @@ export function Sidebar(): React.JSX.Element {
   }, [status])
 
   const filtered = useMemo(
-    () => viewpoints.filter((vp) => passesFilters(vp, filters.minElevationMeters, filters.maxDistanceToRoadMeters)),
-    [viewpoints, filters]
+    () =>
+      viewpoints.filter((vp) =>
+        passesFilters(vp, filters.minElevationMeters, filters.maxDistanceToRoadMeters, showOsmViewpoints, showComputedPeaks)
+      ),
+    [viewpoints, filters, showOsmViewpoints, showComputedPeaks]
   )
+
+  // Raw (pre-filter) counts by category, for the empty/ready-state
+  // breakdowns below - lets a message say *which* category came up short
+  // instead of just "nothing found", including revealing when computed
+  // peaks are 0 because they were never searched (see coolSpotOrchestrator's
+  // lazy-elevation skip) rather than because none exist.
+  const osmCount = useMemo(() => viewpoints.filter((vp) => vp.category !== 'computed_peak').length, [viewpoints])
+  const computedCount = viewpoints.length - osmCount
 
   const flyTo = (vp: Viewpoint): void => {
     map?.flyTo({ center: [vp.lng, vp.lat], zoom: Math.max(map.getZoom(), 14), duration: 800 })
@@ -246,6 +294,14 @@ export function Sidebar(): React.JSX.Element {
               <input type="checkbox" checked={showPrivateLand} onChange={togglePrivateLand} />
               <span>Show private/farmland</span>
             </label>
+            <label className="sidebar__checkbox">
+              <input type="checkbox" checked={showOsmViewpoints} onChange={toggleShowOsmViewpoints} />
+              <span>Show tagged viewpoints</span>
+            </label>
+            <label className="sidebar__checkbox">
+              <input type="checkbox" checked={showComputedPeaks} onChange={toggleShowComputedPeaks} />
+              <span>Show computed peaks</span>
+            </label>
 
             {/* Auto-search waits for panning to genuinely stop before
                 firing (see DEBOUNCE_MS in useViewpoints.ts) - this lets
@@ -292,7 +348,7 @@ export function Sidebar(): React.JSX.Element {
 
             {status === 'error' && (
               <div className="sidebar__status sidebar__status--error" title={error ?? undefined}>
-                {friendlyMessage(error ?? '')}
+                {friendlyMessage(error ?? '', progress?.tilesTotal ?? null)}
                 <button type="button" className="sidebar__retry" onClick={requestViewpointsRefresh}>
                   Try again
                 </button>
@@ -303,9 +359,19 @@ export function Sidebar(): React.JSX.Element {
               <>
                 <div className="sidebar__count">
                   {filtered.length} cool spot{filtered.length === 1 ? '' : 's'}
+                  {viewpoints.length > 0 && ` (${osmCount} tagged · ${computedCount} computed)`}
+                  {filtered.length > MANY_RESULTS_THRESHOLD && ' — zoom in for a clearer view'}
                 </div>
                 <div className="sidebar__rows">
-                  {filtered.length === 0 && <div className="sidebar__empty">No spots match these filters</div>}
+                  {viewpoints.length === 0 && (
+                    <div className="sidebar__empty">No scenic spots found here — try zooming out to search a wider area</div>
+                  )}
+                  {viewpoints.length > 0 && filtered.length === 0 && (
+                    <div className="sidebar__empty">
+                      No spots match these filters — found {osmCount} tagged viewpoint{osmCount === 1 ? '' : 's'} and{' '}
+                      {computedCount} computed peak{computedCount === 1 ? '' : 's'} here, all filtered out
+                    </div>
+                  )}
                   {filtered.map((vp) => (
                     <div className="sidebar__row" key={vp.id}>
                       <button type="button" className="sidebar__row-main" onClick={() => flyTo(vp)}>

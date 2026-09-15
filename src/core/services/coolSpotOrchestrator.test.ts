@@ -59,3 +59,44 @@ describe('getExcludedLand', () => {
     expect(firstResult).toEqual(secondResult)
   })
 })
+
+describe('getViewpoints progress reporting', () => {
+  it('reports tile completion and a running viewpoint count as tiles settle', async () => {
+    // Wide enough (0.5 degrees) to split into 2 tiles at the fixed
+    // 0.25-degree grid (see tiling.ts) - a single-tile bbox would only
+    // ever produce one 0/1 -> 1/1 progress tick, which wouldn't actually
+    // exercise the "as tiles complete" incremental behavior.
+    const wideBbox: BBox = { west: 0, south: 0, east: 0.5, north: 0.25 }
+    const viewpointElement = (id: number, lon: number) => ({
+      type: 'node',
+      id,
+      lat: 0.1,
+      lon,
+      tags: { tourism: 'viewpoint' }
+    })
+
+    // mockImplementation (not mockResolvedValue) so every one of the 4
+    // fetchImpl calls (2 tiles x 2 raced endpoints each) gets its own
+    // fresh Response - a shared instance's body can only be read once,
+    // and every one of these calls independently calls response.json().
+    const fetchImpl = vi
+      .fn()
+      .mockImplementation(async () => jsonResponse({ elements: [viewpointElement(1, 0.1), viewpointElement(2, 0.1)] }))
+    const orchestrator = createCoolSpotOrchestrator({ fetchImpl, cache: new MemoryCacheStore() })
+
+    const progressUpdates: { tilesCompleted: number; tilesTotal: number; viewpointsFound: number }[] = []
+    await orchestrator.getViewpoints(wideBbox, (progress) => progressUpdates.push(progress))
+
+    // The very first update (before any tile has settled) establishes the
+    // total up front, so the UI has something to show immediately rather
+    // than waiting for the first tile to finish.
+    expect(progressUpdates[0]).toEqual({ tilesCompleted: 0, tilesTotal: 2, viewpointsFound: 0 })
+
+    const last = progressUpdates[progressUpdates.length - 1]
+    expect(last.tilesCompleted).toBe(2)
+    expect(last.tilesTotal).toBe(2)
+    // Each tile's node matches tourism=viewpoint - both tiles' raw parses
+    // contribute to the running tally this asserts against.
+    expect(last.viewpointsFound).toBeGreaterThan(0)
+  })
+})

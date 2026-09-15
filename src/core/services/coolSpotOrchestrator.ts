@@ -39,8 +39,24 @@ export interface CoolSpotOrchestratorDeps {
   cache: CacheStore
 }
 
+// Reported as the OSM viewpoint tiles for the current request settle, one
+// at a time - the UI's own progress indicator (see useViewpoints.ts) is the
+// only consumer, so this is deliberately a plain callback rather than
+// something the orchestrator persists anywhere. viewpointsFound is a
+// running tally of each tile's own raw matches - it can overcount slightly
+// versus the final returned list (tiles overlap at their shared edges, and
+// getViewpoints still trims/dedupes/filters after every tile settles), so
+// it's meant to read as "roughly this many so far", not a precise count.
+export interface ViewpointsProgress {
+  tilesCompleted: number
+  tilesTotal: number
+  viewpointsFound: number
+}
+
+export type ViewpointsProgressCallback = (progress: ViewpointsProgress) => void
+
 export interface CoolSpotOrchestrator {
-  getViewpoints: (bbox: BBox) => Promise<Viewpoint[]>
+  getViewpoints: (bbox: BBox, onProgress?: ViewpointsProgressCallback) => Promise<Viewpoint[]>
   getExcludedLand: (bbox: BBox) => Promise<ExcludedLandArea[]>
 }
 
@@ -98,12 +114,20 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
     return viewpoints
   }
 
-  async function getOsmViewpoints(bbox: BBox, signal: AbortSignal): Promise<Viewpoint[]> {
+  async function getOsmViewpoints(
+    bbox: BBox,
+    signal: AbortSignal,
+    onProgress?: ViewpointsProgressCallback
+  ): Promise<Viewpoint[]> {
     const tiles = splitBBox(bbox)
 
     console.log(
       `[coolSpotOrchestrator] getViewpoints bbox=(${bbox.west.toFixed(3)},${bbox.south.toFixed(3)},${bbox.east.toFixed(3)},${bbox.north.toFixed(3)}) -> ${tiles.length} tile(s)`
     )
+
+    let tilesCompleted = 0
+    let viewpointsFound = 0
+    onProgress?.({ tilesCompleted, tilesTotal: tiles.length, viewpointsFound })
 
     // Tiles are fetched in parallel rather than one-at-a-time: a
     // sequential loop with a delay between tiles meant a 4-tile viewport
@@ -118,8 +142,28 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
     // fetched, perfectly good tile just because one other tile hiccuped,
     // which is exactly the kind of wasted request this tiling exists to
     // avoid repeating.
+    //
+    // The .then/.catch here (rather than reading progress back out of the
+    // allSettled results afterward) is what makes this actually
+    // incremental - onProgress needs to fire as each tile settles, not
+    // all at once after every tile is already done, which is the only
+    // thing allSettled itself would allow.
     const results = await Promise.allSettled(
-      tiles.map((tile, i) => fetchTile(tile, `tile ${i + 1}/${tiles.length}`, signal))
+      tiles.map((tile, i) =>
+        fetchTile(tile, `tile ${i + 1}/${tiles.length}`, signal).then(
+          (viewpoints) => {
+            tilesCompleted++
+            viewpointsFound += viewpoints.length
+            onProgress?.({ tilesCompleted, tilesTotal: tiles.length, viewpointsFound })
+            return viewpoints
+          },
+          (error) => {
+            tilesCompleted++
+            onProgress?.({ tilesCompleted, tilesTotal: tiles.length, viewpointsFound })
+            throw error
+          }
+        )
+      )
     )
 
     // A supersession-abort on any tile should still propagate as a real
@@ -263,7 +307,7 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
     }
   }
 
-  async function getViewpoints(bbox: BBox): Promise<Viewpoint[]> {
+  async function getViewpoints(bbox: BBox, onProgress?: ViewpointsProgressCallback): Promise<Viewpoint[]> {
     currentRequest?.abort()
     const request = new AbortController()
     currentRequest = request
@@ -275,7 +319,7 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
     // perfectly good result because one independent data source
     // hiccuped.
     const [osmResult, elevationResult, roadsResult, landUseResult] = await Promise.allSettled([
-      getOsmViewpoints(bbox, request.signal),
+      getOsmViewpoints(bbox, request.signal, onProgress),
       getComputedPeaks(bbox, request.signal),
       getRoads(bbox, request.signal),
       getExcludedLandAreas(bbox, request.signal)

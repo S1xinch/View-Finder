@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useViewFinderStore } from '../state/store'
 import { CATEGORY_COLOR, CATEGORY_LABEL } from '../map/categoryStyle'
 import { Logo } from '../Logo'
@@ -49,38 +49,63 @@ function formatDistance(meters: number | null | undefined): string {
   return `${Math.round(meters)} m from road`
 }
 
-// Below this drag distance, a release is read as "changed my mind" (or a
-// plain tap) rather than a real swipe - the dragged element rubber-bands
-// back to its resting position instead of toggling. Past it, the gesture
-// commits and the sheet opens/closes.
-const DRAG_COMMIT_PX = 40
+// Under this much movement a release is a tap, not a swipe (a real finger
+// never lands pointerup on the exact pointerdown pixel).
+const TAP_THRESHOLD_PX = 8
 
-// Real finger-follow dragging (not just a tap-to-toggle): the target
-// element (the collapsed pull-tab, or the open sheet - see targetRef)
-// is translated 1:1 with the pointer in real time via direct DOM style
-// mutation, not React state - a state update (and re-render) per
-// pointermove would be both unnecessary work and a frame behind the
-// finger. CSS owns the resting-position transition (see .sidebar-reopen/
-// .sidebar in global.css); this only disables it during the drag itself
-// (transition: none) so the element tracks 1:1 with no lag, then restores
-// it on release so the rubber-band/final-snap animates instead of
-// jumping.
+// A release moving at least this fast commits in the direction of travel
+// regardless of how far it actually got - a quick flick is a clear signal
+// of intent even when it barely moves, and requiring distance alone was
+// what made quick swipes feel like they did nothing.
+const FLICK_VELOCITY_PX_PER_MS = 0.35
+
+// Kept a little longer than the CSS transform transition (see .sidebar in
+// global.css) so the inline transform is only dropped once the snap has
+// finished playing out.
+const SNAP_SETTLE_MS = 320
+
+// How tall the sheet is when collapsed. Declared in CSS as --vf-sheet-peek
+// (which is what the collapsed rule sets max-height to) and read back here
+// so the drag maths and the resting position can't drift apart. Measured
+// from the real layout on mount - see the layout effect in Sidebar.
+function peekHeightOf(el: HTMLElement): number {
+  const parsed = Number.parseFloat(getComputedStyle(el).getPropertyValue('--vf-sheet-peek'))
+  return Number.isFinite(parsed) ? parsed : 132
+}
+
+// Mirrors `max-height: min(65dvh, 65vh)` on the mobile sheet in
+// global.css - the drag needs the cap as a number, and a CSS min() in a
+// custom property can't be read back resolved.
+const SHEET_MAX_VIEWPORT_FRACTION = 0.65
+
+// Drags the ONE sheet between its two resting heights, rather than
+// swapping between two separate elements or sliding it off-screen.
+// Collapsed is the exact same sheet, just shorter - its bottom edge stays
+// anchored in place (see .sidebar's `bottom` in global.css) so it reads
+// as a small rounded card floating just above the screen edge, and
+// dragging up grows it back toward full height. That's what makes it
+// feel continuous instead of popping between two different things, and
+// (unlike translating it downward off-screen) it's never actually
+// off-screen or square-cornered at rest.
 //
-// The pull-tab can only drag upward (toward opening) and the open sheet's
-// grabber only downward (toward closing) - the opposite direction is
-// clamped to 0 so the gesture never fights itself by dragging a corner
-// that's already at its resting edge.
+// The sheet's height is mutated directly rather than through React
+// state: a re-render per pointermove would be both wasted work and a
+// frame behind the finger. CSS owns the resting heights and the snap
+// transition (see .sidebar / .sidebar--hidden in global.css); this
+// disables that transition for the duration of the drag so the sheet
+// tracks 1:1, then restores it and sets the destination so the snap
+// animates. The inline height is dropped a beat later (SNAP_SETTLE_MS)
+// once React has applied the matching class, so handing control back to
+// the stylesheet is invisible instead of a jump.
 //
-// setPointerCapture guarantees pointerup still fires on this element even
-// if the finger drifted off it mid-gesture. onClick stays only as the
-// fallback for a *keyboard* activation (Enter/Space fires a synthetic
-// click with no pointerdown ever having happened) - pointerHandledRef
-// suppresses it for a real touch/mouse gesture so that doesn't
-// double-toggle.
-function useDraggableSheet(
-  targetRef: React.RefObject<HTMLElement | null>,
+// setPointerCapture keeps pointerup coming to this element even if the
+// finger drifts off it mid-drag. onClick remains only for keyboard
+// activation (Enter/Space fires a click with no pointer sequence at all);
+// pointerHandledRef stops a real gesture's trailing click double-toggling.
+function useSheetDrag(
+  sheetRef: React.RefObject<HTMLElement | null>,
   open: boolean,
-  onToggle: () => void
+  setOpen: (open: boolean) => void
 ): {
   onPointerDown: (e: React.PointerEvent) => void
   onPointerMove: (e: React.PointerEvent) => void
@@ -88,75 +113,82 @@ function useDraggableSheet(
   onClick: () => void
 } {
   const pointerHandledRef = useRef(false)
-  const dragStartYRef = useRef<number | null>(null)
-  const dragStartTimeRef = useRef(0)
+  const startYRef = useRef<number | null>(null)
+  const startTimeRef = useRef(0)
+  const baseHeightRef = useRef(0)
+  const peekHeightRef = useRef(0)
+  const openHeightRef = useRef(0)
+  const settleTimerRef = useRef<ReturnType<typeof setTimeout>>()
 
-  const setTransform = (px: number): void => {
-    const el = targetRef.current
-    if (el) el.style.transform = px === 0 ? '' : `translateY(${px}px)`
-  }
+  useEffect(
+    () => () => {
+      if (settleTimerRef.current) clearTimeout(settleTimerRef.current)
+    },
+    []
+  )
 
   return {
     onPointerDown: (e) => {
-      // Real pointer sessions always accept capture; a synthetic
-      // PointerEvent with a made-up id (e.g. in a test) throws here -
-      // swallowed so it can't silently skip setting dragStartYRef below
-      // and break every subsequent gesture on this element.
+      const el = sheetRef.current
+      if (!el) return
+      // A synthetic PointerEvent with an id that was never a real pointer
+      // throws here - swallowed so it can't skip the setup below and wedge
+      // every later gesture on this element.
       try {
         e.currentTarget.setPointerCapture(e.pointerId)
       } catch {
-        /* not a real pointer session - ignore */
+        /* not a real pointer session */
       }
-      dragStartYRef.current = e.clientY
-      dragStartTimeRef.current = e.timeStamp
-      const el = targetRef.current
-      if (el) el.style.transition = 'none'
+      if (settleTimerRef.current) clearTimeout(settleTimerRef.current)
+      peekHeightRef.current = peekHeightOf(el)
+      openHeightRef.current = window.innerHeight * SHEET_MAX_VIEWPORT_FRACTION
+      baseHeightRef.current = open ? openHeightRef.current : peekHeightRef.current
+      startYRef.current = e.clientY
+      startTimeRef.current = e.timeStamp
+      el.style.transition = 'none'
     },
     onPointerMove: (e) => {
-      if (dragStartYRef.current == null) return
-      const delta = e.clientY - dragStartYRef.current
-      setTransform(open ? Math.max(0, delta) : Math.min(0, delta))
+      const el = sheetRef.current
+      if (!el || startYRef.current == null) return
+      // Finger moving up (negative delta) should grow the sheet.
+      const next = baseHeightRef.current - (e.clientY - startYRef.current)
+      el.style.height = `${Math.min(Math.max(next, peekHeightRef.current), openHeightRef.current)}px`
     },
     onPointerUp: (e) => {
-      e.currentTarget.releasePointerCapture(e.pointerId)
+      const el = sheetRef.current
+      const startY = startYRef.current
+      startYRef.current = null
       pointerHandledRef.current = true
-      const startY = dragStartYRef.current
-      const startTime = dragStartTimeRef.current
-      dragStartYRef.current = null
-      const el = targetRef.current
-      if (el) el.style.transition = ''
-      setTransform(0)
-      if (startY == null) return
+      if (!el || startY == null) return
+
       const delta = e.clientY - startY
-      // A plain tap (near-zero movement - real fingers/mice never land
-      // pointerup at the *exact* pointerdown pixel) always toggles, same
-      // as a click - only a real, deliberate drag needs to clear
-      // DRAG_COMMIT_PX in the right direction. Without this, tapping the
-      // pull-tab/grabber stopped doing anything: a tap's ~0px delta
-      // satisfied neither commit condition below, so it fell through to
-      // the rubber-band-back branch instead of opening/closing.
-      const TAP_THRESHOLD_PX = 8
-      // A quick flick commits well short of DRAG_COMMIT_PX - real bottom
-      // sheets go by velocity, not just distance travelled, since a fast
-      // short flick clearly signals intent the same way a slow long drag
-      // does. Without this, only a slow, deliberate drag past the full
-      // threshold worked; an actual quick swipe (the natural gesture, and
-      // the whole point of a "swipe to open" sheet) did nothing at all.
-      const elapsedMs = Math.max(1, e.timeStamp - startTime)
-      const velocity = Math.abs(delta) / elapsedMs
-      const FLICK_MIN_DISTANCE_PX = 12
-      const FLICK_VELOCITY_PX_PER_MS = 0.5
-      const isFlick = Math.abs(delta) >= FLICK_MIN_DISTANCE_PX && velocity >= FLICK_VELOCITY_PX_PER_MS
-      if (Math.abs(delta) < TAP_THRESHOLD_PX) onToggle()
-      else if (open && (delta > DRAG_COMMIT_PX || (delta > 0 && isFlick))) onToggle()
-      else if (!open && (delta < -DRAG_COMMIT_PX || (delta < 0 && isFlick))) onToggle()
+      const velocity = delta / Math.max(1, e.timeStamp - startTimeRef.current)
+      const span = openHeightRef.current - peekHeightRef.current
+      let toOpen: boolean
+      if (Math.abs(delta) < TAP_THRESHOLD_PX) {
+        toOpen = !open
+      } else if (Math.abs(velocity) >= FLICK_VELOCITY_PX_PER_MS) {
+        // Flicked - go where it was thrown, however far it actually got.
+        toOpen = velocity < 0
+      } else {
+        // Dragged and let go: settle to whichever resting height the
+        // sheet ended up nearest.
+        toOpen = baseHeightRef.current - delta > peekHeightRef.current + span / 2
+      }
+
+      el.style.transition = ''
+      el.style.height = `${toOpen ? openHeightRef.current : peekHeightRef.current}px`
+      settleTimerRef.current = setTimeout(() => {
+        if (sheetRef.current) sheetRef.current.style.height = ''
+      }, SNAP_SETTLE_MS)
+      if (toOpen !== open) setOpen(toOpen)
     },
     onClick: () => {
       if (pointerHandledRef.current) {
         pointerHandledRef.current = false
         return
       }
-      onToggle()
+      setOpen(!open)
     }
   }
 }
@@ -224,6 +256,7 @@ export function Sidebar(): React.JSX.Element {
   const setMaxDistanceToRoadMeters = useViewFinderStore((s) => s.setMaxDistanceToRoadMeters)
   const sidebarOpen = useViewFinderStore((s) => s.sidebarOpen)
   const toggleSidebar = useViewFinderStore((s) => s.toggleSidebar)
+  const setSidebarOpen = useViewFinderStore((s) => s.setSidebarOpen)
   const showPrivateLand = useViewFinderStore((s) => s.showPrivateLand)
   const togglePrivateLand = useViewFinderStore((s) => s.togglePrivateLand)
   const showOsmViewpoints = useViewFinderStore((s) => s.showOsmViewpoints)
@@ -234,20 +267,38 @@ export function Sidebar(): React.JSX.Element {
   const requestRoute = useViewFinderStore((s) => s.requestRoute)
   const requestViewpointsRefresh = useViewFinderStore((s) => s.requestViewpointsRefresh)
 
-  // Both the collapsed pull-tab and the open sheet are ALWAYS mounted now
-  // (see the render below) rather than one replacing the other - the
-  // instant React-tree swap was exactly why opening/closing "popped"
-  // instead of rolling out: there was no continuous element to actually
-  // animate across the transition, just an unmount of one and a mount of
-  // the other. With both always present, CSS (see .sidebar--hidden/
-  // .sidebar-reopen--hidden in global.css) can transform whichever one is
-  // supposed to be off-screen, and useDraggableSheet's drag-follow uses
-  // the same mechanism it always did - it just now targets two distinct,
-  // permanently-mounted elements instead of alternating.
-  const reopenRef = useRef<HTMLButtonElement>(null)
+  // On phone portrait the sheet IS the collapsed bar - it just sits pushed
+  // down to its peek height (see .sidebar--hidden in global.css) - so one
+  // element and one drag hook cover both states. The separate corner
+  // button is desktop/landscape only (hidden on phone portrait in CSS)
+  // and needs no drag at all: it's a plain click target there.
   const sheetRef = useRef<HTMLElement>(null)
-  const reopenDragHandlers = useDraggableSheet(reopenRef, sidebarOpen, toggleSidebar)
-  const sheetDragHandlers = useDraggableSheet(sheetRef, sidebarOpen, toggleSidebar)
+  const sheetDragHandlers = useSheetDrag(sheetRef, sidebarOpen, setSidebarOpen)
+
+  // The collapsed sheet should peek exactly far enough to show everything
+  // down to the bottom of the search field. Measuring that (rather than
+  // hard-coding a height) keeps it correct across font scaling, a wrapped
+  // title, and locale-driven text length - any of which would otherwise
+  // clip the search box or leave dead space under it. --vf-sheet-peek's
+  // value in global.css is only the pre-measurement fallback.
+  useLayoutEffect(() => {
+    const sheet = sheetRef.current
+    if (!sheet) return
+
+    const measure = (): void => {
+      const search = sheet.querySelector('.search-bar')
+      if (!search) return
+      // Measured while open (the sheet's natural, un-shrunk layout), so
+      // this is just "how far down the search field's bottom edge sits" -
+      // the same number collapsed height needs to target.
+      const peek = search.getBoundingClientRect().bottom - sheet.getBoundingClientRect().top
+      if (peek > 0) sheet.style.setProperty('--vf-sheet-peek', `${Math.round(peek)}px`)
+    }
+
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [])
 
   const [showLoading, setShowLoading] = useState(false)
 
@@ -280,66 +331,31 @@ export function Sidebar(): React.JSX.Element {
     map?.flyTo({ center: [vp.lng, vp.lat], zoom: Math.max(map.getZoom(), 14), duration: 800 })
   }
 
-  const reopenButton = (
+  return (
+    <>
+      {/* Desktop and landscape only - phone portrait hides this entirely
+          (see global.css) because there the sheet itself stays on screen,
+          peeking, instead of being replaced by a separate control. */}
       <button
-        ref={reopenRef}
         type="button"
         className={`sidebar-reopen vf-card${status === 'loading' ? ' sidebar-reopen--loading' : ''}${sidebarOpen ? ' sidebar-reopen--hidden' : ''}`}
-        {...reopenDragHandlers}
+        onClick={() => setSidebarOpen(true)}
         aria-label={status === 'loading' ? 'Show sidebar (loading viewpoints)' : 'Show sidebar'}
       >
-        {/* Desktop's small round button keeps its plain arrow glyph;
-            mobile hides this and shows the pull-tab's handle+caption
-            below instead (see the display swap in global.css). */}
         <span className="sidebar-reopen__arrow" aria-hidden="true">
           ›
         </span>
-        <span className="sidebar__handle" aria-hidden="true" />
-        {/* Icon + label row - mobile-only (see global.css) - so the
-            collapsed pull-tab reads as Apple Maps' own floating search
-            capsule (a wide bar you tap or swipe up) rather than a plain
-            status label with no visual identity. */}
-        <span className="sidebar-reopen__row">
-          <svg
-            width="15"
-            height="15"
-            viewBox="0 0 24 24"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            aria-hidden="true"
-            className="sidebar-reopen__icon"
-          >
-            <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
-            <path d="M21 21l-4.3-4.3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-          <span className="sidebar-reopen__label" aria-hidden="true">
-            {status === 'ready'
-              ? `${filtered.length} cool spot${filtered.length === 1 ? '' : 's'}`
-              : status === 'loading'
-                ? progress && progress.viewpointsFound > 0
-                  ? `Found ${progress.viewpointsFound} so far…`
-                  : 'Searching…'
-                : 'View Finder'}
-          </span>
-        </span>
       </button>
-  )
-
-  return (
-    <>
-      {reopenButton}
       <aside ref={sheetRef} className={`vf-card sidebar${sidebarOpen ? '' : ' sidebar--hidden'}`}>
-      {/* Mobile-only (see global.css) swipe-down-to-close target, matching
-          how a native bottom sheet's own drag handle behaves - the
+      {/* Phone-portrait drag surface (hidden elsewhere, see global.css):
+          drags the whole sheet between peeking and open via sheetRef. The
           explicit collapse button in the header below still covers
-          desktop/non-touch use. The drag handlers live here (the actual
-          touch surface) but translate the whole <aside> above via
-          sheetRef, not just this row. */}
+          desktop/non-touch use. */}
       <div
         className="sidebar__grabber"
         role="button"
         tabIndex={0}
-        aria-label="Hide sidebar"
+        aria-label={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
         {...sheetDragHandlers}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') toggleSidebar()
@@ -348,18 +364,31 @@ export function Sidebar(): React.JSX.Element {
         <span className="sidebar__handle" aria-hidden="true" />
       </div>
 
-      <header className="sidebar__header">
+      {/* Just the mark, small and quiet in the corner - "View Finder" (the
+          h1 + subtitle this replaces) is what the mark itself already
+          says, and dropping the text row means the search field below
+          sits noticeably higher instead of under a full title block. The
+          app's actual name/description still exist for anyone who needs
+          them literally: the <title> tag and the mark's alt text below. */}
+      <header className="sidebar__header" title="View Finder — scenic high ground, reachable by car" aria-label="View Finder">
         <Logo />
-        <div className="sidebar__title-group">
-          <h1 className="sidebar__title">View Finder</h1>
-          <span className="sidebar__subtitle">Scenic high ground, reachable by car</span>
-        </div>
         <button type="button" className="sidebar__collapse" onClick={toggleSidebar} aria-label="Hide sidebar">
           ‹
         </button>
       </header>
 
-      <SearchBar />
+      {/* The search field is inside the strip that stays visible while the
+          sheet is collapsed, so it can be tapped without opening the sheet
+          first - but its results dropdown would render below the fold. Any
+          focus landing in here opens the sheet so the results have
+          somewhere to go. */}
+      <div
+        onFocus={() => {
+          if (!sidebarOpen) setSidebarOpen(true)
+        }}
+      >
+        <SearchBar />
+      </div>
 
       {routeDestination ? (
         <div className="sidebar__body">

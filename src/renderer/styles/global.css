@@ -17,6 +17,12 @@
   --vf-blur: blur(24px) saturate(180%);
   --vf-radius-lg: 18px;
   --vf-radius-md: 12px;
+  /* How much of the bottom sheet stays on screen when it's collapsed on
+     phone portrait - enough for the grab handle, the title row and the
+     whole search field, so search is usable without opening the sheet.
+     Read back by useSheetDrag (Sidebar.tsx) so the drag maths and this
+     resting position stay in lockstep. */
+  --vf-sheet-peek: 132px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -349,19 +355,17 @@ button {
   color: var(--vf-text-primary);
 }
 
-/* The drag-handle pill (shared by the collapsed pull-tab and the open
-   sheet's own grabber row) and the pull-tab's text caption only make
-   sense in the mobile bottom-sheet redesign below - on desktop the
-   reopen control stays the plain small icon button it always was, with
-   neither. These (and the block above) must stay physically ABOVE the
-   mobile/landscape @media overrides below them in the file: CSS resolves
-   equal-specificity ties by source order regardless of which side is in
-   a media query, so an unconditional rule declared *after* a conditional
-   one would silently win even when the condition is true - which is
-   exactly the bug this position fixes (the mobile pull-tab was rendering
-   at the desktop's top-left corner position instead of bottom-center). */
+/* The drag handle and its grabber row only exist for the phone-portrait
+   bottom sheet below - desktop and landscape use the small corner button
+   instead and show neither. These (and the block above) must stay
+   physically ABOVE the mobile/landscape @media overrides below them in
+   the file: CSS resolves equal-specificity ties by source order
+   regardless of which side is in a media query, so an unconditional rule
+   declared *after* a conditional one would silently win even when the
+   condition is true - which is exactly the bug this position fixes (the
+   mobile pull-tab was rendering at the desktop's top-left corner
+   position instead of bottom-center). */
 .sidebar__handle,
-.sidebar-reopen__row,
 .sidebar__grabber {
   display: none;
 }
@@ -379,21 +383,21 @@ button {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  /* Drives the rubber-band-back/commit-to-closed snap after a drag
-     release (see useDraggableSheet in Sidebar.tsx, which sets this
-     element's transform directly and briefly disables this transition
-     during the drag itself for 1:1 finger tracking, restoring it right
-     before setting the final resting transform). */
-  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* Drives the snap-to-rest after a drag release on phone portrait (see
+     useSheetDrag in Sidebar.tsx, which sets this element's height
+     directly and briefly disables this transition during the drag itself
+     for 1:1 finger tracking, restoring it right before setting the final
+     resting height). Unused on desktop/landscape, where the collapsed
+     state is a plain display: none swap instead - harmless to declare
+     unconditionally. */
+  transition: height 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-/* Both .sidebar and .sidebar-reopen are always mounted now (see
-   Sidebar.tsx) rather than one replacing the other, so whichever is
-   "closed" needs to actually go away visually. Desktop keeps the exact
-   old instant swap (display: none - there's no drag/slide interaction to
-   preserve continuity for there). The mobile override below replaces
-   this with a transform-based slide instead, so the transition it
-   already has above can animate a real roll-out/roll-in instead of a cut. */
+/* Desktop (and landscape) genuinely hide the sheet and show the small
+   corner button instead - an instant swap, unchanged, since there's no
+   drag gesture here whose continuity needs preserving. Phone portrait
+   overrides this below to mean "pushed down to its peek height" instead
+   of "gone". */
 .sidebar--hidden {
   display: none;
 }
@@ -421,22 +425,28 @@ button {
     right: max(12px, env(safe-area-inset-right));
     bottom: max(12px, env(safe-area-inset-bottom));
     width: auto;
-    max-height: min(65dvh, 65vh);
+    height: min(65dvh, 65vh);
   }
 
-  /* Overrides the desktop display:none swap (see the base rules) with a
-     real transform instead - both this and .sidebar-reopen are always
-     mounted (Sidebar.tsx), so pushing the "closed" one down by its own
-     full height (translateY(100%) is relative to the element's own size,
-     not the viewport, so this works regardless of content-driven height
-     changes) lets the .sidebar/.sidebar-reopen transition actually
-     animate a roll-out/roll-in instead of an instant cut. pointer-events
-     keeps the off-screen one from intercepting touches meant for the map. */
-  .sidebar--hidden,
-  .sidebar-reopen--hidden {
+  /* Collapsed here doesn't mean hidden - it means the SAME sheet shrunk
+     down to --vf-sheet-peek tall (handle, title, search field). The
+     sheet's `bottom` above keeps its bottom edge anchored in place as it
+     shrinks, so it stays a small rounded card floating just above the
+     screen edge rather than sliding off it - and dragging up grows it
+     back, which is what makes the gesture feel continuous instead of one
+     element vanishing and a different one appearing. Stays interactive
+     (no pointer-events: none needed) precisely so the peeking search
+     field can be tapped while collapsed. */
+  .sidebar--hidden {
     display: flex;
-    transform: translateY(calc(100% + 40px));
-    pointer-events: none;
+    height: var(--vf-sheet-peek);
+  }
+
+  /* Phone portrait has no separate collapsed control at all - the sheet
+     above peeks instead. (Landscape re-enables this further down; it
+     keeps the desktop-style corner button.) */
+  .sidebar-reopen {
+    display: none;
   }
 
   /* Below this width the sidebar is a primary touch surface, not a
@@ -470,50 +480,6 @@ button {
     bottom: auto;
     margin-top: calc(56px + env(safe-area-inset-top, 0px));
     margin-bottom: 0;
-  }
-
-  /* Redesigned as a bottom-center pull-tab instead of a small button in a
-     corner - unambiguous in every orientation (there's no "which corner"
-     to get wrong when it's centered), and its whole shape reads as
-     "drag this" rather than a directionless icon button. Swipe-up (via
-     useSwipeToggle, shared with the open sheet's own grabber below) and a
-     plain tap both open it. */
-  .sidebar-reopen {
-    top: auto;
-    left: max(12px, env(safe-area-inset-left));
-    right: max(12px, env(safe-area-inset-right));
-    bottom: max(12px, env(safe-area-inset-bottom));
-    width: auto;
-    height: auto;
-    padding: 8px 16px 12px;
-    border-radius: var(--vf-radius-lg);
-    flex-direction: column;
-    gap: 2px;
-    touch-action: none;
-  }
-
-  .sidebar-reopen__arrow {
-    display: none;
-  }
-
-  .sidebar-reopen__row {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    width: 100%;
-  }
-
-  .sidebar-reopen__icon {
-    display: block;
-    flex: 0 0 auto;
-    color: var(--vf-text-secondary);
-  }
-
-  .sidebar-reopen__label {
-    display: block;
-    font-size: 14px;
-    color: var(--vf-text-secondary);
   }
 
   .sidebar__handle {
@@ -565,6 +531,7 @@ button {
     right: auto;
     bottom: max(10px, env(safe-area-inset-bottom));
     width: 280px;
+    height: auto;
     max-height: none;
   }
 
@@ -572,12 +539,16 @@ button {
      pull-tab) don't apply to a side panel - restored to the plain small
      corner button desktop uses instead. */
   .sidebar__handle,
-  .sidebar__grabber,
-  .sidebar-reopen__label {
+  .sidebar__grabber {
     display: none;
   }
 
+  /* Re-enabled (phone portrait above hides it entirely) and put back in
+     the corner - landscape keeps the desktop-style small button and its
+     instant swap, since a side panel has no bottom-sheet gesture whose
+     continuity needs preserving. */
   .sidebar-reopen {
+    display: flex;
     top: max(10px, env(safe-area-inset-top));
     left: max(10px, env(safe-area-inset-left));
     right: auto;
@@ -593,21 +564,22 @@ button {
     display: block;
   }
 
-  /* Landscape restores the plain desktop-style instant swap (a small
-     corner button, not a sliding sheet - there's no bottom-sheet gesture
-     to preserve continuity for here) instead of the portrait combined
-     query's translateY slide above. */
+  /* Instant swap here rather than the portrait peek-position above. */
   .sidebar--hidden,
   .sidebar-reopen--hidden {
     display: none;
   }
 }
 
+/* Just the mark + collapse button now (see Sidebar.tsx) - space-between
+   keeps the logo quietly in its own top-left corner and the collapse
+   button in its own top-right one, rather than a title row's worth of
+   height sitting between them and the search field below. */
 .sidebar__header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 14px 10px 4px 14px;
+  justify-content: space-between;
+  padding: 10px 8px 0 10px;
 }
 
 /* Global "jump to a place" search (SearchBar.tsx) - distinct from the
@@ -621,7 +593,7 @@ button {
    among several - deliberately heavier than the rest of the chrome. */
 .search-bar {
   position: relative;
-  padding: 10px 14px 12px;
+  padding: 6px 14px 12px;
 }
 
 .search-bar__field {
@@ -710,28 +682,6 @@ button {
   padding: 8px 10px;
   font-size: 12px;
   color: var(--vf-text-secondary);
-}
-
-.sidebar__title-group {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  flex: 1;
-}
-
-.sidebar__title {
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-.sidebar__subtitle {
-  font-size: 12px;
-  color: var(--vf-text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .sidebar__footer {

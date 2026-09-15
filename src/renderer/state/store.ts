@@ -56,6 +56,11 @@ interface ViewFinderStore {
 
   sidebarOpen: boolean
   toggleSidebar: () => void
+  // Explicit setter alongside the toggle - the drag gesture decides an
+  // absolute target state from where the sheet was released (and the
+  // search field opens the sheet on focus), neither of which is a
+  // "flip whatever it currently is" operation.
+  setSidebarOpen: (open: boolean) => void
 
   showPrivateLand: boolean
   togglePrivateLand: () => void
@@ -121,6 +126,7 @@ export const useViewFinderStore = create<ViewFinderStore>((set) => ({
 
   sidebarOpen: true,
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
+  setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
 
   showPrivateLand: false,
   togglePrivateLand: () => set((s) => ({ showPrivateLand: !s.showPrivateLand })),

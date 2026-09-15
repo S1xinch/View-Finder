@@ -19,14 +19,6 @@ export const DEFAULT_VIEW = {
   zoom: 1.5
 }
 
-// Where the map centers once a one-shot "roughly where is the user"
-// geolocation lookup succeeds - a regional/metro-area view (their
-// approximate city, not their exact street) rather than the tight
-// street-level zoom the explicit "locate me" control flies to, since this
-// happens silently on load and a sudden close-up of a stranger's precise
-// position would read as invasive rather than helpful.
-export const GEOLOCATED_INITIAL_ZOOM = 9
-
 // The positron style's default road rendering (light grey/white, minimal)
 // meant minor roads and tracks (e.g. fire trails, common in AU bushland)
 // were nearly the same color as the surrounding terrain - you couldn't

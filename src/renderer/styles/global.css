@@ -164,6 +164,14 @@ button {
 }
 
 .maplibregl-ctrl-group button {
+  /* Native <button> UA defaults (a couple px of padding, sometimes a
+     border) weren't being reset - harmless on a plain rectangle, but it
+     throws the icon glyph off-center once the button itself became a
+     circle: flex centering still centers correctly, but only within
+     whatever's left after that default padding eats into one axis more
+     than the border-radius makes obvious. */
+  padding: 0;
+  border: none;
   background-color: transparent;
 }
 
@@ -327,6 +335,9 @@ button {
   color: var(--vf-text-secondary);
   font-size: 16px;
   cursor: pointer;
+  /* Same drag-driven transition as .sidebar above - useDraggableSheet
+     targets whichever of the two is currently mounted. */
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .sidebar-reopen:hover {
@@ -363,6 +374,12 @@ button {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* Drives the rubber-band-back/commit-to-closed snap after a drag
+     release (see useDraggableSheet in Sidebar.tsx, which sets this
+     element's transform directly and briefly disables this transition
+     during the drag itself for 1:1 finger tracking, restoring it right
+     before setting the final resting transform). */
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 /* On a phone-width viewport this becomes a bottom sheet instead of a
@@ -848,6 +865,34 @@ button {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Wraps filters + results together as ONE scroll region (see Sidebar.tsx)
+   so filters scroll away with the list instead of permanently pinning
+   above a separately-scrolling, cramped .sidebar__rows - that fixed
+   overhead was what made the list hard to browse on the shorter mobile
+   sheet. Not used by the directions view (DirectionsView.tsx renders
+   .sidebar__body directly, without this wrapper), which keeps its own
+   original fixed-header + independently-scrolling-steps layout below. */
+.sidebar__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Neutralizes .sidebar__body/.sidebar__rows' own flex-sizing and scroll
+   behavior specifically when nested inside .sidebar__scroll, so there's
+   exactly one scroll container instead of a scrollable list boxed inside
+   an already-scrollable parent. Their base rules below are left intact -
+   DirectionsView.tsx uses both directly, without this wrapper, and needs
+   their original independent-scroll behavior. */
+.sidebar__scroll .sidebar__body,
+.sidebar__scroll .sidebar__rows {
+  flex: none;
+  min-height: 0;
+  overflow: visible;
 }
 
 .sidebar__body {

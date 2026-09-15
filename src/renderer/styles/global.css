@@ -289,11 +289,15 @@ button {
   z-index: 10;
 }
 
-/* Same breakpoint as .sidebar's full-width mobile rule above - at that
-   width the full-width sidebar would sit right under this badge's
-   top-right corner, and this dev-info badge (version/commit/API status)
-   isn't worth the visual clutter on a small screen. */
-@media (max-width: 600px) {
+/* Same breakpoint as .sidebar's mobile rule below - at that width/aspect
+   the bottom-sheet sidebar and the relocated map controls both compete
+   for this badge's top-right corner, and this dev-info badge (version/
+   commit/API status) isn't worth the visual clutter on a small screen.
+   Also matches a phone turned to landscape: a phone is wider than
+   600px sideways, so width alone misses it entirely (which is exactly
+   how this badge ended up sitting on top of the zoom controls in
+   landscape - both had reverted to their desktop position/corner). */
+@media (max-width: 600px), (max-height: 500px) and (orientation: landscape) {
   .version-badge {
     display: none;
   }
@@ -320,8 +324,17 @@ button {
    mobile) rather than stretched top-to-bottom over the whole screen. A
    capped max-height deliberately leaves map visible above it, so panning
    the map out from under a full-screen panel is never necessary just to
-   see where you are. */
-@media (max-width: 600px) {
+   see where you are.
+
+   The query itself also has to catch a phone turned sideways, not just a
+   narrow one: a phone in landscape is wider than 600px (its short edge
+   becomes the height instead), so width alone missed it completely -
+   every "mobile" rule below (including the reopen button's corner) was
+   silently reverting to its desktop position/size the moment someone
+   rotated the screen. The max-height alternative catches that case
+   without also matching an actual small tablet in landscape, which is
+   comfortably taller than this. */
+@media (max-width: 600px), (max-height: 500px) and (orientation: landscape) {
   .sidebar {
     top: auto;
     left: max(12px, env(safe-area-inset-left));
@@ -341,11 +354,27 @@ button {
     height: 44px;
   }
 
+  /* The zoom/locate/satellite buttons stay small (unlike the sidebar's
+     own touch targets above) - they're reached for occasionally, not
+     the primary thing being tapped, and at 44px they read as oversized
+     next to the map. */
   .locate-ctrl__button,
   .satellite-ctrl__button,
   .maplibregl-ctrl-group button {
-    width: 44px;
-    height: 44px;
+    width: 34px;
+    height: 34px;
+  }
+
+  /* Relocated from MapLibre's default bottom-right corner up to
+     top-right, clear of the bottom sheet - and given real breathing
+     room below the top edge (not just the usual 10px) rather than
+     crowding the status bar/notch/version-badge area right at the very
+     top. */
+  .maplibregl-ctrl-bottom-right {
+    top: 0;
+    bottom: auto;
+    margin-top: calc(56px + env(safe-area-inset-top, 0px));
+    margin-bottom: 0;
   }
 
   /* Moved down to the same bottom-left corner the sheet itself opens

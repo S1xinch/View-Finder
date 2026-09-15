@@ -440,6 +440,31 @@ button {
   }
 }
 
+/* Landscape's height budget is the tight constraint here (width is often
+   plenty) - the filter sliders/checkbox that fit comfortably in the
+   portrait bottom sheet can, together with the header and search bar,
+   consume the *entire* height budget on a short landscape screen, leaving
+   .sidebar__rows genuinely zero visible height rather than just "hard to
+   scroll". Hiding the two least-essential controls (elevation/road-
+   distance sliders, private-land checkbox) and raising the sheet's own
+   height cap frees enough of that budget back for the list to actually
+   render. The "Search this area" button they share a container with
+   stays - re-searching the current view has no other way to trigger it. */
+@media (max-height: 500px) and (orientation: landscape) {
+  .sidebar {
+    max-height: min(88dvh, 88vh);
+  }
+
+  .sidebar__filter,
+  .sidebar__checkbox {
+    display: none;
+  }
+
+  .sidebar__rows {
+    min-height: 90px;
+  }
+}
+
 .sidebar__header {
   display: flex;
   align-items: center;

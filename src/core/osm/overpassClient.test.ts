@@ -62,9 +62,61 @@ describe('queryOverpass', () => {
     })
 
     const promise = queryOverpass('query', { fetchImpl, signal: controller.signal, retryDelayMs: 0 })
+    // Wait for both endpoint requests to genuinely be in flight before
+    // aborting - otherwise this races the concurrency gate's own "already
+    // superseded" pre-check (see EndpointGate.run in overpassClient.ts),
+    // which can legitimately short-circuit before ever calling fetchImpl
+    // if the abort happens in the same tick the request was started.
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(2))
     controller.abort()
 
     await expect(promise).rejects.toThrow()
     expect(fetchImpl).toHaveBeenCalledTimes(2)
+  })
+
+  it('caps concurrent requests to the same endpoint, queuing the rest rather than firing them all at once', async () => {
+    // Real-world motivation: the public Overpass instances enforce a small
+    // per-client concurrent-slot limit, independent of total request
+    // volume - a single pan into a brand-new area can fire several
+    // distinct queries at once (multiple viewpoint tiles + roads +
+    // land-use), and without a cap here they'd all hit the same endpoint
+    // simultaneously and trip an immediate 429 regardless of how well
+    // volume is otherwise controlled.
+    // A dedicated fake endpoint, not DEFAULT_OVERPASS_ENDPOINT/
+    // FALLBACK_OVERPASS_ENDPOINT - the gate is keyed per endpoint URL and
+    // lives at module scope for the lifetime of the test process, so
+    // reusing a real endpoint here could pick up a slot left held by an
+    // earlier test's deliberately-never-resolving mock (e.g. the
+    // "black-holed connection" case above) rather than reflecting this
+    // test's own behavior in isolation.
+    const testEndpoint = 'https://test-endpoint.example/interpreter'
+    let active = 0
+    let peakActive = 0
+    const resolvers: (() => void)[] = []
+    const fetchImpl = vi.fn().mockImplementation(() => {
+      active++
+      peakActive = Math.max(peakActive, active)
+      return new Promise<Response>((resolve) => {
+        resolvers.push(() => {
+          active--
+          resolve(jsonResponse({ elements: [] }))
+        })
+      })
+    })
+
+    const calls = [0, 1, 2, 3].map(() => queryOverpass('query', { fetchImpl, endpoint: testEndpoint }))
+
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(2))
+    expect(active).toBe(2)
+
+    resolvers[0]()
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(3))
+    resolvers[1]()
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(4))
+    resolvers[2]()
+    resolvers[3]()
+
+    await Promise.all(calls)
+    expect(peakActive).toBe(2)
   })
 })

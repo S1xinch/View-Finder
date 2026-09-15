@@ -220,22 +220,6 @@ button {
   max-width: 220px;
 }
 
-/* Teardrop pin markers (ViewpointLayer.tsx) - classic map-pin silhouette,
-   anchored at the tip, replacing the old flat GL circle-layer dots. */
-.vf-pin {
-  cursor: pointer;
-  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
-  transition: transform 120ms ease;
-}
-
-.vf-pin:hover {
-  transform: scale(1.12) translateY(-1px);
-}
-
-.vf-pin--estimated {
-  opacity: 0.88;
-}
-
 /* Blue GPS dot (LocationLayer.tsx), Apple/Google Maps-style: a solid core
    with a ring that pulses outward to read as "live location" rather than a
    static marker. */

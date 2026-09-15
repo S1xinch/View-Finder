@@ -377,17 +377,57 @@ button {
     margin-bottom: 0;
   }
 
-  /* Moved down to the same bottom-left corner the sheet itself opens
-     from, instead of top-left - both because that's the thumb-reachable
-     corner on a phone held one-handed, and because a top-anchored button
-     sat right where a device's own status bar/notch chrome could crowd
-     it out. */
+  /* Redesigned as a bottom-center pull-tab instead of a small button in a
+     corner - unambiguous in every orientation (there's no "which corner"
+     to get wrong when it's centered), and its whole shape reads as
+     "drag this" rather than a directionless icon button. Swipe-up (via
+     useSwipeToggle, shared with the open sheet's own grabber below) and a
+     plain tap both open it. */
   .sidebar-reopen {
     top: auto;
-    left: max(16px, env(safe-area-inset-left));
+    left: 50%;
+    right: auto;
     bottom: max(16px, env(safe-area-inset-bottom));
-    width: 50px;
-    height: 50px;
+    transform: translateX(-50%);
+    width: auto;
+    height: auto;
+    padding: 10px 32px 8px;
+    border-radius: 20px;
+    flex-direction: column;
+    gap: 4px;
+    touch-action: none;
+  }
+
+  .sidebar-reopen__arrow {
+    display: none;
+  }
+
+  .sidebar-reopen__label {
+    display: block;
+    font-size: 13px;
+    color: var(--vf-text-secondary);
+  }
+
+  .sidebar__handle {
+    display: block;
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--vf-text-secondary);
+    opacity: 0.35;
+  }
+
+  /* A dedicated swipe-down-to-close target at the very top of the open
+     sheet, above the header - matching how a native bottom sheet's own
+     drag handle behaves. The explicit collapse button in the header
+     still covers a mouse/keyboard user; this is the touch-first one. */
+  .sidebar__grabber {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 0 2px;
+    cursor: grab;
+    touch-action: none;
   }
 
   /* iOS Safari auto-zooms the whole page on focusing any input whose
@@ -580,6 +620,17 @@ button {
 
 .sidebar-reopen:hover {
   color: var(--vf-text-primary);
+}
+
+/* The drag-handle pill (shared by the collapsed pull-tab and the open
+   sheet's own grabber row) and the pull-tab's text caption only make
+   sense in the mobile bottom-sheet redesign below - on desktop the
+   reopen control stays the plain small icon button it always was, with
+   neither. */
+.sidebar__handle,
+.sidebar-reopen__label,
+.sidebar__grabber {
+  display: none;
 }
 
 /* Makes a fetch in progress visible even with the sidebar collapsed, where

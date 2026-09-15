@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useViewFinderStore } from '../state/store'
 import { CATEGORY_COLOR, CATEGORY_LABEL } from '../map/categoryStyle'
 import { Logo } from '../Logo'
@@ -27,6 +27,44 @@ function formatDistance(meters: number | null | undefined): string {
   if (meters == null) return 'distance to road unknown'
   if (meters < 30) return 'right on a road'
   return `${Math.round(meters)} m from road`
+}
+
+// A real swipe on a touch device (drag past the threshold, then lift) and
+// a plain tap both need to toggle the sheet - but a tap also fires a
+// native click right after pointerup, so without the handledRef guard a
+// swipe would toggle it twice (once here, once from that click).
+const SWIPE_THRESHOLD_PX = 20
+
+function useSwipeToggle(onToggle: () => void): {
+  onPointerDown: (e: React.PointerEvent) => void
+  onPointerUp: (e: React.PointerEvent) => void
+  onClick: () => void
+} {
+  const startYRef = useRef<number | null>(null)
+  const handledRef = useRef(false)
+
+  return {
+    onPointerDown: (e) => {
+      startYRef.current = e.clientY
+      handledRef.current = false
+    },
+    onPointerUp: (e) => {
+      const startY = startYRef.current
+      startYRef.current = null
+      if (startY == null) return
+      if (Math.abs(e.clientY - startY) >= SWIPE_THRESHOLD_PX) {
+        handledRef.current = true
+        onToggle()
+      }
+    },
+    onClick: () => {
+      if (handledRef.current) {
+        handledRef.current = false
+        return
+      }
+      onToggle()
+    }
+  }
 }
 
 // Shared by the "Search this area" button (spins while a fetch is running)
@@ -84,6 +122,11 @@ export function Sidebar(): React.JSX.Element {
   const requestRoute = useViewFinderStore((s) => s.requestRoute)
   const requestViewpointsRefresh = useViewFinderStore((s) => s.requestViewpointsRefresh)
 
+  // Shared by the collapsed pull-tab and the open sheet's own grabber row -
+  // only one of the two is ever rendered at a time, so one toggle handler
+  // covers both.
+  const swipeHandlers = useSwipeToggle(toggleSidebar)
+
   const [showLoading, setShowLoading] = useState(false)
 
   useEffect(() => {
@@ -109,16 +152,46 @@ export function Sidebar(): React.JSX.Element {
       <button
         type="button"
         className={`sidebar-reopen vf-card${status === 'loading' ? ' sidebar-reopen--loading' : ''}`}
-        onClick={toggleSidebar}
+        {...swipeHandlers}
         aria-label={status === 'loading' ? 'Show sidebar (loading viewpoints)' : 'Show sidebar'}
       >
-        ›
+        {/* Desktop's small round button keeps its plain arrow glyph;
+            mobile hides this and shows the pull-tab's handle+caption
+            below instead (see the display swap in global.css). */}
+        <span className="sidebar-reopen__arrow" aria-hidden="true">
+          ›
+        </span>
+        <span className="sidebar__handle" aria-hidden="true" />
+        <span className="sidebar-reopen__label" aria-hidden="true">
+          {status === 'ready'
+            ? `${filtered.length} cool spot${filtered.length === 1 ? '' : 's'}`
+            : status === 'loading'
+              ? 'Searching…'
+              : 'View Finder'}
+        </span>
       </button>
     )
   }
 
   return (
     <aside className="vf-card sidebar">
+      {/* Mobile-only (see global.css) swipe-down-to-close target, matching
+          how a native bottom sheet's own drag handle behaves - the
+          explicit collapse button in the header below still covers
+          desktop/non-touch use. */}
+      <div
+        className="sidebar__grabber"
+        role="button"
+        tabIndex={0}
+        aria-label="Hide sidebar"
+        {...swipeHandlers}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') toggleSidebar()
+        }}
+      >
+        <span className="sidebar__handle" aria-hidden="true" />
+      </div>
+
       <header className="sidebar__header">
         <Logo />
         <div className="sidebar__title-group">

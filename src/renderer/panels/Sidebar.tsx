@@ -89,6 +89,7 @@ function useDraggableSheet(
 } {
   const pointerHandledRef = useRef(false)
   const dragStartYRef = useRef<number | null>(null)
+  const dragStartTimeRef = useRef(0)
 
   const setTransform = (px: number): void => {
     const el = targetRef.current
@@ -97,8 +98,17 @@ function useDraggableSheet(
 
   return {
     onPointerDown: (e) => {
-      e.currentTarget.setPointerCapture(e.pointerId)
+      // Real pointer sessions always accept capture; a synthetic
+      // PointerEvent with a made-up id (e.g. in a test) throws here -
+      // swallowed so it can't silently skip setting dragStartYRef below
+      // and break every subsequent gesture on this element.
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId)
+      } catch {
+        /* not a real pointer session - ignore */
+      }
       dragStartYRef.current = e.clientY
+      dragStartTimeRef.current = e.timeStamp
       const el = targetRef.current
       if (el) el.style.transition = 'none'
     },
@@ -111,6 +121,7 @@ function useDraggableSheet(
       e.currentTarget.releasePointerCapture(e.pointerId)
       pointerHandledRef.current = true
       const startY = dragStartYRef.current
+      const startTime = dragStartTimeRef.current
       dragStartYRef.current = null
       const el = targetRef.current
       if (el) el.style.transition = ''
@@ -125,9 +136,20 @@ function useDraggableSheet(
       // satisfied neither commit condition below, so it fell through to
       // the rubber-band-back branch instead of opening/closing.
       const TAP_THRESHOLD_PX = 8
+      // A quick flick commits well short of DRAG_COMMIT_PX - real bottom
+      // sheets go by velocity, not just distance travelled, since a fast
+      // short flick clearly signals intent the same way a slow long drag
+      // does. Without this, only a slow, deliberate drag past the full
+      // threshold worked; an actual quick swipe (the natural gesture, and
+      // the whole point of a "swipe to open" sheet) did nothing at all.
+      const elapsedMs = Math.max(1, e.timeStamp - startTime)
+      const velocity = Math.abs(delta) / elapsedMs
+      const FLICK_MIN_DISTANCE_PX = 12
+      const FLICK_VELOCITY_PX_PER_MS = 0.5
+      const isFlick = Math.abs(delta) >= FLICK_MIN_DISTANCE_PX && velocity >= FLICK_VELOCITY_PX_PER_MS
       if (Math.abs(delta) < TAP_THRESHOLD_PX) onToggle()
-      else if (open && delta > DRAG_COMMIT_PX) onToggle()
-      else if (!open && delta < -DRAG_COMMIT_PX) onToggle()
+      else if (open && (delta > DRAG_COMMIT_PX || (delta > 0 && isFlick))) onToggle()
+      else if (!open && (delta < -DRAG_COMMIT_PX || (delta < 0 && isFlick))) onToggle()
     },
     onClick: () => {
       if (pointerHandledRef.current) {
@@ -212,13 +234,20 @@ export function Sidebar(): React.JSX.Element {
   const requestRoute = useViewFinderStore((s) => s.requestRoute)
   const requestViewpointsRefresh = useViewFinderStore((s) => s.requestViewpointsRefresh)
 
-  // Shared by the collapsed pull-tab and the open sheet's own grabber row -
-  // only one of the two is ever rendered at a time, so one ref/drag hook
-  // covers both (see useDraggableSheet - it mutates whichever element
-  // this ref is currently attached to directly, bypassing React state per
-  // pointermove for a smooth 1:1 drag).
-  const dragTargetRef = useRef<HTMLElement>(null)
-  const dragHandlers = useDraggableSheet(dragTargetRef, sidebarOpen, toggleSidebar)
+  // Both the collapsed pull-tab and the open sheet are ALWAYS mounted now
+  // (see the render below) rather than one replacing the other - the
+  // instant React-tree swap was exactly why opening/closing "popped"
+  // instead of rolling out: there was no continuous element to actually
+  // animate across the transition, just an unmount of one and a mount of
+  // the other. With both always present, CSS (see .sidebar--hidden/
+  // .sidebar-reopen--hidden in global.css) can transform whichever one is
+  // supposed to be off-screen, and useDraggableSheet's drag-follow uses
+  // the same mechanism it always did - it just now targets two distinct,
+  // permanently-mounted elements instead of alternating.
+  const reopenRef = useRef<HTMLButtonElement>(null)
+  const sheetRef = useRef<HTMLElement>(null)
+  const reopenDragHandlers = useDraggableSheet(reopenRef, sidebarOpen, toggleSidebar)
+  const sheetDragHandlers = useDraggableSheet(sheetRef, sidebarOpen, toggleSidebar)
 
   const [showLoading, setShowLoading] = useState(false)
 
@@ -251,13 +280,12 @@ export function Sidebar(): React.JSX.Element {
     map?.flyTo({ center: [vp.lng, vp.lat], zoom: Math.max(map.getZoom(), 14), duration: 800 })
   }
 
-  if (!sidebarOpen) {
-    return (
+  const reopenButton = (
       <button
-        ref={dragTargetRef as React.RefObject<HTMLButtonElement>}
+        ref={reopenRef}
         type="button"
-        className={`sidebar-reopen vf-card${status === 'loading' ? ' sidebar-reopen--loading' : ''}`}
-        {...dragHandlers}
+        className={`sidebar-reopen vf-card${status === 'loading' ? ' sidebar-reopen--loading' : ''}${sidebarOpen ? ' sidebar-reopen--hidden' : ''}`}
+        {...reopenDragHandlers}
         aria-label={status === 'loading' ? 'Show sidebar (loading viewpoints)' : 'Show sidebar'}
       >
         {/* Desktop's small round button keeps its plain arrow glyph;
@@ -295,23 +323,24 @@ export function Sidebar(): React.JSX.Element {
           </span>
         </span>
       </button>
-    )
-  }
+  )
 
   return (
-    <aside ref={dragTargetRef as React.RefObject<HTMLElement>} className="vf-card sidebar">
+    <>
+      {reopenButton}
+      <aside ref={sheetRef} className={`vf-card sidebar${sidebarOpen ? '' : ' sidebar--hidden'}`}>
       {/* Mobile-only (see global.css) swipe-down-to-close target, matching
           how a native bottom sheet's own drag handle behaves - the
           explicit collapse button in the header below still covers
           desktop/non-touch use. The drag handlers live here (the actual
           touch surface) but translate the whole <aside> above via
-          dragTargetRef, not just this row. */}
+          sheetRef, not just this row. */}
       <div
         className="sidebar__grabber"
         role="button"
         tabIndex={0}
         aria-label="Hide sidebar"
-        {...dragHandlers}
+        {...sheetDragHandlers}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') toggleSidebar()
         }}
@@ -498,6 +527,7 @@ export function Sidebar(): React.JSX.Element {
           Troubleshooting
         </a>
       </footer>
-    </aside>
+      </aside>
+    </>
   )
 }

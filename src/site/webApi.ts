@@ -2,6 +2,7 @@ import { createCoolSpotOrchestrator } from '@core/services/coolSpotOrchestrator'
 import { MemoryCacheStore } from '@core/cache/MemoryCacheStore'
 import { TieredCacheStore } from '@core/cache/TieredCacheStore'
 import { queryRoute } from '@core/routing/osrmClient'
+import { searchPlaces } from '@core/geocoding/nominatimClient'
 import { IndexedDbCacheStore } from './IndexedDbCacheStore'
 import type { AppInfo, LatLng, ViewFinderApi } from '@shared/ipcContract'
 
@@ -22,6 +23,9 @@ const orchestrator = createCoolSpotOrchestrator({
 // Only the most recently requested route is ever wanted - same
 // supersession behavior as main/services/routeService.ts.
 let currentRouteRequest: AbortController | null = null
+// Same idea for place search - each keystroke (after the SearchBar's own
+// debounce) should cancel whatever the previous one was still waiting on.
+let currentPlaceSearchRequest: AbortController | null = null
 
 export const webApi: ViewFinderApi = {
   getAppInfo: async (): Promise<AppInfo> => ({
@@ -36,5 +40,11 @@ export const webApi: ViewFinderApi = {
     const request = new AbortController()
     currentRouteRequest = request
     return queryRoute(from, to, { fetchImpl: (input, init) => fetch(input, init), signal: request.signal })
+  },
+  searchPlaces: async (query: string) => {
+    currentPlaceSearchRequest?.abort()
+    const request = new AbortController()
+    currentPlaceSearchRequest = request
+    return searchPlaces(query, { fetchImpl: (input, init) => fetch(input, init), signal: request.signal })
   }
 }

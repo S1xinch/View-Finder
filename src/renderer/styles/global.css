@@ -516,6 +516,17 @@ button {
     touch-action: none;
   }
 
+  /* Also a drag surface (see useSheetDrag's onPointerDown) - closing was
+     still easy to miss with only the grabber above draggable, once the
+     sheet was tall and open. touch-action: none stops the browser's own
+     pan gesture from competing with the drag on a real touchscreen; the
+     collapse button inside keeps its normal touch-action since it's
+     excluded from the drag check entirely (it's a real <button>). */
+  .sidebar__header {
+    cursor: grab;
+    touch-action: none;
+  }
+
   /* iOS Safari auto-zooms the whole page on focusing any input whose
      computed font-size is under 16px - the search box's normal 13px is
      exactly small enough to trigger that, and the zoom sticks around

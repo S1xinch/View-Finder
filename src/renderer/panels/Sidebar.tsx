@@ -49,38 +49,85 @@ function formatDistance(meters: number | null | undefined): string {
   return `${Math.round(meters)} m from road`
 }
 
-// The handle only ever does one thing (open it or close it), so a tap and
-// a real drag-then-release both just toggle it - there's no second
-// behavior a distance threshold would need to distinguish them from, and
-// requiring one turned out to actively break things: a short tap that
-// didn't cross the threshold did nothing at pointerup, silently relying on
-// the browser's own post-touch synthetic click to pick up the slack - a
-// click that touch-action: none (needed so a drag on the handle doesn't
-// also pan the map underneath) can suppress entirely on some mobile
-// browsers, making the whole control unresponsive to a plain tap.
+// Below this drag distance, a release is read as "changed my mind" (or a
+// plain tap) rather than a real swipe - the dragged element rubber-bands
+// back to its resting position instead of toggling. Past it, the gesture
+// commits and the sheet opens/closes.
+const DRAG_COMMIT_PX = 40
+
+// Real finger-follow dragging (not just a tap-to-toggle): the target
+// element (the collapsed pull-tab, or the open sheet - see targetRef)
+// is translated 1:1 with the pointer in real time via direct DOM style
+// mutation, not React state - a state update (and re-render) per
+// pointermove would be both unnecessary work and a frame behind the
+// finger. CSS owns the resting-position transition (see .sidebar-reopen/
+// .sidebar in global.css); this only disables it during the drag itself
+// (transition: none) so the element tracks 1:1 with no lag, then restores
+// it on release so the rubber-band/final-snap animates instead of
+// jumping.
+//
+// The pull-tab can only drag upward (toward opening) and the open sheet's
+// grabber only downward (toward closing) - the opposite direction is
+// clamped to 0 so the gesture never fights itself by dragging a corner
+// that's already at its resting edge.
 //
 // setPointerCapture guarantees pointerup still fires on this element even
-// if the finger drifted off it mid-gesture, so this needs no separate
-// pointermove tracking at all - toggling happens directly from pointerup.
-// onClick stays only as the fallback for a *keyboard* activation (Enter/
-// Space on a focused button fires a synthetic click with no pointerdown
-// ever having happened) - pointerHandledRef suppresses it for a real touch/
-// mouse gesture so that doesn't double-toggle.
-function useSwipeToggle(onToggle: () => void): {
+// if the finger drifted off it mid-gesture. onClick stays only as the
+// fallback for a *keyboard* activation (Enter/Space fires a synthetic
+// click with no pointerdown ever having happened) - pointerHandledRef
+// suppresses it for a real touch/mouse gesture so that doesn't
+// double-toggle.
+function useDraggableSheet(
+  targetRef: React.RefObject<HTMLElement | null>,
+  open: boolean,
+  onToggle: () => void
+): {
   onPointerDown: (e: React.PointerEvent) => void
+  onPointerMove: (e: React.PointerEvent) => void
   onPointerUp: (e: React.PointerEvent) => void
   onClick: () => void
 } {
   const pointerHandledRef = useRef(false)
+  const dragStartYRef = useRef<number | null>(null)
+
+  const setTransform = (px: number): void => {
+    const el = targetRef.current
+    if (el) el.style.transform = px === 0 ? '' : `translateY(${px}px)`
+  }
 
   return {
     onPointerDown: (e) => {
       e.currentTarget.setPointerCapture(e.pointerId)
+      dragStartYRef.current = e.clientY
+      const el = targetRef.current
+      if (el) el.style.transition = 'none'
+    },
+    onPointerMove: (e) => {
+      if (dragStartYRef.current == null) return
+      const delta = e.clientY - dragStartYRef.current
+      setTransform(open ? Math.max(0, delta) : Math.min(0, delta))
     },
     onPointerUp: (e) => {
       e.currentTarget.releasePointerCapture(e.pointerId)
       pointerHandledRef.current = true
-      onToggle()
+      const startY = dragStartYRef.current
+      dragStartYRef.current = null
+      const el = targetRef.current
+      if (el) el.style.transition = ''
+      setTransform(0)
+      if (startY == null) return
+      const delta = e.clientY - startY
+      // A plain tap (near-zero movement - real fingers/mice never land
+      // pointerup at the *exact* pointerdown pixel) always toggles, same
+      // as a click - only a real, deliberate drag needs to clear
+      // DRAG_COMMIT_PX in the right direction. Without this, tapping the
+      // pull-tab/grabber stopped doing anything: a tap's ~0px delta
+      // satisfied neither commit condition below, so it fell through to
+      // the rubber-band-back branch instead of opening/closing.
+      const TAP_THRESHOLD_PX = 8
+      if (Math.abs(delta) < TAP_THRESHOLD_PX) onToggle()
+      else if (open && delta > DRAG_COMMIT_PX) onToggle()
+      else if (!open && delta < -DRAG_COMMIT_PX) onToggle()
     },
     onClick: () => {
       if (pointerHandledRef.current) {
@@ -166,9 +213,12 @@ export function Sidebar(): React.JSX.Element {
   const requestViewpointsRefresh = useViewFinderStore((s) => s.requestViewpointsRefresh)
 
   // Shared by the collapsed pull-tab and the open sheet's own grabber row -
-  // only one of the two is ever rendered at a time, so one toggle handler
-  // covers both.
-  const swipeHandlers = useSwipeToggle(toggleSidebar)
+  // only one of the two is ever rendered at a time, so one ref/drag hook
+  // covers both (see useDraggableSheet - it mutates whichever element
+  // this ref is currently attached to directly, bypassing React state per
+  // pointermove for a smooth 1:1 drag).
+  const dragTargetRef = useRef<HTMLElement>(null)
+  const dragHandlers = useDraggableSheet(dragTargetRef, sidebarOpen, toggleSidebar)
 
   const [showLoading, setShowLoading] = useState(false)
 
@@ -204,9 +254,10 @@ export function Sidebar(): React.JSX.Element {
   if (!sidebarOpen) {
     return (
       <button
+        ref={dragTargetRef as React.RefObject<HTMLButtonElement>}
         type="button"
         className={`sidebar-reopen vf-card${status === 'loading' ? ' sidebar-reopen--loading' : ''}`}
-        {...swipeHandlers}
+        {...dragHandlers}
         aria-label={status === 'loading' ? 'Show sidebar (loading viewpoints)' : 'Show sidebar'}
       >
         {/* Desktop's small round button keeps its plain arrow glyph;
@@ -248,17 +299,19 @@ export function Sidebar(): React.JSX.Element {
   }
 
   return (
-    <aside className="vf-card sidebar">
+    <aside ref={dragTargetRef as React.RefObject<HTMLElement>} className="vf-card sidebar">
       {/* Mobile-only (see global.css) swipe-down-to-close target, matching
           how a native bottom sheet's own drag handle behaves - the
           explicit collapse button in the header below still covers
-          desktop/non-touch use. */}
+          desktop/non-touch use. The drag handlers live here (the actual
+          touch surface) but translate the whole <aside> above via
+          dragTargetRef, not just this row. */}
       <div
         className="sidebar__grabber"
         role="button"
         tabIndex={0}
         aria-label="Hide sidebar"
-        {...swipeHandlers}
+        {...dragHandlers}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') toggleSidebar()
         }}
@@ -284,7 +337,12 @@ export function Sidebar(): React.JSX.Element {
           <DirectionsView />
         </div>
       ) : (
-        <>
+        // One scroll region for filters + results together (not just the
+        // list on its own) - filters scroll away with everything else
+        // instead of permanently eating space above a cramped, separately-
+        // scrolling list, which is what made the list hard to see/browse
+        // on the shorter mobile sheet.
+        <div className="sidebar__scroll">
           <div className="sidebar__filters">
             <label className="sidebar__filter">
               <span>Min elevation: {filters.minElevationMeters} m</span>
@@ -424,7 +482,7 @@ export function Sidebar(): React.JSX.Element {
               </>
             )}
           </div>
-        </>
+        </div>
       )}
 
       <footer className="sidebar__footer">

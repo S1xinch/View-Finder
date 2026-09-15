@@ -110,15 +110,32 @@ const SHEET_MAX_VIEWPORT_FRACTION = 0.65
 // activation (Enter/Space fires a click with no pointer sequence at all);
 // pointerHandledAtRef stops a real gesture's trailing click(s) - plural,
 // see its own comment - from double-toggling.
+// Finger movement past this, while the scroll container is already at
+// scrollTop 0, hands the gesture off from "tried to scroll further up,
+// there's nothing there" to "closing the sheet" - the real content this
+// container holds (list rows, checkboxes, sliders) still needs normal
+// tap/scroll behavior below this, so the handoff only fires once an
+// actual overscroll is under way, not on every touch that happens to
+// start at the top of the list.
+const OVERSCROLL_START_PX = 10
+
 function useSheetDrag(
   sheetRef: React.RefObject<HTMLElement | null>,
+  scrollRef: React.RefObject<HTMLElement | null>,
   open: boolean,
   setOpen: (open: boolean) => void
 ): {
-  onPointerDown: (e: React.PointerEvent) => void
-  onPointerMove: (e: React.PointerEvent) => void
-  onPointerUp: (e: React.PointerEvent) => void
-  onClick: (e: React.MouseEvent) => void
+  zoneHandlers: {
+    onPointerDown: (e: React.PointerEvent) => void
+    onPointerMove: (e: React.PointerEvent) => void
+    onPointerUp: (e: React.PointerEvent) => void
+    onClick: (e: React.MouseEvent) => void
+  }
+  scrollHandlers: {
+    onPointerDown: (e: React.PointerEvent) => void
+    onPointerMove: (e: React.PointerEvent) => void
+    onPointerUp: (e: React.PointerEvent) => void
+  }
 } {
   // A timestamp, not a one-shot boolean: clicking a <label> (the filter
   // chips) makes the browser fire a SECOND click, forwarded to the
@@ -135,6 +152,10 @@ function useSheetDrag(
   const peekHeightRef = useRef(0)
   const openHeightRef = useRef(0)
   const settleTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  // Which element actually owns the in-progress gesture (zone or scroll
+  // container) - only that one's pointerup/pointermove should act on it,
+  // since both handler sets can see events bubbling through the sheet.
+  const activeSourceRef = useRef<'zone' | 'scroll' | null>(null)
 
   useEffect(
     () => () => {
@@ -143,81 +164,151 @@ function useSheetDrag(
     []
   )
 
+  const beginDrag = (clientY: number, timeStamp: number): void => {
+    const el = sheetRef.current
+    if (!el) return
+    if (settleTimerRef.current) clearTimeout(settleTimerRef.current)
+    peekHeightRef.current = peekHeightOf(el)
+    openHeightRef.current = window.innerHeight * SHEET_MAX_VIEWPORT_FRACTION
+    baseHeightRef.current = open ? openHeightRef.current : peekHeightRef.current
+    startYRef.current = clientY
+    startTimeRef.current = timeStamp
+    el.style.transition = 'none'
+  }
+
+  const updateDrag = (clientY: number): void => {
+    const el = sheetRef.current
+    if (!el || startYRef.current == null) return
+    // Finger moving up (negative delta) should grow the sheet.
+    const next = baseHeightRef.current - (clientY - startYRef.current)
+    el.style.height = `${Math.min(Math.max(next, peekHeightRef.current), openHeightRef.current)}px`
+  }
+
+  const endDrag = (clientY: number, timeStamp: number): void => {
+    const el = sheetRef.current
+    const startY = startYRef.current
+    startYRef.current = null
+    activeSourceRef.current = null
+    pointerHandledAtRef.current = timeStamp
+    if (!el || startY == null) return
+
+    const delta = clientY - startY
+    const velocity = delta / Math.max(1, timeStamp - startTimeRef.current)
+    const span = openHeightRef.current - peekHeightRef.current
+    let toOpen: boolean
+    if (Math.abs(delta) < TAP_THRESHOLD_PX) {
+      toOpen = !open
+    } else if (Math.abs(velocity) >= FLICK_VELOCITY_PX_PER_MS) {
+      // Flicked - go where it was thrown, however far it actually got.
+      toOpen = velocity < 0
+    } else {
+      // Dragged and let go: settle to whichever resting height the sheet
+      // ended up nearest.
+      toOpen = baseHeightRef.current - delta > peekHeightRef.current + span / 2
+    }
+
+    el.style.transition = ''
+    el.style.height = `${toOpen ? openHeightRef.current : peekHeightRef.current}px`
+    settleTimerRef.current = setTimeout(() => {
+      if (sheetRef.current) sheetRef.current.style.height = ''
+    }, SNAP_SETTLE_MS)
+    if (toOpen !== open) setOpen(toOpen)
+  }
+
   return {
-    onPointerDown: (e) => {
-      const el = sheetRef.current
-      if (!el) return
-      const target = e.target as HTMLElement
-      // Genuine controls always behave normally, everywhere, regardless
-      // of open/collapsed - the search input, the collapse button, the
-      // "Search this area" button, a list row, a slider.
-      if (target.closest('input, button, a, textarea, select')) return
-      // The grabber + header row (logo, empty space - not the collapse
-      // button, already excluded above) are a drag surface at all times.
-      // Just the 44px grabber alone was still a thin, precise target once
-      // the sheet was tall and open - closing stayed hard to land even
-      // after opening (anywhere on the whole collapsed card) got easy.
-      // Widening the always-draggable area to the header too roughly
-      // doubles the close target without touching the body below, which
-      // has real content (sliders, checkboxes, a scrolling list) that
-      // needs ordinary touch/scroll behavior and stays grabber/header-only.
-      const onDragZone = target.closest('.sidebar__grabber, .sidebar__header') != null
-      if (!onDragZone && open) return
-      // A synthetic PointerEvent with an id that was never a real pointer
-      // throws here - swallowed so it can't skip the setup below and wedge
-      // every later gesture on this element.
-      try {
-        e.currentTarget.setPointerCapture(e.pointerId)
-      } catch {
-        /* not a real pointer session */
+    // The grabber + header row (logo, empty space - real controls like
+    // the collapse button are excluded) are a drag surface at all times,
+    // open or collapsed. This is the "always works" zone; scrollHandlers
+    // below covers the rest of the open sheet via overscroll instead.
+    zoneHandlers: {
+      onPointerDown: (e) => {
+        const target = e.target as HTMLElement
+        if (target.closest('input, button, a, textarea, select')) return
+        const onDragZone = target.closest('.sidebar__grabber, .sidebar__header') != null
+        if (!onDragZone && open) return
+        try {
+          e.currentTarget.setPointerCapture(e.pointerId)
+        } catch {
+          /* not a real pointer session (e.g. a test) - ignore */
+        }
+        activeSourceRef.current = 'zone'
+        beginDrag(e.clientY, e.timeStamp)
+      },
+      onPointerMove: (e) => {
+        if (activeSourceRef.current !== 'zone') return
+        updateDrag(e.clientY)
+      },
+      onPointerUp: (e) => {
+        // Recorded unconditionally, even when this gesture never became a
+        // real drag (e.g. a plain click on a button elsewhere in the
+        // sheet) - the click event that always follows a pointerup would
+        // otherwise see a stale timestamp from whenever the *last* real
+        // drag ended and incorrectly toggle the sheet again on every
+        // ordinary click, not just ones this handler actually acted on.
+        pointerHandledAtRef.current = e.timeStamp
+        if (activeSourceRef.current !== 'zone') return
+        e.currentTarget.releasePointerCapture(e.pointerId)
+        endDrag(e.clientY, e.timeStamp)
+      },
+      onClick: (e) => {
+        if (e.timeStamp - pointerHandledAtRef.current < CLICK_FROM_POINTER_WINDOW_MS) return
+        setOpen(!open)
       }
-      if (settleTimerRef.current) clearTimeout(settleTimerRef.current)
-      peekHeightRef.current = peekHeightOf(el)
-      openHeightRef.current = window.innerHeight * SHEET_MAX_VIEWPORT_FRACTION
-      baseHeightRef.current = open ? openHeightRef.current : peekHeightRef.current
-      startYRef.current = e.clientY
-      startTimeRef.current = e.timeStamp
-      el.style.transition = 'none'
     },
-    onPointerMove: (e) => {
-      const el = sheetRef.current
-      if (!el || startYRef.current == null) return
-      // Finger moving up (negative delta) should grow the sheet.
-      const next = baseHeightRef.current - (e.clientY - startYRef.current)
-      el.style.height = `${Math.min(Math.max(next, peekHeightRef.current), openHeightRef.current)}px`
-    },
-    onPointerUp: (e) => {
-      const el = sheetRef.current
-      const startY = startYRef.current
-      startYRef.current = null
-      pointerHandledAtRef.current = e.timeStamp
-      if (!el || startY == null) return
-
-      const delta = e.clientY - startY
-      const velocity = delta / Math.max(1, e.timeStamp - startTimeRef.current)
-      const span = openHeightRef.current - peekHeightRef.current
-      let toOpen: boolean
-      if (Math.abs(delta) < TAP_THRESHOLD_PX) {
-        toOpen = !open
-      } else if (Math.abs(velocity) >= FLICK_VELOCITY_PX_PER_MS) {
-        // Flicked - go where it was thrown, however far it actually got.
-        toOpen = velocity < 0
-      } else {
-        // Dragged and let go: settle to whichever resting height the
-        // sheet ended up nearest.
-        toOpen = baseHeightRef.current - delta > peekHeightRef.current + span / 2
+    // Real "pull down past the top of the list to close" behavior, the
+    // way Apple/Google Maps' own sheet works: while there's still content
+    // above to scroll back to (scrollTop > 0), a downward drag just
+    // scrolls normally, untouched. Only once the container is already
+    // pinned to its top AND the user keeps pulling down past
+    // OVERSCROLL_START_PX does the gesture hand off to closing the sheet -
+    // at that exact point (not from the original touch-down position),
+    // so the handoff has no visible jump.
+    scrollHandlers: {
+      onPointerDown: (e) => {
+        if ((e.target as HTMLElement).closest('input, button, a, textarea, select')) return
+        if (!open) return
+        startYRef.current = e.clientY
+        startTimeRef.current = e.timeStamp
+        activeSourceRef.current = null
+      },
+      onPointerMove: (e) => {
+        const scrollEl = scrollRef.current
+        if (!scrollEl || startYRef.current == null) return
+        if (activeSourceRef.current === 'scroll') {
+          e.preventDefault()
+          updateDrag(e.clientY)
+          return
+        }
+        if (activeSourceRef.current !== null) return
+        const pulledDown = e.clientY - startYRef.current
+        if (scrollEl.scrollTop <= 0 && pulledDown > OVERSCROLL_START_PX) {
+          try {
+            e.currentTarget.setPointerCapture(e.pointerId)
+          } catch {
+            /* not a real pointer session (e.g. a test) - ignore */
+          }
+          activeSourceRef.current = 'scroll'
+          beginDrag(e.clientY, e.timeStamp)
+          e.preventDefault()
+        }
+      },
+      onPointerUp: (e) => {
+        // Same unconditional record as zoneHandlers.onPointerUp (and this
+        // event bubbles up to that handler too, which would otherwise be
+        // the only one to set it) - belt and suspenders so this stays
+        // correct even if that changes later.
+        pointerHandledAtRef.current = e.timeStamp
+        if (activeSourceRef.current !== 'scroll') {
+          startYRef.current = null
+          return
+        }
+        try {
+          e.currentTarget.releasePointerCapture(e.pointerId)
+        } catch {
+          /* already released, or never really captured - ignore */
+        }
+        endDrag(e.clientY, e.timeStamp)
       }
-
-      el.style.transition = ''
-      el.style.height = `${toOpen ? openHeightRef.current : peekHeightRef.current}px`
-      settleTimerRef.current = setTimeout(() => {
-        if (sheetRef.current) sheetRef.current.style.height = ''
-      }, SNAP_SETTLE_MS)
-      if (toOpen !== open) setOpen(toOpen)
-    },
-    onClick: (e) => {
-      if (e.timeStamp - pointerHandledAtRef.current < CLICK_FROM_POINTER_WINDOW_MS) return
-      setOpen(!open)
     }
   }
 }
@@ -302,7 +393,8 @@ export function Sidebar(): React.JSX.Element {
   // button is desktop/landscape only (hidden on phone portrait in CSS)
   // and needs no drag at all: it's a plain click target there.
   const sheetRef = useRef<HTMLElement>(null)
-  const sheetDragHandlers = useSheetDrag(sheetRef, sidebarOpen, setSidebarOpen)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const { zoneHandlers, scrollHandlers } = useSheetDrag(sheetRef, scrollRef, sidebarOpen, setSidebarOpen)
 
   // The collapsed sheet should peek exactly far enough to show everything
   // down to the bottom of the search field. Measuring that (rather than
@@ -376,18 +468,19 @@ export function Sidebar(): React.JSX.Element {
         </span>
       </button>
       {/* Phone-portrait drag surface (hidden elsewhere, see global.css):
-          drags the whole sheet between peeking and open via sheetRef. The
-          handlers live on the whole <aside> (not just the grabber row
-          below) so any non-interactive spot on the visible card works,
-          not just a thin handle strip - useSheetDrag's own onPointerDown
-          decides per-touch whether that's appropriate (always on the
-          grabber itself; elsewhere only while collapsed, and never on a
-          real control like the search input). The explicit collapse
-          button in the header still covers desktop/non-touch use. */}
+          drags the whole sheet between peeking and open via sheetRef.
+          zoneHandlers live on the whole <aside> (not just the grabber
+          row below) so any non-interactive spot on the collapsed card,
+          or the grabber/header while open, works - not just a thin
+          handle strip. The scrollable body below has its own separate
+          scrollHandlers (see .sidebar__scroll) for pull-down-past-the-
+          top-of-the-list overscroll-to-close, the way Apple/Google
+          Maps' own sheet works. The explicit collapse button in the
+          header still covers desktop/non-touch use. */}
       <aside
         ref={sheetRef}
         className={`vf-card sidebar${sidebarOpen ? '' : ' sidebar--hidden'}`}
-        {...sheetDragHandlers}
+        {...zoneHandlers}
       >
       <div
         className="sidebar__grabber"
@@ -436,8 +529,9 @@ export function Sidebar(): React.JSX.Element {
         // list on its own) - filters scroll away with everything else
         // instead of permanently eating space above a cramped, separately-
         // scrolling list, which is what made the list hard to see/browse
-        // on the shorter mobile sheet.
-        <div className="sidebar__scroll">
+        // on the shorter mobile sheet. Also the overscroll-to-close
+        // surface on phone portrait - see scrollHandlers/useSheetDrag.
+        <div className="sidebar__scroll" ref={scrollRef} {...scrollHandlers}>
           <div className="sidebar__filters">
             <label className="sidebar__filter">
               <span>Min elevation: {filters.minElevationMeters} m</span>

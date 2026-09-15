@@ -1,0 +1,7 @@
+C:\Users\Owner\Desktop\Github\View-Finder\.github\workflows\deploy-site.yml
+C:\Users\Owner\Desktop\Github\View-Finder\.github\workflows\release.yml
+C:\Users\Owner\Desktop\Github\View-Finder\CLAUDE.md
+C:\Users\Owner\Desktop\Github\View-Finder\README.md
+C:\Users\Owner\Desktop\Github\View-Finder\electron-builder.yml
+C:\Users\Owner\Desktop\Github\View-Finder\src\renderer\index.html
+C:\Users\Owner\Desktop\Github\View-Finder\src\site\index.html

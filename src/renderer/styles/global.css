@@ -306,24 +306,28 @@ button {
   overflow: hidden;
 }
 
-/* On a phone-width viewport, a fixed 320px sidebar would eat almost the
-   whole screen while still leaving an awkward sliver of map visible -
-   instead it takes the full width (minus the same side margins used
-   everywhere else) so it reads as a deliberate full-screen panel, the
-   same pattern Apple/Google Maps use on mobile (either the map or the
-   list has focus, not a cramped mix of both). */
+/* On a phone-width viewport this becomes a bottom sheet instead of a
+   left-hand panel - anchored to the bottom edge (thumb-reachable, and
+   where Google/Apple Maps put their own place list/details sheet on
+   mobile) rather than stretched top-to-bottom over the whole screen. A
+   capped max-height deliberately leaves map visible above it, so panning
+   the map out from under a full-screen panel is never necessary just to
+   see where you are. */
 @media (max-width: 600px) {
   .sidebar {
-    left: max(16px, env(safe-area-inset-left));
-    right: max(16px, env(safe-area-inset-right));
+    top: auto;
+    left: max(12px, env(safe-area-inset-left));
+    right: max(12px, env(safe-area-inset-right));
+    bottom: max(12px, env(safe-area-inset-bottom));
     width: auto;
+    max-height: min(65dvh, 65vh);
   }
 
-  /* Below this width the sidebar is the whole screen and every one of its
-     buttons becomes a primary touch target, not a mouse-hover nicety - the
-     26-34px sizes that read fine with a cursor are genuinely fiddly to hit
-     with a fingertip. Raised to the ~44px minimum touch target both
-     Apple's and Google's platform guidelines call for. */
+  /* Below this width the sidebar is a primary touch surface, not a
+     mouse-hover nicety - the 26-34px sizes that read fine with a cursor
+     are genuinely fiddly to hit with a fingertip. Raised to the ~44px
+     minimum touch target both Apple's and Google's platform guidelines
+     call for. */
   .sidebar__collapse {
     width: 44px;
     height: 44px;
@@ -336,9 +340,17 @@ button {
     height: 44px;
   }
 
+  /* Moved down to the same bottom-left corner the sheet itself opens
+     from, instead of top-left - both because that's the thumb-reachable
+     corner on a phone held one-handed, and because a top-anchored button
+     sat right where a device's own status bar/notch chrome could crowd
+     it out. */
   .sidebar-reopen {
-    width: 44px;
-    height: 44px;
+    top: auto;
+    left: max(16px, env(safe-area-inset-left));
+    bottom: max(16px, env(safe-area-inset-bottom));
+    width: 50px;
+    height: 50px;
   }
 
   /* iOS Safari auto-zooms the whole page on focusing any input whose

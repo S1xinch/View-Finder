@@ -34,6 +34,14 @@ body,
   margin: 0;
 }
 
+html {
+  /* WebKit's automatic text-size-boosting (aimed at desktop-site text on a
+     phone) has no business kicking in on a page that's already
+     phone-native and pixel-precise about its own type scale - left alone
+     it can make things read as inconsistently zoomed between reloads. */
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   font-family: var(--vf-font);
   color: var(--vf-text-primary);

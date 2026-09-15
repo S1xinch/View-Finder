@@ -148,19 +148,21 @@ function useSheetDrag(
       const el = sheetRef.current
       if (!el) return
       const target = e.target as HTMLElement
-      const onGrabber = target.closest('.sidebar__grabber') != null
-      // The grabber strip is always a drag surface. Elsewhere on the
-      // sheet: only while collapsed, and only outside anything that's
-      // genuinely interactive on its own (the search input, the collapse
-      // button) - a 44px-tall handle is still a thin, precise target to
-      // land a thumb on ("often doesn't recognize you've touched it"),
-      // whereas the whole peeking card is a much harder miss. Once open,
-      // the body has real content of its own (sliders, checkboxes, a
-      // scrolling list) that needs ordinary touch/click behavior, so only
-      // the grabber keeps working there.
-      if (!onGrabber) {
-        if (open || target.closest('input, button, a, textarea, select')) return
-      }
+      // Genuine controls always behave normally, everywhere, regardless
+      // of open/collapsed - the search input, the collapse button, the
+      // "Search this area" button, a list row, a slider.
+      if (target.closest('input, button, a, textarea, select')) return
+      // The grabber + header row (logo, empty space - not the collapse
+      // button, already excluded above) are a drag surface at all times.
+      // Just the 44px grabber alone was still a thin, precise target once
+      // the sheet was tall and open - closing stayed hard to land even
+      // after opening (anywhere on the whole collapsed card) got easy.
+      // Widening the always-draggable area to the header too roughly
+      // doubles the close target without touching the body below, which
+      // has real content (sliders, checkboxes, a scrolling list) that
+      // needs ordinary touch/scroll behavior and stays grabber/header-only.
+      const onDragZone = target.closest('.sidebar__grabber, .sidebar__header') != null
+      if (!onDragZone && open) return
       // A synthetic PointerEvent with an id that was never a real pointer
       // throws here - swallowed so it can't skip the setup below and wedge
       // every later gesture on this element.

@@ -177,8 +177,21 @@ export function ViewpointLayer(): null {
       else addLayer()
     }
 
-    if (map.isStyleLoaded()) updateData()
-    else map.once('load', updateData)
+    // No isStyleLoaded()/once('load') guard needed - `map` from the store
+    // is only ever set once the style has genuinely finished loading (see
+    // MapView.tsx's markMapReady), so it's always safe to touch sources/
+    // layers immediately. That guard used to be exactly the bug behind
+    // "the pins don't load sometimes": isStyleLoaded() also reflects
+    // whether the *currently visible* tiles have finished loading, so it
+    // routinely goes false again during an ordinary pan long after the
+    // map's one-time 'load' event already fired - and since this effect
+    // re-runs on every single pan/fetch, it was the layer most likely to
+    // have a data update land in exactly that window, falling back to a
+    // map.once('load', ...) listener that (load being one-time) then
+    // never fires: the fetch succeeds and the store gets the data (which
+    // is what the sidebar list reads from, so it stayed correct) but the
+    // map layer itself silently never gets created or updated.
+    updateData()
   }, [map, viewpoints])
 
   useEffect(() => {

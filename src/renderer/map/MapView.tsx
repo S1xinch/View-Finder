@@ -4,6 +4,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import {
   DEFAULT_VIEW,
+  GEOLOCATED_INITIAL_ZOOM,
   MAP_STYLE_URL,
   addSatelliteLayer,
   applyAppleStyleTweaks,
@@ -75,6 +76,32 @@ export function MapView(): React.JSX.Element {
     mapRef.current = map
     setMap(map)
 
+    // Silent, one-shot "roughly where is the user" lookup to settle on a
+    // relevant starting view - separate from the explicit locate-me
+    // control (LocateControl.ts/useGeolocation.ts), which keeps watching
+    // position and shows the blue tracking dot; this is a single read
+    // that only ever moves the camera once, right at load, and never
+    // turns tracking on or surfaces an error if it fails/is denied - the
+    // world view already showing (DEFAULT_VIEW) is a perfectly fine
+    // fallback, not a failure state worth bothering the user about.
+    let cancelled = false
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          if (cancelled) return
+          map.easeTo({
+            center: [position.coords.longitude, position.coords.latitude],
+            zoom: GEOLOCATED_INITIAL_ZOOM,
+            duration: 1200
+          })
+        },
+        () => {
+          // Denied, unavailable, or timed out - stay on the world view.
+        },
+        { maximumAge: 5 * 60 * 1000, timeout: 8_000 }
+      )
+    }
+
     // Repaints the map's own base colors to follow the OS-level light/dark
     // setting, the same way the rest of the app's chrome already does via
     // CSS (see global.css's prefers-color-scheme rules) - repainting the
@@ -88,6 +115,7 @@ export function MapView(): React.JSX.Element {
     colorSchemeQuery.addEventListener('change', onColorSchemeChange)
 
     return () => {
+      cancelled = true
       colorSchemeQuery.removeEventListener('change', onColorSchemeChange)
       setMap(null)
       map.remove()

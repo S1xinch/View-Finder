@@ -6,14 +6,26 @@ import type { Map as MapLibreMap } from 'maplibre-gl'
 // Protomaps extract later only means changing this URL.
 export const MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/positron'
 
+// Used only as the very first frame the map ever paints (before either a
+// one-shot geolocation lookup resolves or is determined to be unavailable
+// - see MapView.tsx's mount effect) and as the permanent fallback if that
+// lookup fails or the user denies permission. A whole-world view rather
+// than any specific place, since the app has no way to guess where a new
+// visitor actually is: the old hardcoded default (Blue Mountains, NSW)
+// meant almost everyone who opened the app landed on a part of Australia
+// they had no connection to.
 export const DEFAULT_VIEW = {
-  // Blue Mountains, NSW — a well-known scenic area west of Sydney with a lot
-  // of tourism=viewpoint tagging in OSM, so the app has real markers to show
-  // right on open rather than a blank map. Zoom 11 is comfortably above
-  // MIN_ZOOM_FOR_VIEWPOINTS so viewpoints load immediately.
-  center: [150.3119, -33.7128] as [number, number],
-  zoom: 11
+  center: [10, 20] as [number, number],
+  zoom: 1.5
 }
+
+// Where the map centers once a one-shot "roughly where is the user"
+// geolocation lookup succeeds - a regional/metro-area view (their
+// approximate city, not their exact street) rather than the tight
+// street-level zoom the explicit "locate me" control flies to, since this
+// happens silently on load and a sudden close-up of a stranger's precise
+// position would read as invasive rather than helpful.
+export const GEOLOCATED_INITIAL_ZOOM = 9
 
 // The positron style's default road rendering (light grey/white, minimal)
 // meant minor roads and tracks (e.g. fire trails, common in AU bushland)

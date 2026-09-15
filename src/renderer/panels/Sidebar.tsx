@@ -111,6 +111,7 @@ export function Sidebar(): React.JSX.Element {
   const viewpoints = useViewFinderStore((s) => s.viewpoints)
   const status = useViewFinderStore((s) => s.viewpointsStatus)
   const error = useViewFinderStore((s) => s.viewpointsError)
+  const progress = useViewFinderStore((s) => s.viewpointsProgress)
   const filters = useViewFinderStore((s) => s.filters)
   const setMinElevationMeters = useViewFinderStore((s) => s.setMinElevationMeters)
   const setMaxDistanceToRoadMeters = useViewFinderStore((s) => s.setMaxDistanceToRoadMeters)
@@ -166,7 +167,9 @@ export function Sidebar(): React.JSX.Element {
           {status === 'ready'
             ? `${filtered.length} cool spot${filtered.length === 1 ? '' : 's'}`
             : status === 'loading'
-              ? 'Searching…'
+              ? progress && progress.viewpointsFound > 0
+                ? `Found ${progress.viewpointsFound} so far…`
+                : 'Searching…'
               : 'View Finder'}
         </span>
       </button>
@@ -261,8 +264,24 @@ export function Sidebar(): React.JSX.Element {
 
             {status === 'loading' && showLoading && (
               <div className="sidebar__status sidebar__status--loading">
-                Loading viewpoints…
-                <div className="sidebar__status-progress" />
+                {progress
+                  ? `Searching${progress.tilesTotal > 1 ? ` (${progress.tilesCompleted}/${progress.tilesTotal} areas)` : ''}${
+                      progress.viewpointsFound > 0 ? ` — found ${progress.viewpointsFound} so far` : ''
+                    }…`
+                  : 'Loading viewpoints…'}
+                {/* A determinate fill only makes sense once there's more
+                    than one tile to actually track progress across - a
+                    single-tile fetch (the common case) falls back to the
+                    original indeterminate animation instead of a bar
+                    that's just either 0% or 100%. */}
+                {progress && progress.tilesTotal > 1 ? (
+                  <div
+                    className="sidebar__status-progress sidebar__status-progress--determinate"
+                    style={{ width: `${Math.round((progress.tilesCompleted / progress.tilesTotal) * 100)}%` }}
+                  />
+                ) : (
+                  <div className="sidebar__status-progress" />
+                )}
               </div>
             )}
 

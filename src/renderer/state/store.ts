@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { Map as MapLibreMap } from 'maplibre-gl'
-import type { ExcludedLandArea, RouteResult, Viewpoint } from '@shared/ipcContract'
+import type { ExcludedLandArea, RouteResult, Viewpoint, ViewpointsProgress } from '@shared/ipcContract'
 
 export type ViewpointsStatus = 'idle' | 'zoomed-out' | 'loading' | 'error' | 'ready'
 export type RouteStatus = 'idle' | 'loading' | 'error' | 'ready'
@@ -31,7 +31,13 @@ interface ViewFinderStore {
   viewpoints: Viewpoint[]
   viewpointsStatus: ViewpointsStatus
   viewpointsError: string | null
+  // Reset to null on every new fetch attempt (not just left stale from
+  // the last one) so the loading UI never shows leftover numbers from a
+  // previous, different viewport while a fresh request is still waiting
+  // on its own first tile.
+  viewpointsProgress: ViewpointsProgress | null
   setViewpointsLoading: () => void
+  setViewpointsProgress: (progress: ViewpointsProgress) => void
   setViewpointsZoomedOut: () => void
   setViewpointsLoaded: (viewpoints: Viewpoint[]) => void
   setViewpointsError: (message: string) => void
@@ -84,10 +90,14 @@ export const useViewFinderStore = create<ViewFinderStore>((set) => ({
   viewpoints: [],
   viewpointsStatus: 'idle',
   viewpointsError: null,
-  setViewpointsLoading: () => set({ viewpointsStatus: 'loading', viewpointsError: null }),
-  setViewpointsZoomedOut: () => set({ viewpoints: [], viewpointsStatus: 'zoomed-out', viewpointsError: null }),
-  setViewpointsLoaded: (viewpoints) => set({ viewpoints, viewpointsStatus: 'ready', viewpointsError: null }),
-  setViewpointsError: (message) => set({ viewpointsStatus: 'error', viewpointsError: message }),
+  viewpointsProgress: null,
+  setViewpointsLoading: () => set({ viewpointsStatus: 'loading', viewpointsError: null, viewpointsProgress: null }),
+  setViewpointsProgress: (viewpointsProgress) => set({ viewpointsProgress }),
+  setViewpointsZoomedOut: () =>
+    set({ viewpoints: [], viewpointsStatus: 'zoomed-out', viewpointsError: null, viewpointsProgress: null }),
+  setViewpointsLoaded: (viewpoints) =>
+    set({ viewpoints, viewpointsStatus: 'ready', viewpointsError: null, viewpointsProgress: null }),
+  setViewpointsError: (message) => set({ viewpointsStatus: 'error', viewpointsError: message, viewpointsProgress: null }),
   viewpointsRefreshNonce: 0,
   requestViewpointsRefresh: () => set((s) => ({ viewpointsRefreshNonce: s.viewpointsRefreshNonce + 1 })),
 

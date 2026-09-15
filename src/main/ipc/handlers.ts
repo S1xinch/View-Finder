@@ -1,6 +1,7 @@
 import { app, ipcMain } from 'electron'
 import type { BBox } from '@core/geo/types'
 import type { LatLng } from '@core/routing/types'
+import type { ViewpointsProgress } from '@core/services/coolSpotOrchestrator'
 import type { AppInfo, AppPlatform } from '@shared/ipcContract'
 import { IpcChannels } from './channels'
 import { getExcludedLand, getViewpoints } from '../services/coolSpotService'
@@ -17,9 +18,19 @@ export function registerIpcHandlers(): void {
     }
   })
 
-  ipcMain.handle(IpcChannels.getViewpoints, async (_event, bbox: BBox) => {
+  ipcMain.handle(IpcChannels.getViewpoints, async (event, bbox: BBox, progressToken?: number) => {
     try {
-      return await getViewpoints(bbox)
+      // progressToken is an opaque id the preload bridge generates per
+      // call (see preload/index.ts) purely to route this specific call's
+      // progress events back to its own listener - main doesn't attach
+      // any meaning to it beyond echoing it back on every push.
+      const onProgress =
+        progressToken == null
+          ? undefined
+          : (progress: ViewpointsProgress): void => {
+              event.sender.send(IpcChannels.viewpointsProgress, { progressToken, ...progress })
+            }
+      return await getViewpoints(bbox, onProgress)
     } catch (error) {
       // A superseded-by-a-newer-request abort is expected/benign during
       // rapid panning, not a real failure - log it quietly rather than as

@@ -56,21 +56,22 @@ export function PrivateLandLayer(): null {
       else addLayers()
     }
 
-    if (map.isStyleLoaded()) updateData()
-    else map.once('load', updateData)
+    // No isStyleLoaded()/once('load') guard needed - see the comment on
+    // this in ViewpointLayer.tsx (same fix, same underlying bug class:
+    // isStyleLoaded() can go false again during an ordinary pan long
+    // after the map's one-time 'load' event already fired, and a
+    // once('load') fallback registered after that point then never
+    // fires). `map` from the store is only ever set once the style has
+    // genuinely finished loading (see MapView.tsx's markMapReady).
+    updateData()
   }, [map, excludedLandAreas])
 
   useEffect(() => {
     if (!map) return
 
-    const applyVisibility = (): void => {
-      const visibility = showPrivateLand ? 'visible' : 'none'
-      if (map.getLayer(FILL_LAYER_ID)) map.setLayoutProperty(FILL_LAYER_ID, 'visibility', visibility)
-      if (map.getLayer(OUTLINE_LAYER_ID)) map.setLayoutProperty(OUTLINE_LAYER_ID, 'visibility', visibility)
-    }
-
-    if (map.isStyleLoaded()) applyVisibility()
-    else map.once('load', applyVisibility)
+    const visibility = showPrivateLand ? 'visible' : 'none'
+    if (map.getLayer(FILL_LAYER_ID)) map.setLayoutProperty(FILL_LAYER_ID, 'visibility', visibility)
+    if (map.getLayer(OUTLINE_LAYER_ID)) map.setLayoutProperty(OUTLINE_LAYER_ID, 'visibility', visibility)
   }, [map, showPrivateLand])
 
   return null

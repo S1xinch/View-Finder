@@ -47,17 +47,15 @@ export function MapView(): React.JSX.Element {
       attributionControl: { compact: true }
     })
 
-    // On a phone-width screen the sidebar becomes a bottom sheet (see
-    // .sidebar's mobile rule in global.css) that spans the full width right
-    // up against the same corner these controls would otherwise sit in -
-    // top-right keeps them clear of it instead of being covered whenever
-    // the sheet is open. Read once at mount rather than kept in sync with
-    // resize: an in-session orientation change/window resize crossing this
-    // breakpoint is rare enough that it's not worth the added complexity.
-    const controlCorner = window.matchMedia('(max-width: 600px)').matches ? 'top-right' : 'bottom-right'
-    map.addControl(new NavigationControl({ showCompass: false }), controlCorner)
-    map.addControl(new SatelliteControl(), controlCorner)
-    map.addControl(new LocateControl(), controlCorner)
+    // Always added to MapLibre's bottom-right corner - the mobile
+    // relocation (clear of the bottom-sheet sidebar) is done entirely in
+    // CSS (see .maplibregl-ctrl-bottom-right's mobile rule in global.css)
+    // rather than decided here at mount, so it stays correct across an
+    // in-session orientation change/resize instead of freezing whatever
+    // was true the moment the map was created.
+    map.addControl(new NavigationControl({ showCompass: false }), 'bottom-right')
+    map.addControl(new SatelliteControl(), 'bottom-right')
+    map.addControl(new LocateControl(), 'bottom-right')
 
     const applyBaseStyleTweaks = (): void => {
       if (window.matchMedia('(prefers-color-scheme: dark)').matches) {

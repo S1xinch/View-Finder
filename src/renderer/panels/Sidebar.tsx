@@ -29,37 +29,42 @@ function formatDistance(meters: number | null | undefined): string {
   return `${Math.round(meters)} m from road`
 }
 
-// A real swipe on a touch device (drag past the threshold, then lift) and
-// a plain tap both need to toggle the sheet - but a tap also fires a
-// native click right after pointerup, so without the handledRef guard a
-// swipe would toggle it twice (once here, once from that click).
-const SWIPE_THRESHOLD_PX = 20
-
+// The handle only ever does one thing (open it or close it), so a tap and
+// a real drag-then-release both just toggle it - there's no second
+// behavior a distance threshold would need to distinguish them from, and
+// requiring one turned out to actively break things: a short tap that
+// didn't cross the threshold did nothing at pointerup, silently relying on
+// the browser's own post-touch synthetic click to pick up the slack - a
+// click that touch-action: none (needed so a drag on the handle doesn't
+// also pan the map underneath) can suppress entirely on some mobile
+// browsers, making the whole control unresponsive to a plain tap.
+//
+// setPointerCapture guarantees pointerup still fires on this element even
+// if the finger drifted off it mid-gesture, so this needs no separate
+// pointermove tracking at all - toggling happens directly from pointerup.
+// onClick stays only as the fallback for a *keyboard* activation (Enter/
+// Space on a focused button fires a synthetic click with no pointerdown
+// ever having happened) - pointerHandledRef suppresses it for a real touch/
+// mouse gesture so that doesn't double-toggle.
 function useSwipeToggle(onToggle: () => void): {
   onPointerDown: (e: React.PointerEvent) => void
   onPointerUp: (e: React.PointerEvent) => void
   onClick: () => void
 } {
-  const startYRef = useRef<number | null>(null)
-  const handledRef = useRef(false)
+  const pointerHandledRef = useRef(false)
 
   return {
     onPointerDown: (e) => {
-      startYRef.current = e.clientY
-      handledRef.current = false
+      e.currentTarget.setPointerCapture(e.pointerId)
     },
     onPointerUp: (e) => {
-      const startY = startYRef.current
-      startYRef.current = null
-      if (startY == null) return
-      if (Math.abs(e.clientY - startY) >= SWIPE_THRESHOLD_PX) {
-        handledRef.current = true
-        onToggle()
-      }
+      e.currentTarget.releasePointerCapture(e.pointerId)
+      pointerHandledRef.current = true
+      onToggle()
     },
     onClick: () => {
-      if (handledRef.current) {
-        handledRef.current = false
+      if (pointerHandledRef.current) {
+        pointerHandledRef.current = false
         return
       }
       onToggle()

@@ -6,7 +6,14 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; script-src 'self'; worker-src 'self' blob:"
     />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- maximum-scale + user-scalable=no matter specifically for iOS's
+         "Add to Home Screen" standalone mode - without them, a home-screen
+         install renders zoomed in relative to the exact same page open in
+         a normal Safari tab (Safari's tab chrome does its own auto-fit
+         that the standalone WKWebView shell skips). The map has its own
+         pinch-to-zoom gesture regardless, so page-level pinch-zoom isn't
+         lost functionality here, just the redundant/buggy one. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#2f6fed" />
     <meta name="robots" content="index, follow" />
     <meta

@@ -66,15 +66,35 @@ export function MapView(): React.JSX.Element {
         applyAppleStyleTweaks(map)
       }
     }
-    const applyStyleTweaks = (): void => {
+    // Every other layer component (ViewpointLayer, PrivateLandLayer,
+    // RouteLayer) reads `map` from the store and immediately calls
+    // addSource/addLayer/source.setData on it - which only actually
+    // requires the style to have loaded *once, ever*, not whatever
+    // isStyleLoaded() currently reports. isStyleLoaded() also factors in
+    // whether the *currently visible* tiles have finished loading, so it
+    // routinely flips back to false during ordinary panning, long after
+    // the map's 'load' event already fired for good. A component whose
+    // own data-update effect happened to run during one of those windows
+    // - very likely for ViewpointLayer specifically, since it re-runs on
+    // every pan/fetch - would see isStyleLoaded() as false and fall back
+    // to map.once('load', ...), a listener that (load being a strictly
+    // one-time event) then never fires: the pin layer silently never gets
+    // created or updated, even though the fetch succeeded and the store
+    // has the data (which is exactly what the sidebar list reads from,
+    // so it stays correct while the map goes stale/blank). Delaying
+    // setMap() until the style has genuinely finished loading once means
+    // every downstream layer component can trust that `map` from the
+    // store is always safe to add sources/layers to immediately, with no
+    // isStyleLoaded()/once('load') guard of their own needed at all.
+    const markMapReady = (): void => {
       applyBaseStyleTweaks()
       addSatelliteLayer(map)
       setSatelliteVisible(map, useViewFinderStore.getState().satelliteView)
+      mapRef.current = map
+      setMap(map)
     }
-    if (map.isStyleLoaded()) applyStyleTweaks()
-    else map.once('load', applyStyleTweaks)
-    mapRef.current = map
-    setMap(map)
+    if (map.isStyleLoaded()) markMapReady()
+    else map.once('load', markMapReady)
 
     // Silent, one-shot "roughly where is the user" lookup to settle on a
     // relevant starting view - separate from the explicit locate-me
@@ -109,9 +129,13 @@ export function MapView(): React.JSX.Element {
     // dark style URL, since OpenFreeMap doesn't publish one and reusing
     // the already-loaded style avoids a second vector-tile fetch.
     const colorSchemeQuery = window.matchMedia('(prefers-color-scheme: dark)')
-    const onColorSchemeChange = (): void => {
-      if (map.isStyleLoaded()) applyBaseStyleTweaks()
-    }
+    // This can only ever fire after mount, by which point the style has
+    // already loaded - no isStyleLoaded() guard needed (and, unlike the
+    // spots this comment references elsewhere in this file, this one had
+    // no once('load') fallback either: a change landing in one of
+    // isStyleLoaded()'s transient false windows during a pan used to just
+    // silently skip the repaint for good, never retried).
+    const onColorSchemeChange = (): void => applyBaseStyleTweaks()
     colorSchemeQuery.addEventListener('change', onColorSchemeChange)
 
     return () => {
@@ -125,11 +149,11 @@ export function MapView(): React.JSX.Element {
 
   useEffect(() => {
     const map = mapRef.current
+    // mapRef.current is only ever set once the style has genuinely
+    // finished loading (see markMapReady above) - no isStyleLoaded()/
+    // once('load') guard needed here either.
     if (!map) return
-
-    const applyVisibility = (): void => setSatelliteVisible(map, satelliteView)
-    if (map.isStyleLoaded()) applyVisibility()
-    else map.once('load', applyVisibility)
+    setSatelliteVisible(map, satelliteView)
   }, [satelliteView])
 
   return <div ref={containerRef} className="map-view" />

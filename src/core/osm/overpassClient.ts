@@ -73,36 +73,102 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+// The public Overpass instances enforce a small number of concurrent
+// request "slots" per client (see the Overpass API usage policy) -
+// independent of total request VOLUME, which the rest of this app already
+// works hard to cut (fixed-grid tiling/caching, land-use request dedup,
+// discarding superseded requests). A single pan into a brand-new area can
+// still fire several distinct queries at once - multiple viewpoint tiles
+// plus roads plus land-use - each racing both endpoints in parallel,
+// easily landing more simultaneous connections on one instance than its
+// slot limit allows and triggering an immediate 429, even though none of
+// those queries is individually wasteful. This caps how many requests are
+// actually in flight to any one endpoint at a time; anything beyond that
+// queues instead of firing immediately, so a burst of "new area" queries
+// spreads out over the endpoint's own slots rather than all landing in the
+// same instant.
+const MAX_CONCURRENT_PER_ENDPOINT = 2
+
+class EndpointGate {
+  private active = 0
+  private readonly queue: (() => void)[] = []
+
+  async run<T>(fn: () => Promise<T>, signal: AbortSignal): Promise<T> {
+    await this.acquire()
+    try {
+      if (signal.aborted) throw new DOMException('Superseded by a newer viewport request', 'AbortError')
+      return await fn()
+    } finally {
+      this.release()
+    }
+  }
+
+  private acquire(): Promise<void> {
+    if (this.active < MAX_CONCURRENT_PER_ENDPOINT) {
+      this.active++
+      return Promise.resolve()
+    }
+    return new Promise((resolve) => {
+      this.queue.push(() => {
+        this.active++
+        resolve()
+      })
+    })
+  }
+
+  private release(): void {
+    this.active--
+    const next = this.queue.shift()
+    if (next) next()
+  }
+}
+
+// Module-scoped (not per-orchestrator-instance) so the limit is enforced
+// across the whole app, matching how the endpoint's own slot limit works -
+// a gate is created lazily per endpoint URL the first time it's used.
+const endpointGates = new Map<string, EndpointGate>()
+
+function gateFor(endpoint: string): EndpointGate {
+  let gate = endpointGates.get(endpoint)
+  if (!gate) {
+    gate = new EndpointGate()
+    endpointGates.set(endpoint, gate)
+  }
+  return gate
+}
+
 async function attemptEndpoint(
   endpoint: string,
   query: string,
   fetchImpl: FetchLike,
   signal: AbortSignal
 ): Promise<OverpassResponse> {
-  const response = await fetchImpl(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/plain',
-      Accept: 'application/json',
-      'User-Agent': USER_AGENT
-    },
-    body: query,
-    signal
-  })
+  return gateFor(endpoint).run(async () => {
+    const response = await fetchImpl(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain',
+        Accept: 'application/json',
+        'User-Agent': USER_AGENT
+      },
+      body: query,
+      signal
+    })
 
-  if (!response.ok) {
-    throw new Error(`Overpass request failed (${endpoint}): ${response.status} ${response.statusText}`)
-  }
+    if (!response.ok) {
+      throw new Error(`Overpass request failed (${endpoint}): ${response.status} ${response.statusText}`)
+    }
 
-  const parsed = (await response.json()) as OverpassResponse
-  // A valid, successful response from a mirror with bad/incomplete data
-  // for the queried region looks identical to a genuine "no results here"
-  // - logging which endpoint actually answered (and how many elements it
-  // returned) is the only way to tell those apart after the fact, and is
-  // what would have made the overpass.osm.ch regression diagnosable in
-  // one round instead of several - see the comment on FALLBACK_OVERPASS_ENDPOINT.
-  console.log(`[overpassClient] ${endpoint} answered with ${parsed.elements.length} element(s)`)
-  return parsed
+    const parsed = (await response.json()) as OverpassResponse
+    // A valid, successful response from a mirror with bad/incomplete data
+    // for the queried region looks identical to a genuine "no results here"
+    // - logging which endpoint actually answered (and how many elements it
+    // returned) is the only way to tell those apart after the fact, and is
+    // what would have made the overpass.osm.ch regression diagnosable in
+    // one round instead of several - see the comment on FALLBACK_OVERPASS_ENDPOINT.
+    console.log(`[overpassClient] ${endpoint} answered with ${parsed.elements.length} element(s)`)
+    return parsed
+  }, signal)
 }
 
 export async function queryOverpass(

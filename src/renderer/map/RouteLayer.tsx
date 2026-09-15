@@ -125,8 +125,11 @@ export function RouteLayer(): null {
       }
     }
 
-    if (map.isStyleLoaded()) updateData()
-    else map.once('load', updateData)
+    // No isStyleLoaded()/once('load') guard needed - see the comment on
+    // this in ViewpointLayer.tsx (same fix, same underlying bug class).
+    // `map` from the store is only ever set once the style has genuinely
+    // finished loading (see MapView.tsx's markMapReady).
+    updateData()
   }, [map, route, routeDestination])
 
   useEffect(() => {

@@ -1,6 +1,6 @@
 :root {
   --vf-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', system-ui, sans-serif;
-  --vf-card-bg: rgba(255, 255, 255, 0.78);
+  --vf-card-bg: rgba(255, 255, 255, 0.72);
   --vf-card-border: rgba(0, 0, 0, 0.08);
   --vf-card-shadow: 0 8px 30px rgba(0, 0, 0, 0.14), 0 1px 2px rgba(0, 0, 0, 0.06);
   --vf-text-primary: #1c1c1e;
@@ -9,6 +9,14 @@
   --vf-danger: #c2452d;
   --vf-hover: rgba(0, 0, 0, 0.05);
   --vf-divider: rgba(0, 0, 0, 0.08);
+  /* Real Apple Maps "material" panels aren't just blurred - saturate()
+     pumps the color of whatever's behind the glass before it's blurred,
+     which is what gives frosted panels that vivid, slightly-tinted look
+     instead of a flat gray smear. One token so every glass surface below
+     (sidebar, popups, controls, search results) stays in sync. */
+  --vf-blur: blur(24px) saturate(180%);
+  --vf-radius-lg: 18px;
+  --vf-radius-md: 12px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -85,10 +93,10 @@ button {
 .vf-card {
   background: var(--vf-card-bg);
   border: 1px solid var(--vf-card-border);
-  border-radius: 14px;
+  border-radius: var(--vf-radius-lg);
   box-shadow: var(--vf-card-shadow);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: var(--vf-blur);
+  -webkit-backdrop-filter: var(--vf-blur);
 }
 
 .maplibregl-ctrl-attrib {
@@ -129,18 +137,30 @@ button {
    themselves (and their light/dark swap) are left alone; MapLibre already
    handles that via its own prefers-color-scheme rules. The locate button
    (LocateControl.ts) reuses this exact class so it reads as part of the
-   same control family. */
+   same control family.
+
+   Each addControl() call gets its own separate .maplibregl-ctrl-group -
+   real Apple Maps renders these as independent floating circles (compass/
+   locate) stacked with a visible gap, not one fused block, so the base
+   rule stays a capsule but a group holding exactly one button (locate,
+   satellite) rounds all the way into a circle. The two-button zoom
+   group is left as a stadium-shaped pill (still correct for Apple Maps'
+   own zoom control) with its divider intact. */
 .maplibregl-ctrl-group {
   background: var(--vf-card-bg);
   border: 1px solid var(--vf-card-border);
-  border-radius: 12px;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  border-radius: var(--vf-radius-md);
+  backdrop-filter: var(--vf-blur);
+  -webkit-backdrop-filter: var(--vf-blur);
   overflow: hidden;
 }
 
 .maplibregl-ctrl-group:not(:empty) {
   box-shadow: var(--vf-card-shadow);
+}
+
+.maplibregl-ctrl-group:has(> button:only-child) {
+  border-radius: 50%;
 }
 
 .maplibregl-ctrl-group button {
@@ -188,10 +208,10 @@ button {
 .maplibregl-popup.vf-popup .maplibregl-popup-content {
   background: var(--vf-card-bg);
   border: 1px solid var(--vf-card-border);
-  border-radius: 12px;
+  border-radius: var(--vf-radius-md);
   box-shadow: var(--vf-card-shadow);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: var(--vf-blur);
+  -webkit-backdrop-filter: var(--vf-blur);
   padding: 10px 14px;
   font-family: var(--vf-font);
   color: var(--vf-text-primary);
@@ -292,6 +312,44 @@ button {
   }
 }
 
+.sidebar-reopen {
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  left: max(16px, env(safe-area-inset-left));
+  z-index: 5;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: var(--vf-card-bg);
+  color: var(--vf-text-secondary);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.sidebar-reopen:hover {
+  color: var(--vf-text-primary);
+}
+
+/* The drag-handle pill (shared by the collapsed pull-tab and the open
+   sheet's own grabber row) and the pull-tab's text caption only make
+   sense in the mobile bottom-sheet redesign below - on desktop the
+   reopen control stays the plain small icon button it always was, with
+   neither. These (and the block above) must stay physically ABOVE the
+   mobile/landscape @media overrides below them in the file: CSS resolves
+   equal-specificity ties by source order regardless of which side is in
+   a media query, so an unconditional rule declared *after* a conditional
+   one would silently win even when the condition is true - which is
+   exactly the bug this position fixes (the mobile pull-tab was rendering
+   at the desktop's top-left corner position instead of bottom-center). */
+.sidebar__handle,
+.sidebar-reopen__row,
+.sidebar__grabber {
+  display: none;
+}
+
 /* Unified left sidebar (panels/Sidebar.tsx) - one persistent Apple-Maps-
    style panel replacing the old separate brand card, spot list, and
    status-hint floating pieces. */
@@ -374,16 +432,16 @@ button {
      plain tap both open it. */
   .sidebar-reopen {
     top: auto;
-    left: 50%;
-    right: auto;
-    bottom: max(16px, env(safe-area-inset-bottom));
-    transform: translateX(-50%);
+    left: max(12px, env(safe-area-inset-left));
+    right: max(12px, env(safe-area-inset-right));
+    bottom: max(12px, env(safe-area-inset-bottom));
+    transform: none;
     width: auto;
     height: auto;
-    padding: 10px 32px 8px;
-    border-radius: 20px;
+    padding: 8px 16px 12px;
+    border-radius: var(--vf-radius-lg);
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
     touch-action: none;
   }
 
@@ -391,9 +449,23 @@ button {
     display: none;
   }
 
+  .sidebar-reopen__row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .sidebar-reopen__icon {
+    display: block;
+    flex: 0 0 auto;
+    color: var(--vf-text-secondary);
+  }
+
   .sidebar-reopen__label {
     display: block;
-    font-size: 13px;
+    font-size: 14px;
     color: var(--vf-text-secondary);
   }
 
@@ -429,28 +501,50 @@ button {
   }
 }
 
-/* Landscape's height budget is the tight constraint here (width is often
-   plenty) - the filter sliders/checkbox that fit comfortably in the
-   portrait bottom sheet can, together with the header and search bar,
-   consume the *entire* height budget on a short landscape screen, leaving
-   .sidebar__rows genuinely zero visible height rather than just "hard to
-   scroll". Hiding the two least-essential controls (elevation/road-
-   distance sliders, private-land checkbox) and raising the sheet's own
-   height cap frees enough of that budget back for the list to actually
-   render. The "Search this area" button they share a container with
-   stays - re-searching the current view has no other way to trigger it. */
+/* Landscape phone: real Apple Maps switches to a narrow left-hand panel
+   here instead of a bottom sheet - there's width to spare in landscape,
+   and a bottom sheet would eat most of the short vertical space touch
+   needs for panning/zooming the map. This overrides the bottom-sheet
+   positioning the combined mobile query above sets (same specificity,
+   this rule comes later in the file so it wins), turning the sheet back
+   into a left panel much like desktop's, just narrower and with smaller
+   touch-friendly control sizes preserved from that query. Full height is
+   available this way, so nothing needs to be hidden to make room (unlike
+   the old bottom-sheet-in-landscape approach this replaces). */
 @media (max-height: 500px) and (orientation: landscape) {
   .sidebar {
-    max-height: min(88dvh, 88vh);
+    top: max(10px, env(safe-area-inset-top));
+    left: max(10px, env(safe-area-inset-left));
+    right: auto;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    width: 280px;
+    max-height: none;
   }
 
-  .sidebar__filter,
-  .sidebar__checkbox {
+  /* The bottom-sheet-only affordances (drag handle, grabber, centered
+     pull-tab) don't apply to a side panel - restored to the plain small
+     corner button desktop uses instead. */
+  .sidebar__handle,
+  .sidebar__grabber,
+  .sidebar-reopen__label {
     display: none;
   }
 
-  .sidebar__rows {
-    min-height: 90px;
+  .sidebar-reopen {
+    top: max(10px, env(safe-area-inset-top));
+    left: max(10px, env(safe-area-inset-left));
+    right: auto;
+    bottom: auto;
+    transform: none;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border-radius: 50%;
+    flex-direction: row;
+  }
+
+  .sidebar-reopen__arrow {
+    display: block;
   }
 }
 
@@ -458,28 +552,30 @@ button {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 14px 10px 12px 14px;
-  border-bottom: 1px solid var(--vf-divider);
+  padding: 14px 10px 4px 14px;
 }
 
 /* Global "jump to a place" search (SearchBar.tsx) - distinct from the
    "Search this area" button further down, which re-queries the current
    viewport instead of moving the map. Positioned relatively so its result
    dropdown can be an absolutely-positioned overlay without pushing the
-   rest of the sidebar's layout around while open. */
+   rest of the sidebar's layout around while open.
+
+   Styled as Apple Maps' own search field: a solid capsule (not a bordered
+   box) that reads as the panel's primary action, not just one form field
+   among several - deliberately heavier than the rest of the chrome. */
 .search-bar {
   position: relative;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--vf-divider);
+  padding: 10px 14px 12px;
 }
 
 .search-bar__field {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 10px;
-  border: 1px solid var(--vf-card-border);
-  border-radius: 8px;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 10px;
   background: var(--vf-hover);
 }
 
@@ -494,7 +590,7 @@ button {
   border: none;
   background: transparent;
   color: var(--vf-text-primary);
-  font-size: 13px;
+  font-size: 14px;
   font-family: var(--vf-font);
 }
 
@@ -504,6 +600,16 @@ button {
 
 .search-bar__input::placeholder {
   color: var(--vf-text-secondary);
+}
+
+.search-bar__clear {
+  flex: 0 0 auto;
+  display: flex;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--vf-text-secondary);
+  cursor: pointer;
 }
 
 .search-bar__results {
@@ -519,10 +625,10 @@ button {
   overflow-y: auto;
   background: var(--vf-card-bg);
   border: 1px solid var(--vf-card-border);
-  border-radius: 12px;
+  border-radius: var(--vf-radius-md);
   box-shadow: var(--vf-card-shadow);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: var(--vf-blur);
+  -webkit-backdrop-filter: var(--vf-blur);
 }
 
 .search-bar__results button {
@@ -615,38 +721,6 @@ button {
   background: var(--vf-hover);
 }
 
-.sidebar-reopen {
-  position: absolute;
-  top: max(16px, env(safe-area-inset-top));
-  left: max(16px, env(safe-area-inset-left));
-  z-index: 5;
-  width: 34px;
-  height: 34px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: var(--vf-card-bg);
-  color: var(--vf-text-secondary);
-  font-size: 16px;
-  cursor: pointer;
-}
-
-.sidebar-reopen:hover {
-  color: var(--vf-text-primary);
-}
-
-/* The drag-handle pill (shared by the collapsed pull-tab and the open
-   sheet's own grabber row) and the pull-tab's text caption only make
-   sense in the mobile bottom-sheet redesign below - on desktop the
-   reopen control stays the plain small icon button it always was, with
-   neither. */
-.sidebar__handle,
-.sidebar-reopen__label,
-.sidebar__grabber {
-  display: none;
-}
-
 /* Makes a fetch in progress visible even with the sidebar collapsed, where
    the loading status row/progress bar aren't on screen at all - a gentle
    breathing pulse on the arrow itself rather than a separate spinner, so
@@ -672,6 +746,7 @@ button {
   flex-direction: column;
   gap: 10px;
   padding: 12px 14px;
+  border-top: 1px solid var(--vf-divider);
   border-bottom: 1px solid var(--vf-divider);
 }
 
@@ -688,17 +763,52 @@ button {
   accent-color: var(--vf-accent);
 }
 
-.sidebar__checkbox {
+/* Filter chips (the category/land-type toggles), Apple Maps' own filter-
+   bar look: a row of pill buttons rather than a checklist. Real <input
+   type="checkbox"> stays in the DOM (screen readers, keyboard, form
+   semantics all keep working) but is visually hidden - the label itself
+   becomes the pill, switching to solid/filled once :has(input:checked). */
+.sidebar__chip-row {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
+}
+
+.sidebar__checkbox {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--vf-card-border);
+  background: var(--vf-hover);
+  color: var(--vf-text-secondary);
   font-size: 12px;
-  color: var(--vf-text-primary);
+  font-weight: 500;
   cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
 }
 
 .sidebar__checkbox input[type='checkbox'] {
-  accent-color: var(--vf-accent);
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.sidebar__checkbox:has(input:checked) {
+  background: var(--vf-accent);
+  border-color: var(--vf-accent);
+  color: #ffffff;
+}
+
+.sidebar__checkbox:has(input:focus-visible) {
+  outline: 2px solid var(--vf-accent);
+  outline-offset: 2px;
 }
 
 /* Manual override for the auto-search debounce (see DEBOUNCE_MS in
@@ -789,8 +899,8 @@ button {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px;
+  gap: 10px;
+  padding: 6px 8px;
   border: none;
   background: transparent;
   cursor: pointer;
@@ -823,11 +933,42 @@ button {
   opacity: 1;
 }
 
-.sidebar__dot {
+/* Category icon badge (list rows) - Apple Maps marks each place with a
+   colored badge carrying a small glyph, not a bare color dot. The glyph
+   itself is a plain Unicode character keyed off data-category rather than
+   a new SVG icon set - already-legible at 14px and needs no asset/build
+   step, matching the pin colors already defined in categoryStyle.ts. */
+.sidebar__badge {
   flex: 0 0 auto;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.sidebar__badge[data-category='viewpoint']::before {
+  content: '\1F441';
+  /* Emoji glyphs render in full color regardless of CSS `color` - a plain
+     monochrome triangle/hut/eye shape reads more like a native map-pin
+     glyph than a color emoji would sitting on top of an already-colored
+     badge, so peak/alpine_hut use plain characters instead (below). */
+  filter: grayscale(1) brightness(2.2);
+}
+
+.sidebar__badge[data-category='peak']::before,
+.sidebar__badge[data-category='computed_peak']::before {
+  content: '\25B2';
+  font-size: 12px;
+}
+
+.sidebar__badge[data-category='alpine_hut']::before {
+  content: '\2302';
+  font-size: 15px;
 }
 
 .sidebar__row-text {

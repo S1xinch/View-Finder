@@ -216,14 +216,32 @@ export function Sidebar(): React.JSX.Element {
           ›
         </span>
         <span className="sidebar__handle" aria-hidden="true" />
-        <span className="sidebar-reopen__label" aria-hidden="true">
-          {status === 'ready'
-            ? `${filtered.length} cool spot${filtered.length === 1 ? '' : 's'}`
-            : status === 'loading'
-              ? progress && progress.viewpointsFound > 0
-                ? `Found ${progress.viewpointsFound} so far…`
-                : 'Searching…'
-              : 'View Finder'}
+        {/* Icon + label row - mobile-only (see global.css) - so the
+            collapsed pull-tab reads as Apple Maps' own floating search
+            capsule (a wide bar you tap or swipe up) rather than a plain
+            status label with no visual identity. */}
+        <span className="sidebar-reopen__row">
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+            className="sidebar-reopen__icon"
+          >
+            <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+            <path d="M21 21l-4.3-4.3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          <span className="sidebar-reopen__label" aria-hidden="true">
+            {status === 'ready'
+              ? `${filtered.length} cool spot${filtered.length === 1 ? '' : 's'}`
+              : status === 'loading'
+                ? progress && progress.viewpointsFound > 0
+                  ? `Found ${progress.viewpointsFound} so far…`
+                  : 'Searching…'
+                : 'View Finder'}
+          </span>
         </span>
       </button>
     )
@@ -290,18 +308,20 @@ export function Sidebar(): React.JSX.Element {
                 onChange={(e) => setMaxDistanceToRoadMeters(Number(e.target.value))}
               />
             </label>
-            <label className="sidebar__checkbox">
-              <input type="checkbox" checked={showPrivateLand} onChange={togglePrivateLand} />
-              <span>Show private/farmland</span>
-            </label>
-            <label className="sidebar__checkbox">
-              <input type="checkbox" checked={showOsmViewpoints} onChange={toggleShowOsmViewpoints} />
-              <span>Show tagged viewpoints</span>
-            </label>
-            <label className="sidebar__checkbox">
-              <input type="checkbox" checked={showComputedPeaks} onChange={toggleShowComputedPeaks} />
-              <span>Show computed peaks</span>
-            </label>
+            <div className="sidebar__chip-row">
+              <label className="sidebar__checkbox">
+                <input type="checkbox" checked={showOsmViewpoints} onChange={toggleShowOsmViewpoints} />
+                <span>Tagged viewpoints</span>
+              </label>
+              <label className="sidebar__checkbox">
+                <input type="checkbox" checked={showComputedPeaks} onChange={toggleShowComputedPeaks} />
+                <span>Computed peaks</span>
+              </label>
+              <label className="sidebar__checkbox">
+                <input type="checkbox" checked={showPrivateLand} onChange={togglePrivateLand} />
+                <span>Private/farmland</span>
+              </label>
+            </div>
 
             {/* Auto-search waits for panning to genuinely stop before
                 firing (see DEBOUNCE_MS in useViewpoints.ts) - this lets
@@ -375,7 +395,12 @@ export function Sidebar(): React.JSX.Element {
                   {filtered.map((vp) => (
                     <div className="sidebar__row" key={vp.id}>
                       <button type="button" className="sidebar__row-main" onClick={() => flyTo(vp)}>
-                        <span className="sidebar__dot" style={{ backgroundColor: CATEGORY_COLOR[vp.category] }} />
+                        <span
+                          className="sidebar__badge"
+                          data-category={vp.category}
+                          style={{ backgroundColor: CATEGORY_COLOR[vp.category] }}
+                          aria-hidden="true"
+                        />
                         <span className="sidebar__row-text">
                           <span className="sidebar__row-name">{vp.name ?? CATEGORY_LABEL[vp.category]}</span>
                           <span className="sidebar__row-detail">

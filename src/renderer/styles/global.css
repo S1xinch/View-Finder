@@ -38,12 +38,33 @@ body {
   font-family: var(--vf-font);
   color: var(--vf-text-primary);
   overflow: hidden;
+  /* Mobile Safari/Chrome otherwise let an edge-of-screen drag (e.g. the
+     start of a map pan gesture right at the top of the viewport) trigger
+     the browser's own pull-to-refresh/rubber-band scroll before MapLibre's
+     touch handler takes over - this app has no page to refresh or scroll,
+     so that gesture should only ever pan the map. */
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  /* Removes the ~300ms tap delay some mobile browsers add while waiting to
+     see if a tap becomes a double-tap-to-zoom - buttons here never need
+     double-tap-zoom, so this just makes every tap feel instant. */
+  touch-action: manipulation;
 }
 
 .app {
   position: relative;
   width: 100%;
   height: 100vh;
+  /* dvh tracks the *current* visible viewport as mobile browser chrome
+     (the address bar) shows/hides, instead of 100vh's fixed layout
+     viewport - without this the map/sidebar visibly jump-resize on every
+     scroll-triggered chrome toggle. Kept as a second declaration (not a
+     replacement) so browsers without dvh support silently keep the 100vh
+     line above instead of getting an invalid height. */
+  height: 100dvh;
 }
 
 .map-view {
@@ -64,6 +85,34 @@ body {
 
 .maplibregl-ctrl-attrib {
   font-size: 10px;
+}
+
+/* Nudges every corner of MapLibre's own control positioning out from under
+   a phone's notch/status-bar/home-indicator - added on top of (not instead
+   of) MapLibre's default corner margins. Only matters where the browser
+   chrome doesn't already reserve this space itself, which is exactly the
+   case index.html's viewport-fit=cover opts into (needed so an installed
+   home-screen PWA can draw edge-to-edge instead of leaving a plain-colored
+   bar). env() with a 0px fallback keeps this a no-op on a browser with no
+   notch/safe-area at all. */
+.maplibregl-ctrl-top-left {
+  margin-top: calc(10px + env(safe-area-inset-top, 0px));
+  margin-left: calc(10px + env(safe-area-inset-left, 0px));
+}
+
+.maplibregl-ctrl-top-right {
+  margin-top: calc(10px + env(safe-area-inset-top, 0px));
+  margin-right: calc(10px + env(safe-area-inset-right, 0px));
+}
+
+.maplibregl-ctrl-bottom-left {
+  margin-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  margin-left: calc(10px + env(safe-area-inset-left, 0px));
+}
+
+.maplibregl-ctrl-bottom-right {
+  margin-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  margin-right: calc(10px + env(safe-area-inset-right, 0px));
 }
 
 /* MapLibre's default zoom control is a flat white square box - restyled to
@@ -247,9 +296,9 @@ body {
    status-hint floating pieces. */
 .sidebar {
   position: absolute;
-  top: 16px;
-  left: 16px;
-  bottom: 16px;
+  top: max(16px, env(safe-area-inset-top));
+  left: max(16px, env(safe-area-inset-left));
+  bottom: max(16px, env(safe-area-inset-bottom));
   width: 320px;
   z-index: 5;
   display: flex;
@@ -265,9 +314,40 @@ body {
    list has focus, not a cramped mix of both). */
 @media (max-width: 600px) {
   .sidebar {
-    left: 16px;
-    right: 16px;
+    left: max(16px, env(safe-area-inset-left));
+    right: max(16px, env(safe-area-inset-right));
     width: auto;
+  }
+
+  /* Below this width the sidebar is the whole screen and every one of its
+     buttons becomes a primary touch target, not a mouse-hover nicety - the
+     26-34px sizes that read fine with a cursor are genuinely fiddly to hit
+     with a fingertip. Raised to the ~44px minimum touch target both
+     Apple's and Google's platform guidelines call for. */
+  .sidebar__collapse {
+    width: 44px;
+    height: 44px;
+  }
+
+  .locate-ctrl__button,
+  .satellite-ctrl__button,
+  .maplibregl-ctrl-group button {
+    width: 44px;
+    height: 44px;
+  }
+
+  .sidebar-reopen {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* iOS Safari auto-zooms the whole page on focusing any input whose
+     computed font-size is under 16px - the search box's normal 13px is
+     exactly small enough to trigger that, and the zoom sticks around
+     (and re-triggers on the next field) in a way that reads as broken
+     rather than a deliberate accessibility zoom. */
+  .search-bar__input {
+    font-size: 16px;
   }
 }
 
@@ -434,8 +514,8 @@ body {
 
 .sidebar-reopen {
   position: absolute;
-  top: 16px;
-  left: 16px;
+  top: max(16px, env(safe-area-inset-top));
+  left: max(16px, env(safe-area-inset-left));
   z-index: 5;
   width: 34px;
   height: 34px;

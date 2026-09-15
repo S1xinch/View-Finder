@@ -44,6 +44,25 @@ describe('queryOverpass', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2)
   })
 
+  it('treats a 200 OK carrying a `remark` as a failure rather than a real empty result', async () => {
+    // Overpass replies 200 OK with whatever partial elements it gathered
+    // (often none) when it hits its own query timeout/memory budget mid-
+    // scan under load - indistinguishable from a genuinely empty area by
+    // element count alone. A `remark` is Overpass's own signal that this
+    // happened; treating it as success would let a real region get cached
+    // as "0 viewpoints" for up to 30 days.
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ elements: [], remark: 'runtime timeout reached, query aborted' }))
+
+    // Promise.any wraps all-rejected into a generic AggregateError - the
+    // per-endpoint "incomplete" message is what's logged via console.warn,
+    // not the top-level thrown error, so just assert it does throw.
+    await expect(queryOverpass('query', { fetchImpl, retryDelayMs: 0 })).rejects.toThrow()
+    // 2 endpoints x 1 round, same as any other failed attempt
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+  })
+
   it('aborts immediately (without calling fetch) if the signal is already aborted', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ elements: [] }))
     const controller = new AbortController()

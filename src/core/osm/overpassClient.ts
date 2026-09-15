@@ -57,6 +57,13 @@ export interface OverpassElement {
 
 export interface OverpassResponse {
   elements: OverpassElement[]
+  // Overpass only populates this when something noteworthy happened during
+  // the query - most commonly the server hitting its own [timeout:N] or
+  // memory budget mid-scan. When that happens it still replies 200 OK with
+  // whatever (partial, often empty) elements it had gathered before giving
+  // up - indistinguishable from a genuinely empty area by element count
+  // alone. See the check in attemptEndpoint below.
+  remark?: string
 }
 
 // The caller may supply a different fetch implementation (e.g. for tests).
@@ -160,6 +167,19 @@ async function attemptEndpoint(
     }
 
     const parsed = (await response.json()) as OverpassResponse
+
+    // A 200 OK with a `remark` means the server didn't actually finish the
+    // query (most often its own [timeout:25] budget, under load - exactly
+    // the conditions repeated rate-limiting puts this endpoint under) and
+    // handed back whatever partial results it had, often none. Treating
+    // that as a real "0 results here" would cache a wrong empty answer for
+    // up to 30 days (see OSM_CACHE_TTL_MS in coolSpotOrchestrator.ts) -
+    // throwing here instead lets the normal endpoint-race/retry-elsewhere
+    // path handle it, the same as any other failed attempt.
+    if (parsed.remark) {
+      throw new Error(`Overpass request incomplete (${endpoint}): ${parsed.remark}`)
+    }
+
     // A valid, successful response from a mirror with bad/incomplete data
     // for the queried region looks identical to a genuine "no results here"
     // - logging which endpoint actually answered (and how many elements it

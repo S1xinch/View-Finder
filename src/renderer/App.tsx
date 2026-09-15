@@ -38,9 +38,15 @@ export function App(): React.JSX.Element {
     <div className="app">
       <MapView />
       <PrivateLandLayer />
+      {/* Mounted after RouteLayer so its symbol layer (see ViewpointLayer.tsx
+          - a GPU-rendered canvas layer, not DOM markers) draws on top of the
+          route line rather than under it - layer add order is z-order for
+          two canvas-rendered layers, unlike the DOM markers this replaced,
+          which always sat above every canvas layer regardless of mount
+          order. */}
+      <RouteLayer />
       <ViewpointLayer />
       <LocationLayer />
-      <RouteLayer />
       <Sidebar />
       <VersionBadge />
     </div>

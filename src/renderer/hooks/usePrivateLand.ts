@@ -3,9 +3,9 @@ import type { Map as MapLibreMap } from 'maplibre-gl'
 import { useViewFinderStore } from '../state/store'
 import { MIN_ZOOM_FOR_VIEWPOINTS } from './useViewpoints'
 
-// Same 500ms as useViewpoints.ts's DEBOUNCE_MS, for the same reason
-// (coalesce rapid panning into one request rather than a burst).
-const DEBOUNCE_MS = 500
+// Same 1000ms as useViewpoints.ts's DEBOUNCE_MS, for the same reason (wait
+// for panning to genuinely stop, not just pause between two movements).
+const DEBOUNCE_MS = 1000
 
 // Only fetches/updates while the "show private land" toggle is on - this
 // is an opt-in, occasional-use overlay, not part of the main pan-and-load

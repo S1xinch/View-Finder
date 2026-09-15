@@ -5,6 +5,7 @@ import type { AppInfo, AppPlatform } from '@shared/ipcContract'
 import { IpcChannels } from './channels'
 import { getExcludedLand, getViewpoints } from '../services/coolSpotService'
 import { getRoute } from '../services/routeService'
+import { searchPlaces } from '../services/placeSearchService'
 
 export function registerIpcHandlers(): void {
   ipcMain.handle(IpcChannels.getAppInfo, (): AppInfo => {
@@ -50,6 +51,19 @@ export function registerIpcHandlers(): void {
         console.log('[ipc] getRoute aborted (superseded)')
       } else {
         console.error('[ipc] getRoute failed:', error)
+      }
+      throw error
+    }
+  })
+
+  ipcMain.handle(IpcChannels.searchPlaces, async (_event, query: string) => {
+    try {
+      return await searchPlaces(query)
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('[ipc] searchPlaces aborted (superseded)')
+      } else {
+        console.error('[ipc] searchPlaces failed:', error)
       }
       throw error
     }

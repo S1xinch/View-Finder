@@ -35,6 +35,14 @@ interface ViewFinderStore {
   setViewpointsZoomedOut: () => void
   setViewpointsLoaded: (viewpoints: Viewpoint[]) => void
   setViewpointsError: (message: string) => void
+  // Bumped to force an immediate re-fetch of the current view, bypassing
+  // the pan-settle debounce - useViewpointsSync watches this value (see
+  // its own effect) rather than exposing its internal fetch function
+  // directly, so both the manual "Search this area" button and the
+  // error state's "Try again" button can trigger the same one code path
+  // without the store needing to know anything about map/Overpass.
+  viewpointsRefreshNonce: number
+  requestViewpointsRefresh: () => void
 
   filters: FilterState
   setMinElevationMeters: (value: number) => void
@@ -80,6 +88,8 @@ export const useViewFinderStore = create<ViewFinderStore>((set) => ({
   setViewpointsZoomedOut: () => set({ viewpoints: [], viewpointsStatus: 'zoomed-out', viewpointsError: null }),
   setViewpointsLoaded: (viewpoints) => set({ viewpoints, viewpointsStatus: 'ready', viewpointsError: null }),
   setViewpointsError: (message) => set({ viewpointsStatus: 'error', viewpointsError: message }),
+  viewpointsRefreshNonce: 0,
+  requestViewpointsRefresh: () => set((s) => ({ viewpointsRefreshNonce: s.viewpointsRefreshNonce + 1 })),
 
   filters: { minElevationMeters: 0, maxDistanceToRoadMeters: MAX_ROAD_DISTANCE_SLIDER_METERS },
   setMinElevationMeters: (value) => set((s) => ({ filters: { ...s.filters, minElevationMeters: value } })),

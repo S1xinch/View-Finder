@@ -116,11 +116,15 @@ export function ViewpointLayer(): null {
           'icon-image': ['get', 'icon'],
           'icon-anchor': 'bottom',
           'icon-allow-overlap': true,
-          'icon-ignore-placement': true,
-          // Matches the old DOM version's :hover { transform: scale(1.12) }
-          // - driven by feature-state instead of a CSS pseudo-class, the
-          // symbol-layer equivalent.
-          'icon-size': ['case', ['boolean', ['feature-state', 'hover'], false], 1.12, 1]
+          'icon-ignore-placement': true
+          // No hover-grow effect: MapLibre 6.x rejects `feature-state`
+          // expressions on layout properties (icon-size is layout-only,
+          // with no paint equivalent) - map.addLayer() throws synchronously
+          // if this is attempted, which silently kills pin rendering for
+          // the rest of the session (the source gets created, the layer
+          // never does, and every later update just calls source.setData()
+          // on a layer-less source). Cursor-change on hover (below) is
+          // sufficient affordance without touching a restricted property.
         },
         paint: {
           // Matches the old .vf-pin--estimated { opacity: 0.88 } for
@@ -129,23 +133,10 @@ export function ViewpointLayer(): null {
         }
       })
 
-      let hoveredId: string | number | undefined
-      const clearHover = (): void => {
-        if (hoveredId === undefined) return
-        map.setFeatureState({ source: SOURCE_ID, id: hoveredId }, { hover: false })
-        hoveredId = undefined
-      }
-
-      map.on('mousemove', LAYER_ID, (e) => {
-        const feature = e.features?.[0]
-        if (!feature || feature.id === hoveredId) return
-        clearHover()
-        hoveredId = feature.id
-        map.setFeatureState({ source: SOURCE_ID, id: hoveredId }, { hover: true })
+      map.on('mousemove', LAYER_ID, () => {
         map.getCanvas().style.cursor = 'pointer'
       })
       map.on('mouseleave', LAYER_ID, () => {
-        clearHover()
         map.getCanvas().style.cursor = ''
       })
 

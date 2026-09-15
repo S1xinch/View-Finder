@@ -73,9 +73,18 @@ export interface PlaceResult {
   boundingBox?: PlaceBoundingBox
 }
 
+// Mirrors core/services/coolSpotOrchestrator.ts's own ViewpointsProgress -
+// see that file for what each field means and why viewpointsFound is only
+// approximate.
+export interface ViewpointsProgress {
+  tilesCompleted: number
+  tilesTotal: number
+  viewpointsFound: number
+}
+
 export interface ViewFinderApi {
   getAppInfo: () => Promise<AppInfo>
-  getViewpoints: (bbox: BBox) => Promise<Viewpoint[]>
+  getViewpoints: (bbox: BBox, onProgress?: (progress: ViewpointsProgress) => void) => Promise<Viewpoint[]>
   getExcludedLand: (bbox: BBox) => Promise<ExcludedLandArea[]>
   getRoute: (from: LatLng, to: LatLng) => Promise<RouteResult>
   searchPlaces: (query: string) => Promise<PlaceResult[]>

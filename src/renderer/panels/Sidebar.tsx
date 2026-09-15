@@ -116,8 +116,12 @@ const SHEET_MAX_VIEWPORT_FRACTION = 0.65
 // container holds (list rows, checkboxes, sliders) still needs normal
 // tap/scroll behavior below this, so the handoff only fires once an
 // actual overscroll is under way, not on every touch that happens to
-// start at the top of the list.
-const OVERSCROLL_START_PX = 10
+// start at the top of the list. A freshly-populated list is *always* at
+// scrollTop 0 - the very first scroll attempt on it - so this needs to be
+// generous enough that ordinary finger wobble during a real scroll swipe
+// doesn't cross it and get mistaken for a close-pull (which hijacked the
+// rest of that gesture from scrolling into resizing the sheet instead).
+const OVERSCROLL_START_PX = 24
 
 function useSheetDrag(
   sheetRef: React.RefObject<HTMLElement | null>,
@@ -129,12 +133,14 @@ function useSheetDrag(
     onPointerDown: (e: React.PointerEvent) => void
     onPointerMove: (e: React.PointerEvent) => void
     onPointerUp: (e: React.PointerEvent) => void
+    onPointerCancel: (e: React.PointerEvent) => void
     onClick: (e: React.MouseEvent) => void
   }
   scrollHandlers: {
     onPointerDown: (e: React.PointerEvent) => void
     onPointerMove: (e: React.PointerEvent) => void
     onPointerUp: (e: React.PointerEvent) => void
+    onPointerCancel: (e: React.PointerEvent) => void
   }
 } {
   // A timestamp, not a one-shot boolean: clicking a <label> (the filter
@@ -169,7 +175,15 @@ function useSheetDrag(
     if (!el) return
     if (settleTimerRef.current) clearTimeout(settleTimerRef.current)
     peekHeightRef.current = peekHeightOf(el)
-    openHeightRef.current = window.innerHeight * SHEET_MAX_VIEWPORT_FRACTION
+    // While open, the sheet is already rendered at its real resting height -
+    // measure it directly rather than re-deriving it from window.innerHeight.
+    // The two can disagree on a real phone (dvh tracks the *current* visible
+    // viewport as the browser chrome shows/hides; window.innerHeight doesn't
+    // always move with it the same way), which made a drag that let go
+    // without closing snap the sheet to a taller height than it was already
+    // showing - only the collapsed case still needs the formula estimate,
+    // since the open height isn't actually rendered anywhere to measure yet.
+    openHeightRef.current = open ? el.getBoundingClientRect().height : window.innerHeight * SHEET_MAX_VIEWPORT_FRACTION
     baseHeightRef.current = open ? openHeightRef.current : peekHeightRef.current
     startYRef.current = clientY
     startTimeRef.current = timeStamp
@@ -187,6 +201,7 @@ function useSheetDrag(
   const endDrag = (clientY: number, timeStamp: number): void => {
     const el = sheetRef.current
     const startY = startYRef.current
+    const source = activeSourceRef.current
     startYRef.current = null
     activeSourceRef.current = null
     pointerHandledAtRef.current = timeStamp
@@ -196,7 +211,16 @@ function useSheetDrag(
     const velocity = delta / Math.max(1, timeStamp - startTimeRef.current)
     const span = openHeightRef.current - peekHeightRef.current
     let toOpen: boolean
-    if (Math.abs(delta) < TAP_THRESHOLD_PX) {
+    if (source === 'zone' && Math.abs(delta) < TAP_THRESHOLD_PX) {
+      // Only the zone (grabber/header) can start a "drag" on a plain tap
+      // with zero movement - it begins tracking on pointerdown regardless,
+      // so this fallback is what makes a tap there still toggle. The
+      // scroll handoff never starts from a stationary touch: reaching it
+      // already required a real overscroll past OVERSCROLL_START_PX before
+      // rebasing the start point here, so a small delta right after that
+      // handoff is a real (if short) pull, not a fresh tap - reading it as
+      // one made letting go right after the handoff silently close the
+      // sheet on what was meant to be an ordinary scroll attempt.
       toOpen = !open
     } else if (Math.abs(velocity) >= FLICK_VELOCITY_PX_PER_MS) {
       // Flicked - go where it was thrown, however far it actually got.
@@ -213,6 +237,27 @@ function useSheetDrag(
       if (sheetRef.current) sheetRef.current.style.height = ''
     }, SNAP_SETTLE_MS)
     if (toOpen !== open) setOpen(toOpen)
+  }
+
+  // A real touchscreen doesn't always deliver a matching pointerup for a
+  // captured pointer - the OS/browser can cancel the sequence outright
+  // (an edge-swipe-back gesture, a multi-touch conflict, the browser's own
+  // scroll-vs-gesture arbitration). Without this, a cancelled drag left
+  // activeSourceRef/startYRef pointing at that dead gesture forever, so
+  // the *next* touch - often just an ordinary attempt to scroll the list -
+  // inherited stale drag state and got misread as a continuation of it,
+  // snapping the sheet to some unrelated height out of nowhere. Unlike
+  // endDrag this never commits to open/closed: a cancelled gesture carries
+  // no real intent, so it just abandons the drag and lets the current
+  // resting state's own CSS transition put the sheet back where it was.
+  const cancelDrag = (timeStamp: number): void => {
+    const el = sheetRef.current
+    startYRef.current = null
+    activeSourceRef.current = null
+    pointerHandledAtRef.current = timeStamp
+    if (!el) return
+    el.style.transition = ''
+    el.style.height = ''
   }
 
   return {
@@ -247,9 +292,14 @@ function useSheetDrag(
         // ordinary click, not just ones this handler actually acted on.
         pointerHandledAtRef.current = e.timeStamp
         if (activeSourceRef.current !== 'zone') return
-        e.currentTarget.releasePointerCapture(e.pointerId)
+        try {
+          e.currentTarget.releasePointerCapture(e.pointerId)
+        } catch {
+          /* already released, or never really captured - ignore */
+        }
         endDrag(e.clientY, e.timeStamp)
       },
+      onPointerCancel: (e) => cancelDrag(e.timeStamp),
       onClick: (e) => {
         if (e.timeStamp - pointerHandledAtRef.current < CLICK_FROM_POINTER_WINDOW_MS) return
         setOpen(!open)
@@ -308,7 +358,8 @@ function useSheetDrag(
           /* already released, or never really captured - ignore */
         }
         endDrag(e.clientY, e.timeStamp)
-      }
+      },
+      onPointerCancel: (e) => cancelDrag(e.timeStamp)
     }
   }
 }

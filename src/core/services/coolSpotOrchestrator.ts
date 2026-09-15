@@ -312,10 +312,8 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
     const request = new AbortController()
     currentRequest = request
 
-    // Critical path: OSM viewpoints + elevation only. Roads & land-use are
-    // deferred to background - they load in parallel but don't block the
-    // response. This cuts time-to-first-results by ~40-50% on initial load
-    // since elevation queries run while results are already being shown.
+    // Critical path: OSM viewpoints first. Roads & land-use are deferred to
+    // background - they load in parallel but don't block the response.
     let osmViewpoints: Viewpoint[] = []
     try {
       osmViewpoints = await getOsmViewpoints(bbox, request.signal, onProgress)
@@ -324,14 +322,25 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
       console.warn('[coolSpotOrchestrator] OSM viewpoints failed:', error)
     }
 
-    // Elevation computes in parallel with OSM fetch - combined latency is
-    // min(OSM, elevation) instead of OSM + elevation sequentially.
+    // Lazy elevation: skip the full-grid elevation sample+scan entirely when
+    // OSM already tagged enough viewpoints in this tile. Computed peaks exist
+    // to fill in areas OSM hasn't covered (see getComputedPeaks docs) - if
+    // OSM already found a healthy number, the grid scan is pure extra
+    // latency for marginal benefit. Below the threshold, an area is likely
+    // under-tagged in OSM and the computed-peaks fallback earns its cost.
+    const SKIP_ELEVATION_IF_OSM_COUNT_AT_LEAST = 5
     let computedPeaks: PeakCandidate[] = []
-    try {
-      computedPeaks = await getComputedPeaks(bbox, request.signal)
-    } catch (error) {
-      if (isAbortError(error)) throw error
-      console.warn('[coolSpotOrchestrator] computed peaks failed:', error)
+    if (osmViewpoints.length < SKIP_ELEVATION_IF_OSM_COUNT_AT_LEAST) {
+      try {
+        computedPeaks = await getComputedPeaks(bbox, request.signal)
+      } catch (error) {
+        if (isAbortError(error)) throw error
+        console.warn('[coolSpotOrchestrator] computed peaks failed:', error)
+      }
+    } else {
+      console.log(
+        `[coolSpotOrchestrator] skipping elevation grid - OSM already found ${osmViewpoints.length} viewpoint(s)`
+      )
     }
 
     // Defer roads & land-use: fire them off but don't wait. They're

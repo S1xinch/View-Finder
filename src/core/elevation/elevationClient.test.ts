@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { MAX_LOCATIONS_PER_REQUEST, queryElevations } from './elevationClient'
+import { queryElevations } from './elevationClient'
 
 function jsonResponse(body: unknown, init?: { status?: number; statusText?: string }): Response {
   return new Response(JSON.stringify(body), { status: init?.status ?? 200, statusText: init?.statusText })
@@ -64,10 +64,26 @@ describe('queryElevations', () => {
     await expect(queryElevations([{ lat: 1, lng: 2 }], { fetchImpl })).rejects.toThrow('INVALID_REQUEST')
   })
 
-  it('throws before calling fetch if given more points than the per-request limit', async () => {
-    const fetchImpl = vi.fn()
-    const points = Array.from({ length: MAX_LOCATIONS_PER_REQUEST + 1 }, (_, i) => ({ lat: i, lng: i }))
-    await expect(queryElevations(points, { fetchImpl })).rejects.toThrow(String(MAX_LOCATIONS_PER_REQUEST))
-    expect(fetchImpl).not.toHaveBeenCalled()
+  it('batches >100 points into parallel requests', async () => {
+    // A fresh Response per call - parallel batches each read their own body,
+    // and a Response's body can only be consumed once.
+    const fetchImpl = vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+      const locations = (JSON.parse(init.body as string).locations as string).split('|')
+      return Promise.resolve(
+        jsonResponse({
+          status: 'OK',
+          results: locations.map((loc) => {
+            const [lat, lng] = loc.split(',').map(Number)
+            return { elevation: 1000 + lat, location: { lat, lng } }
+          })
+        })
+      )
+    })
+    const points = Array.from({ length: 110 }, (_, i) => ({ lat: i, lng: i }))
+    const result = await queryElevations(points, { fetchImpl })
+
+    // Should make 2 requests: one for first 100, one for remaining 10
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(result).toHaveLength(110)
   })
 })

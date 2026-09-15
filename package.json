@@ -1,6 +1,6 @@
 {
   "name": "view-finder",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Find scenic, car-reachable high-elevation spots by combining terrain data with OpenStreetMap.",
   "main": "./out/main/index.js",
   "author": "s1xinch",

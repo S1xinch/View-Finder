@@ -6,6 +6,23 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; script-src 'self'; worker-src 'self' blob:"
     />
+    <!-- Warms the DNS/TLS handshake for the map tile host ahead of the
+         actual first tile request - tiles.openfreemap.org is on the
+         critical path for the very first visible frame of the map, so
+         this is the one hint worth a full `preconnect` (a real
+         speculative connection) rather than the cheaper `dns-prefetch`
+         below. crossorigin is required for preconnect to actually open
+         the TLS connection for a fetch()/XHR request, not just DNS. -->
+    <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin />
+    <!-- The rest are hit soon after (the first Overpass viewpoint search
+         fires within ~1s of the map settling - see DEBOUNCE_MS in
+         useViewpoints.ts) but aren't blocking the first paint the way the
+         basemap tiles are, so a lighter DNS-only hint is enough here. -->
+    <link rel="dns-prefetch" href="https://overpass-api.de" />
+    <link rel="dns-prefetch" href="https://overpass.kumi.systems" />
+    <link rel="dns-prefetch" href="https://api.opentopodata.org" />
+    <link rel="dns-prefetch" href="https://nominatim.openstreetmap.org" />
+    <link rel="dns-prefetch" href="https://router.project-osrm.org" />
     <!-- maximum-scale + user-scalable=no matter specifically for iOS's
          "Add to Home Screen" standalone mode - without them, a home-screen
          install renders zoomed in relative to the exact same page open in

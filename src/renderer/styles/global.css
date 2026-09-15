@@ -900,6 +900,22 @@ button {
   animation: sidebar-status-buffer-clear 1.6s ease-in-out infinite;
 }
 
+/* Once there's more than one tile to actually track (see Sidebar.tsx),
+   the bar shows real progress instead of the indeterminate buffer
+   animation above - width is set inline per the current
+   tilesCompleted/tilesTotal ratio. */
+.sidebar__status-progress--determinate {
+  left: 0;
+  transform: none;
+  opacity: 0.7;
+  animation: none;
+  transition: width 300ms ease;
+}
+
+.sidebar__status-progress--determinate::after {
+  display: none;
+}
+
 @keyframes sidebar-status-buffer-fill {
   0% {
     width: 0%;

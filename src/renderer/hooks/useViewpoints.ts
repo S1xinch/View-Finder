@@ -29,6 +29,7 @@ export const MIN_ZOOM_FOR_VIEWPOINTS = 8
 // that needs the data or its loading/error state reads it from the store.
 export function useViewpointsSync(map: MapLibreMap | null): void {
   const setLoading = useViewFinderStore((s) => s.setViewpointsLoading)
+  const setProgress = useViewFinderStore((s) => s.setViewpointsProgress)
   const setZoomedOut = useViewFinderStore((s) => s.setViewpointsZoomedOut)
   const setLoaded = useViewFinderStore((s) => s.setViewpointsLoaded)
   const setError = useViewFinderStore((s) => s.setViewpointsError)
@@ -81,12 +82,18 @@ export function useViewpointsSync(map: MapLibreMap | null): void {
         const bounds = currentMap.getBounds()
         console.log(`[useViewpoints] requesting (request #${requestId}${isRetry ? ', retry' : ''})`, bounds.toArray())
         window.viewFinderAPI
-          .getViewpoints({
-            west: bounds.getWest(),
-            south: bounds.getSouth(),
-            east: bounds.getEast(),
-            north: bounds.getNorth()
-          })
+          .getViewpoints(
+            {
+              west: bounds.getWest(),
+              south: bounds.getSouth(),
+              east: bounds.getEast(),
+              north: bounds.getNorth()
+            },
+            (progress) => {
+              if (isStale()) return
+              setProgress(progress)
+            }
+          )
           .then((result) => {
             if (isStale()) {
               console.log(`[useViewpoints] discarding stale response for request #${requestId}`)
@@ -124,7 +131,7 @@ export function useViewpointsSync(map: MapLibreMap | null): void {
         setError(error instanceof Error ? error.message : 'Failed to load viewpoints')
       }
     },
-    [setLoading, setZoomedOut, setLoaded, setError]
+    [setLoading, setProgress, setZoomedOut, setLoaded, setError]
   )
 
   useEffect(() => {

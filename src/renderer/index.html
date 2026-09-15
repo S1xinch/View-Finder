@@ -6,6 +6,13 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; script-src 'self'; worker-src 'self' blob:"
     />
+    <!-- Map tiles are the one fetch this renderer window makes directly
+         (everything else - Overpass, elevation, routing, geocoding -
+         goes through the main process's own net.fetch, so a hint here
+         wouldn't touch that traffic at all) - warming the connection
+         ahead of the first tile request shaves the DNS/TLS handshake off
+         the critical path for the map's first visible frame. -->
+    <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>View Finder</title>
   </head>

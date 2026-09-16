@@ -779,6 +779,44 @@ button {
   color: var(--vf-text-secondary);
 }
 
+.search-bar__action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 4px;
+}
+
+.search-bar__selected {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--vf-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-bar__directions {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 6px;
+  background: var(--vf-accent);
+  color: var(--vf-accent-text);
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.search-bar__directions:hover {
+  opacity: 0.9;
+}
+
+.search-bar__directions:active {
+  opacity: 0.85;
+}
+
 .sidebar__footer {
   flex: 0 0 auto;
   display: flex;

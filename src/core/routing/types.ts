@@ -22,4 +22,8 @@ export interface RouteResult {
   distanceMeters: number
   durationSeconds: number
   steps: RouteStep[]
+  // Alternative routes from OSRM (if multiple returned); the UI lets users
+  // pick between them before starting navigation. OSRM's `alternatives=2`
+  // parameter requests up to 2 alternatives, so this typically has 0-2 items.
+  alternatives?: RouteResult[]
 }

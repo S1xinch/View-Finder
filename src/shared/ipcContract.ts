@@ -59,6 +59,7 @@ export interface RouteResult {
   distanceMeters: number
   durationSeconds: number
   steps: RouteStep[]
+  alternatives?: RouteResult[]
 }
 
 export interface PlaceBoundingBox {

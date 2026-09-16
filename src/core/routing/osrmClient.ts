@@ -88,7 +88,7 @@ export async function queryRoute(from: LatLng, to: LatLng, options?: QueryRouteO
   const timeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
   const signal = supersededSignal ? AbortSignal.any([timeoutSignal, supersededSignal]) : timeoutSignal
 
-  const url = `${endpoint}/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson&steps=true`
+  const url = `${endpoint}/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson&steps=true&alternatives=2`
 
   // Accept is on the CORS "safelisted" header list, so this stays a
   // simple request with no preflight - unlike overpassClient.ts's
@@ -115,21 +115,29 @@ export async function queryRoute(from: LatLng, to: LatLng, options?: QueryRouteO
     throw new Error(`OSRM returned no route: ${data.code}${data.message ? ` (${data.message})` : ''}`)
   }
 
-  const route = data.routes[0]
-  const steps: RouteStep[] = route.legs.flatMap((leg) =>
-    leg.steps.map((step) => ({
-      instruction: describeStep(step),
-      distanceMeters: step.distance,
-      type: step.maneuver.type,
-      modifier: step.maneuver.modifier,
-      location: step.maneuver.location
-    }))
-  )
+  function convertRoute(osrmRoute: OsrmRoute) {
+    const steps: RouteStep[] = osrmRoute.legs.flatMap((leg) =>
+      leg.steps.map((step) => ({
+        instruction: describeStep(step),
+        distanceMeters: step.distance,
+        type: step.maneuver.type,
+        modifier: step.maneuver.modifier,
+        location: step.maneuver.location
+      }))
+    )
+    return {
+      coordinates: osrmRoute.geometry.coordinates,
+      distanceMeters: osrmRoute.distance,
+      durationSeconds: osrmRoute.duration,
+      steps
+    }
+  }
+
+  const primaryRoute = convertRoute(data.routes[0])
+  const alternatives = data.routes.slice(1).map(convertRoute)
 
   return {
-    coordinates: route.geometry.coordinates,
-    distanceMeters: route.distance,
-    durationSeconds: route.duration,
-    steps
+    ...primaryRoute,
+    alternatives: alternatives.length > 0 ? alternatives : undefined
   }
 }

@@ -11,7 +11,8 @@ import { queryElevations } from '../elevation/elevationClient'
 import { buildSampleGrid, findLocalMaxima } from '../elevation/prominence'
 import type { PeakCandidate } from '../elevation/types'
 import { mergeCandidates } from '../scoring/candidateBuilder'
-import { filterExcludedLand } from '../scoring/landUseFilter'
+import { filterExcludedLand, filterExcludedTenure, tenureCacheKey } from '../scoring/landUseFilter'
+import { queryTenureClass, type NswTenureClass } from '../landTenure/nswLandTenureClient'
 import { scoreCandidates } from '../scoring/coolSpotScore'
 import { isReachableByRoad } from '../scoring/roadReachability'
 import type { CacheStore } from '../cache/CacheStore'
@@ -24,6 +25,11 @@ const OSM_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000
 // Elevation is immutable - terrain doesn't change - so this is effectively
 // "cache forever" within a single app session.
 const ELEVATION_CACHE_TTL_MS = 365 * 24 * 60 * 60 * 1000
+
+// Government land tenure classifications change far less often than OSM
+// tags (a rezoning is a rare, deliberate event, not routine map editing),
+// so this can safely outlive OSM_CACHE_TTL_MS.
+const NSW_TENURE_CACHE_TTL_MS = 90 * 24 * 60 * 60 * 1000
 
 function bboxKey(prefix: string, bbox: BBox): string {
   const round = (n: number): string => n.toFixed(3)
@@ -307,6 +313,50 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
     }
   }
 
+  // NSW's government Land Tenure service (see nswLandTenureClient.ts) is a
+  // raster classified image, not vector polygons - there's no single bbox
+  // query that hands back "every private-land shape in this area" the way
+  // getExcludedLandAreas' OSM query does. Point-sampling every candidate
+  // individually is the only option, so each one gets its own cached
+  // identify lookup instead of one bulk fetch. Best-effort like every other
+  // deferred fetch here: a candidate a lookup couldn't resolve for (cache
+  // miss + a failed request) just doesn't appear in the returned map, and
+  // filterExcludedTenure treats that as "don't exclude".
+  async function getTenureForCandidates(
+    candidates: Viewpoint[],
+    signal: AbortSignal
+  ): Promise<Map<string, NswTenureClass | null>> {
+    const tenureByKey = new Map<string, NswTenureClass | null>()
+
+    await Promise.allSettled(
+      candidates.map(async (candidate) => {
+        const key = tenureCacheKey(candidate)
+        const cacheKey = `nswTenure:${key}`
+        const cached = await cache.get<NswTenureClass | null>(cacheKey)
+        if (cached !== undefined) {
+          tenureByKey.set(key, cached)
+          return
+        }
+
+        try {
+          const tenure = await queryTenureClass(candidate, { fetchImpl, signal })
+          await cache.set(cacheKey, tenure, NSW_TENURE_CACHE_TTL_MS)
+          tenureByKey.set(key, tenure)
+        } catch (error) {
+          // Left out of the map entirely (not cached as a failure, and not
+          // rethrown - a supersede-abort here just means this deferred,
+          // best-effort lookup stops mattering, same as landUse/roads
+          // above) so the next pan/refresh gets a fresh chance to resolve
+          // it, rather than a transient network hiccup permanently reading
+          // as "unknown".
+          console.warn('[coolSpotOrchestrator] NSW tenure lookup failed for one candidate (continuing):', error)
+        }
+      })
+    )
+
+    return tenureByKey
+  }
+
   async function getViewpoints(bbox: BBox, onProgress?: ViewpointsProgressCallback): Promise<Viewpoint[]> {
     currentRequest?.abort()
     const request = new AbortController()
@@ -343,34 +393,43 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
       )
     }
 
-    // Defer roads & land-use: fire them off but don't wait. They're
-    // "nice-to-have" filtering (see roadReachability/landUseFilter) and
-    // finish in the background while results are already on screen.
-    // This is a ponytail: trade eventual consistency (results may briefly
-    // show unfiltered before secondary data arrives) for speed.
-    let roads: RoadSegment[] = []
-    let landUse: ExcludedLandArea[] = []
-    const deferredFetches = (async () => {
-      if (request.signal.aborted) return
-      const [roadsResult, landUseResult] = await Promise.allSettled([
-        getRoads(bbox, request.signal),
-        getExcludedLandAreas(bbox, request.signal)
-      ])
-      if (roadsResult.status === 'fulfilled') roads = roadsResult.value
-      if (landUseResult.status === 'fulfilled') landUse = landUseResult.value
-    })()
-
-    // Don't await deferredFetches - return results immediately with OSM + elevation.
-    // Roads & land-use will populate in the background, but we return now with
-    // unfiltered results for speed. Next pan will use the cached data.
+    // Computed before deferredFetches (unlike before NSW tenure existed) so
+    // the tenure lookups below - unlike roads/land-use, which only need the
+    // bbox - have the actual candidate points to sample.
     const merged = mergeCandidates(osmViewpoints, computedPeaks)
 
     if (merged.length === 0 && !osmViewpoints.length) {
       throw new Error('No viewpoints found and elevation query failed')
     }
 
+    // Defer roads, land-use & NSW tenure: fire them off but don't wait.
+    // They're all "nice-to-have" filtering (see roadReachability/
+    // landUseFilter) and finish in the background while results are
+    // already on screen. This is a ponytail: trade eventual consistency
+    // (results may briefly show unfiltered before secondary data arrives)
+    // for speed.
+    let roads: RoadSegment[] = []
+    let landUse: ExcludedLandArea[] = []
+    let tenureByKey: Map<string, NswTenureClass | null> = new Map()
+    const deferredFetches = (async () => {
+      if (request.signal.aborted) return
+      const [roadsResult, landUseResult, tenureResult] = await Promise.allSettled([
+        getRoads(bbox, request.signal),
+        getExcludedLandAreas(bbox, request.signal),
+        getTenureForCandidates(merged, request.signal)
+      ])
+      if (roadsResult.status === 'fulfilled') roads = roadsResult.value
+      if (landUseResult.status === 'fulfilled') landUse = landUseResult.value
+      if (tenureResult.status === 'fulfilled') tenureByKey = tenureResult.value
+    })()
+
+    // Don't await deferredFetches - return results immediately with OSM +
+    // elevation. Roads, land-use & tenure will populate in the background,
+    // but we return now with unfiltered results for speed. Next pan will
+    // use the cached data.
+
     // Apply filtering with current data (empty on first load, populated from cache on pans)
-    const landFiltered = filterExcludedLand(merged, landUse)
+    const landFiltered = filterExcludedTenure(filterExcludedLand(merged, landUse), tenureByKey)
     const scored = scoreCandidates(landFiltered, roads)
     const ranked = scored
       .filter((candidate) => isReachableByRoad(candidate.distanceToRoadMeters ?? null))
@@ -378,7 +437,7 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
 
     console.log(
       `[coolSpotOrchestrator] getViewpoints returning ${ranked.length} (${osmViewpoints.length} OSM, ${merged.length - osmViewpoints.length} computed, ` +
-        `deferred: roads+landuse)`
+        `deferred: roads+landuse+tenure)`
     )
 
     // Keep deferred fetches running even after we return (fire-and-forget)

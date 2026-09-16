@@ -252,10 +252,22 @@ function useSheetDrag(
   // resting state's own CSS transition put the sheet back where it was.
   const cancelDrag = (timeStamp: number): void => {
     const el = sheetRef.current
+    // pointercancel isn't only "the OS interrupted an actual drag" - most
+    // touch browsers (Chrome on Android especially) also fire it as their
+    // normal way of handing a touch off to native scrolling, which means
+    // it fires on most ordinary scroll gestures too, not just interrupted
+    // ones. Resetting the sheet's inline height/transition unconditionally
+    // here meant every plain scroll of the list did that reset as a side
+    // effect, fighting whatever the CSS transition was doing at that exact
+    // moment and reading as scrolling that won't run smoothly. Only touch
+    // the sheet's own style when a drag we actually started is what's
+    // being cancelled - a stray cancel from ordinary scrolling, which
+    // never touched activeSourceRef, has nothing on the sheet to undo.
+    const wasDragging = activeSourceRef.current !== null
     startYRef.current = null
     activeSourceRef.current = null
     pointerHandledAtRef.current = timeStamp
-    if (!el) return
+    if (!el || !wasDragging) return
     el.style.transition = ''
     el.style.height = ''
   }

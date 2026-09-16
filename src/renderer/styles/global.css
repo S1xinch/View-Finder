@@ -1,14 +1,28 @@
 :root {
   --vf-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', system-ui, sans-serif;
-  --vf-card-bg: rgba(255, 255, 255, 0.78);
+  --vf-card-bg: rgba(255, 255, 255, 0.72);
   --vf-card-border: rgba(0, 0, 0, 0.08);
   --vf-card-shadow: 0 8px 30px rgba(0, 0, 0, 0.14), 0 1px 2px rgba(0, 0, 0, 0.06);
   --vf-text-primary: #1c1c1e;
   --vf-text-secondary: #6e6e73;
-  --vf-accent: #2f6fed;
-  --vf-danger: #c2452d;
+  --vf-accent: #5a8fd4;
+  --vf-danger: #a8563e;
   --vf-hover: rgba(0, 0, 0, 0.05);
   --vf-divider: rgba(0, 0, 0, 0.08);
+  /* Real Apple Maps "material" panels aren't just blurred - saturate()
+     pumps the color of whatever's behind the glass before it's blurred,
+     which is what gives frosted panels that vivid, slightly-tinted look
+     instead of a flat gray smear. One token so every glass surface below
+     (sidebar, popups, controls, search results) stays in sync. */
+  --vf-blur: blur(24px) saturate(180%);
+  --vf-radius-lg: 18px;
+  --vf-radius-md: 12px;
+  /* How much of the bottom sheet stays on screen when it's collapsed on
+     phone portrait - enough for the grab handle, the title row and the
+     whole search field, so search is usable without opening the sheet.
+     Read back by useSheetDrag (Sidebar.tsx) so the drag maths and this
+     resting position stay in lockstep. */
+  --vf-sheet-peek: 132px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -85,10 +99,10 @@ button {
 .vf-card {
   background: var(--vf-card-bg);
   border: 1px solid var(--vf-card-border);
-  border-radius: 14px;
+  border-radius: var(--vf-radius-lg);
   box-shadow: var(--vf-card-shadow);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: var(--vf-blur);
+  -webkit-backdrop-filter: var(--vf-blur);
 }
 
 .maplibregl-ctrl-attrib {
@@ -129,13 +143,21 @@ button {
    themselves (and their light/dark swap) are left alone; MapLibre already
    handles that via its own prefers-color-scheme rules. The locate button
    (LocateControl.ts) reuses this exact class so it reads as part of the
-   same control family. */
+   same control family.
+
+   Each addControl() call gets its own separate .maplibregl-ctrl-group -
+   real Apple Maps renders these as independent floating circles (compass/
+   locate) stacked with a visible gap, not one fused block, so the base
+   rule stays a capsule but a group holding exactly one button (locate,
+   satellite) rounds all the way into a circle. The two-button zoom
+   group is left as a stadium-shaped pill (still correct for Apple Maps'
+   own zoom control) with its divider intact. */
 .maplibregl-ctrl-group {
   background: var(--vf-card-bg);
   border: 1px solid var(--vf-card-border);
-  border-radius: 12px;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  border-radius: var(--vf-radius-md);
+  backdrop-filter: var(--vf-blur);
+  -webkit-backdrop-filter: var(--vf-blur);
   overflow: hidden;
 }
 
@@ -143,8 +165,30 @@ button {
   box-shadow: var(--vf-card-shadow);
 }
 
+.maplibregl-ctrl-group:has(> button:only-child) {
+  border-radius: 50%;
+}
+
 .maplibregl-ctrl-group button {
+  /* Native <button> UA defaults (a couple px of padding, sometimes a
+     border) weren't being reset - harmless on a plain rectangle, but it
+     throws the icon glyph off-center once the button itself became a
+     circle: flex centering still centers correctly, but only within
+     whatever's left after that default padding eats into one axis more
+     than the border-radius makes obvious. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
   background-color: transparent;
+}
+
+.maplibregl-ctrl-group button svg {
+  width: 65%;
+  height: 65%;
 }
 
 .maplibregl-ctrl-group button + button {
@@ -156,13 +200,19 @@ button {
 }
 
 .locate-ctrl__button {
-  width: 29px;
-  height: 29px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--vf-text-primary);
   cursor: pointer;
+}
+
+.locate-ctrl__button svg {
+  width: 65%;
+  height: 65%;
+  display: block;
 }
 
 .locate-ctrl__button--active {
@@ -170,13 +220,19 @@ button {
 }
 
 .satellite-ctrl__button {
-  width: 29px;
-  height: 29px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--vf-text-primary);
   cursor: pointer;
+}
+
+.satellite-ctrl__button svg {
+  width: 65%;
+  height: 65%;
+  display: block;
 }
 
 .satellite-ctrl__button--active {
@@ -188,10 +244,10 @@ button {
 .maplibregl-popup.vf-popup .maplibregl-popup-content {
   background: var(--vf-card-bg);
   border: 1px solid var(--vf-card-border);
-  border-radius: 12px;
+  border-radius: var(--vf-radius-md);
   box-shadow: var(--vf-card-shadow);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: var(--vf-blur);
+  -webkit-backdrop-filter: var(--vf-blur);
   padding: 10px 14px;
   font-family: var(--vf-font);
   color: var(--vf-text-primary);
@@ -235,7 +291,7 @@ button {
   border-radius: 50%;
   background: var(--vf-accent);
   border: 2px solid #ffffff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--vf-card-shadow);
 }
 
 .location-dot__pulse {
@@ -245,6 +301,22 @@ button {
   background: var(--vf-accent);
   opacity: 0.35;
   animation: location-dot-pulse 2.2s ease-out infinite;
+}
+
+/* Heading wedge, shown only while turn-by-turn navigation is active
+   (LocationLayer.tsx toggles display + rotation directly). Sits behind the
+   core dot, pointing whichever way the last couple of GPS fixes moved. */
+.location-dot__heading {
+  position: absolute;
+  top: -22px;
+  left: 0;
+  width: 18px;
+  height: 22px;
+  display: none;
+  transform-origin: 50% 22px;
+  clip-path: polygon(50% 0%, 100% 100%, 50% 78%, 0% 100%);
+  background: var(--vf-accent);
+  opacity: 0.9;
 }
 
 @keyframes location-dot-pulse {
@@ -292,6 +364,50 @@ button {
   }
 }
 
+.sidebar-reopen {
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  left: max(16px, env(safe-area-inset-left));
+  z-index: 5;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: var(--vf-card-bg);
+  color: var(--vf-text-secondary);
+  font-size: 16px;
+  cursor: pointer;
+  /* Same drag-driven transition as .sidebar above - both elements are
+     always mounted now, each with its own useDraggableSheet instance. */
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Desktop: instant swap, same as .sidebar--hidden above - see its comment. */
+.sidebar-reopen--hidden {
+  display: none;
+}
+
+.sidebar-reopen:hover {
+  color: var(--vf-text-primary);
+}
+
+/* The drag handle and its grabber row only exist for the phone-portrait
+   bottom sheet below - desktop and landscape use the small corner button
+   instead and show neither. These (and the block above) must stay
+   physically ABOVE the mobile/landscape @media overrides below them in
+   the file: CSS resolves equal-specificity ties by source order
+   regardless of which side is in a media query, so an unconditional rule
+   declared *after* a conditional one would silently win even when the
+   condition is true - which is exactly the bug this position fixes (the
+   mobile pull-tab was rendering at the desktop's top-left corner
+   position instead of bottom-center). */
+.sidebar__handle,
+.sidebar__grabber {
+  display: none;
+}
+
 /* Unified left sidebar (panels/Sidebar.tsx) - one persistent Apple-Maps-
    style panel replacing the old separate brand card, spot list, and
    status-hint floating pieces. */
@@ -305,6 +421,23 @@ button {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* Drives the snap-to-rest after a drag release on phone portrait (see
+     useSheetDrag in Sidebar.tsx, which sets this element's height
+     directly and briefly disables this transition during the drag itself
+     for 1:1 finger tracking, restoring it right before setting the final
+     resting height). Unused on desktop/landscape, where the collapsed
+     state is a plain display: none swap instead - harmless to declare
+     unconditionally. */
+  transition: height 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Desktop (and landscape) genuinely hide the sheet and show the small
+   corner button instead - an instant swap, unchanged, since there's no
+   drag gesture here whose continuity needs preserving. Phone portrait
+   overrides this below to mean "pushed down to its peek height" instead
+   of "gone". */
+.sidebar--hidden {
+  display: none;
 }
 
 /* On a phone-width viewport this becomes a bottom sheet instead of a
@@ -324,13 +457,45 @@ button {
    without also matching an actual small tablet in landscape, which is
    comfortably taller than this. */
 @media (max-width: 600px), (max-height: 500px) and (orientation: landscape) {
+  :root {
+    --vf-sheet-peek: 115px;
+  }
+
   .sidebar {
     top: auto;
     left: max(12px, env(safe-area-inset-left));
     right: max(12px, env(safe-area-inset-right));
     bottom: max(12px, env(safe-area-inset-bottom));
     width: auto;
-    max-height: min(65dvh, 65vh);
+    height: min(65dvh, 65vh);
+  }
+
+  /* Collapsed here doesn't mean hidden - it means the SAME sheet shrunk
+     down to --vf-sheet-peek tall (handle, title, search field). The
+     sheet's `bottom` above keeps its bottom edge anchored in place as it
+     shrinks, so it stays a small rounded card floating just above the
+     screen edge rather than sliding off it - and dragging up grows it
+     back, which is what makes the gesture feel continuous instead of one
+     element vanishing and a different one appearing. Stays interactive
+     (no pointer-events: none needed) precisely so the peeking search
+     field can be tapped while collapsed.
+
+     touch-action: none here (not on .sidebar generally - that would
+     break scrolling the open list) because useSheetDrag's onPointerDown
+     now treats the whole collapsed card as a drag surface, not just the
+     grabber strip - without this the browser's own pan/scroll gesture
+     recognition competes with that drag on a real touchscreen. */
+  .sidebar--hidden {
+    display: flex;
+    height: var(--vf-sheet-peek);
+    touch-action: none;
+  }
+
+  /* Phone portrait has no separate collapsed control at all - the sheet
+     above peeks instead. (Landscape re-enables this further down; it
+     keeps the desktop-style corner button.) */
+  .sidebar-reopen {
+    display: none;
   }
 
   /* Below this width the sidebar is a primary touch surface, not a
@@ -338,20 +503,30 @@ button {
      are genuinely fiddly to hit with a fingertip. Raised to the ~44px
      minimum touch target both Apple's and Google's platform guidelines
      call for. */
-  .sidebar__collapse {
-    width: 44px;
-    height: 44px;
+  .sidebar__cancel-route {
+    width: 28px;
+    height: 28px;
+    font-size: 16px;
   }
 
-  /* The zoom/locate/satellite buttons stay small (unlike the sidebar's
-     own touch targets above) - they're reached for occasionally, not
-     the primary thing being tapped, and at 44px they read as oversized
-     next to the map. */
-  .locate-ctrl__button,
-  .satellite-ctrl__button,
-  .maplibregl-ctrl-group button {
-    width: 34px;
-    height: 34px;
+  .sidebar__header--directions .sidebar__cancel-route {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+
+
+  /* Crush dead space above search bar on mobile only */
+  .sidebar__header {
+    padding: 2px 8px 0 10px;
+  }
+
+  .search-bar {
+    padding: 0px 14px 6px;
+  }
+
+  .search-bar__field {
+    padding: 10px 12px;
   }
 
   /* Relocated from MapLibre's default bottom-right corner up to
@@ -366,37 +541,6 @@ button {
     margin-bottom: 0;
   }
 
-  /* Redesigned as a bottom-center pull-tab instead of a small button in a
-     corner - unambiguous in every orientation (there's no "which corner"
-     to get wrong when it's centered), and its whole shape reads as
-     "drag this" rather than a directionless icon button. Swipe-up (via
-     useSwipeToggle, shared with the open sheet's own grabber below) and a
-     plain tap both open it. */
-  .sidebar-reopen {
-    top: auto;
-    left: 50%;
-    right: auto;
-    bottom: max(16px, env(safe-area-inset-bottom));
-    transform: translateX(-50%);
-    width: auto;
-    height: auto;
-    padding: 10px 32px 8px;
-    border-radius: 20px;
-    flex-direction: column;
-    gap: 4px;
-    touch-action: none;
-  }
-
-  .sidebar-reopen__arrow {
-    display: none;
-  }
-
-  .sidebar-reopen__label {
-    display: block;
-    font-size: 13px;
-    color: var(--vf-text-secondary);
-  }
-
   .sidebar__handle {
     display: block;
     width: 36px;
@@ -409,12 +553,28 @@ button {
   /* A dedicated swipe-down-to-close target at the very top of the open
      sheet, above the header - matching how a native bottom sheet's own
      drag handle behaves. The explicit collapse button in the header
-     still covers a mouse/keyboard user; this is the touch-first one. */
+     still covers a mouse/keyboard user; this is the touch-first one.
+     Padded well past the visible 4px handle bar - a thumb aiming for
+     "the handle" routinely lands a few px above/below the bar itself,
+     and the previous ~14px-tall zone missed that real-world margin for
+     error often enough to read as "dragging doesn't work". 44px total
+     matches Apple's/Google's own minimum touch target guideline. */
   .sidebar__grabber {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 8px 0 2px;
+    padding: 10px 0 0 0;
+    cursor: grab;
+    touch-action: none;
+  }
+
+  /* Also a drag surface (see useSheetDrag's onPointerDown) - closing was
+     still easy to miss with only the grabber above draggable, once the
+     sheet was tall and open. touch-action: none stops the browser's own
+     pan gesture from competing with the drag on a real touchscreen; the
+     collapse button inside keeps its normal touch-action since it's
+     excluded from the drag check entirely (it's a real <button>). */
+  .sidebar__header {
     cursor: grab;
     touch-action: none;
   }
@@ -429,62 +589,118 @@ button {
   }
 }
 
-/* Landscape's height budget is the tight constraint here (width is often
-   plenty) - the filter sliders/checkbox that fit comfortably in the
-   portrait bottom sheet can, together with the header and search bar,
-   consume the *entire* height budget on a short landscape screen, leaving
-   .sidebar__rows genuinely zero visible height rather than just "hard to
-   scroll". Hiding the two least-essential controls (elevation/road-
-   distance sliders, private-land checkbox) and raising the sheet's own
-   height cap frees enough of that budget back for the list to actually
-   render. The "Search this area" button they share a container with
-   stays - re-searching the current view has no other way to trigger it. */
+/* Landscape phone: real Apple Maps switches to a narrow left-hand panel
+   here instead of a bottom sheet - there's width to spare in landscape,
+   and a bottom sheet would eat most of the short vertical space touch
+   needs for panning/zooming the map. This overrides the bottom-sheet
+   positioning the combined mobile query above sets (same specificity,
+   this rule comes later in the file so it wins), turning the sheet back
+   into a left panel much like desktop's, just narrower and with smaller
+   touch-friendly control sizes preserved from that query. Full height is
+   available this way, so nothing needs to be hidden to make room (unlike
+   the old bottom-sheet-in-landscape approach this replaces). */
 @media (max-height: 500px) and (orientation: landscape) {
   .sidebar {
-    max-height: min(88dvh, 88vh);
+    top: max(10px, env(safe-area-inset-top));
+    left: max(10px, env(safe-area-inset-left));
+    right: auto;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    width: 280px;
+    height: auto;
+    max-height: none;
   }
 
-  .sidebar__filter,
-  .sidebar__checkbox {
+  /* The bottom-sheet-only affordances (drag handle, grabber, centered
+     pull-tab) don't apply to a side panel - restored to the plain small
+     corner button desktop uses instead. */
+  .sidebar__handle,
+  .sidebar__grabber {
     display: none;
   }
 
-  .sidebar__rows {
-    min-height: 90px;
+  /* Re-enabled (phone portrait above hides it entirely) and put back in
+     the corner - landscape keeps the desktop-style small button and its
+     instant swap, since a side panel has no bottom-sheet gesture whose
+     continuity needs preserving. */
+  .sidebar-reopen {
+    display: flex;
+    top: max(10px, env(safe-area-inset-top));
+    left: max(10px, env(safe-area-inset-left));
+    right: auto;
+    bottom: auto;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border-radius: 50%;
+    flex-direction: row;
+  }
+
+  .sidebar-reopen__arrow {
+    display: block;
+  }
+
+  /* Instant swap here rather than the portrait peek-position above. */
+  .sidebar--hidden,
+  .sidebar-reopen--hidden {
+    display: none;
   }
 }
 
+/* Just the mark + collapse button now (see Sidebar.tsx) - space-between
+   keeps the logo quietly in its own top-left corner and the collapse
+   button in its own top-right one, rather than a title row's worth of
+   height sitting between them and the search field below. */
 .sidebar__header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 14px 10px 12px 14px;
-  border-bottom: 1px solid var(--vf-divider);
+  justify-content: space-between;
+  padding: 6px 8px 0 10px;
+}
+
+.sidebar__header--directions {
+  padding: 10px 10px 8px 14px;
+  gap: 12px;
+}
+
+.sidebar__directions-title {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--vf-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Global "jump to a place" search (SearchBar.tsx) - distinct from the
    "Search this area" button further down, which re-queries the current
    viewport instead of moving the map. Positioned relatively so its result
    dropdown can be an absolutely-positioned overlay without pushing the
-   rest of the sidebar's layout around while open. */
+   rest of the sidebar's layout around while open.
+
+   Styled as Apple Maps' own search field: a solid capsule (not a bordered
+   box) that reads as the panel's primary action, not just one form field
+   among several - deliberately heavier than the rest of the chrome. */
 .search-bar {
   position: relative;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--vf-divider);
+  padding: 4px 14px 8px;
 }
 
 .search-bar__field {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 10px;
-  border: 1px solid var(--vf-card-border);
-  border-radius: 8px;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 10px;
   background: var(--vf-hover);
 }
 
 .search-bar__icon {
   flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--vf-text-secondary);
 }
 
@@ -494,7 +710,7 @@ button {
   border: none;
   background: transparent;
   color: var(--vf-text-primary);
-  font-size: 13px;
+  font-size: 14px;
   font-family: var(--vf-font);
 }
 
@@ -504,6 +720,18 @@ button {
 
 .search-bar__input::placeholder {
   color: var(--vf-text-secondary);
+}
+
+.search-bar__clear {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--vf-text-secondary);
+  cursor: pointer;
 }
 
 .search-bar__results {
@@ -519,10 +747,10 @@ button {
   overflow-y: auto;
   background: var(--vf-card-bg);
   border: 1px solid var(--vf-card-border);
-  border-radius: 12px;
+  border-radius: var(--vf-radius-md);
   box-shadow: var(--vf-card-shadow);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: var(--vf-blur);
+  -webkit-backdrop-filter: var(--vf-blur);
 }
 
 .search-bar__results button {
@@ -551,26 +779,42 @@ button {
   color: var(--vf-text-secondary);
 }
 
-.sidebar__title-group {
+.search-bar__action {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 4px;
+}
+
+.search-bar__selected {
   flex: 1;
-}
-
-.sidebar__title {
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-.sidebar__subtitle {
-  font-size: 12px;
-  color: var(--vf-text-secondary);
+  min-width: 0;
+  font-size: 13px;
+  color: var(--vf-text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.search-bar__directions {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 6px;
+  background: var(--vf-accent);
+  color: var(--vf-accent-text);
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.search-bar__directions:hover {
+  opacity: 0.9;
+}
+
+.search-bar__directions:active {
+  opacity: 0.85;
 }
 
 .sidebar__footer {
@@ -596,55 +840,25 @@ button {
   text-decoration: underline;
 }
 
-.sidebar__collapse {
+.sidebar__cancel-route {
   flex: 0 0 auto;
-  width: 26px;
-  height: 26px;
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
-  background: transparent;
-  border-radius: 8px;
-  color: var(--vf-text-secondary);
-  font-size: 15px;
+  border-radius: 50%;
+  background: var(--vf-danger);
+  color: #fff;
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1;
   cursor: pointer;
 }
 
-.sidebar__collapse:hover {
-  background: var(--vf-hover);
-}
-
-.sidebar-reopen {
-  position: absolute;
-  top: max(16px, env(safe-area-inset-top));
-  left: max(16px, env(safe-area-inset-left));
-  z-index: 5;
-  width: 34px;
-  height: 34px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: var(--vf-card-bg);
-  color: var(--vf-text-secondary);
-  font-size: 16px;
-  cursor: pointer;
-}
-
-.sidebar-reopen:hover {
-  color: var(--vf-text-primary);
-}
-
-/* The drag-handle pill (shared by the collapsed pull-tab and the open
-   sheet's own grabber row) and the pull-tab's text caption only make
-   sense in the mobile bottom-sheet redesign below - on desktop the
-   reopen control stays the plain small icon button it always was, with
-   neither. */
-.sidebar__handle,
-.sidebar-reopen__label,
-.sidebar__grabber {
-  display: none;
+.sidebar__cancel-route:hover {
+  filter: brightness(1.1);
 }
 
 /* Makes a fetch in progress visible even with the sidebar collapsed, where
@@ -672,6 +886,7 @@ button {
   flex-direction: column;
   gap: 10px;
   padding: 12px 14px;
+  border-top: 1px solid var(--vf-divider);
   border-bottom: 1px solid var(--vf-divider);
 }
 
@@ -688,17 +903,52 @@ button {
   accent-color: var(--vf-accent);
 }
 
-.sidebar__checkbox {
+/* Filter chips (the category/land-type toggles), Apple Maps' own filter-
+   bar look: a row of pill buttons rather than a checklist. Real <input
+   type="checkbox"> stays in the DOM (screen readers, keyboard, form
+   semantics all keep working) but is visually hidden - the label itself
+   becomes the pill, switching to solid/filled once :has(input:checked). */
+.sidebar__chip-row {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
+}
+
+.sidebar__checkbox {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--vf-card-border);
+  background: var(--vf-hover);
+  color: var(--vf-text-secondary);
   font-size: 12px;
-  color: var(--vf-text-primary);
+  font-weight: 500;
   cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
 }
 
 .sidebar__checkbox input[type='checkbox'] {
-  accent-color: var(--vf-accent);
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.sidebar__checkbox:has(input:checked) {
+  background: var(--vf-accent);
+  border-color: var(--vf-accent);
+  color: #ffffff;
+}
+
+.sidebar__checkbox:has(input:focus-visible) {
+  outline: 2px solid var(--vf-accent);
+  outline-offset: 2px;
 }
 
 /* Manual override for the auto-search debounce (see DEBOUNCE_MS in
@@ -738,6 +988,34 @@ button {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Wraps filters + results together as ONE scroll region (see Sidebar.tsx)
+   so filters scroll away with the list instead of permanently pinning
+   above a separately-scrolling, cramped .sidebar__rows - that fixed
+   overhead was what made the list hard to browse on the shorter mobile
+   sheet. Not used by the directions view (DirectionsView.tsx renders
+   .sidebar__body directly, without this wrapper), which keeps its own
+   original fixed-header + independently-scrolling-steps layout below. */
+.sidebar__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Neutralizes .sidebar__body/.sidebar__rows' own flex-sizing and scroll
+   behavior specifically when nested inside .sidebar__scroll, so there's
+   exactly one scroll container instead of a scrollable list boxed inside
+   an already-scrollable parent. Their base rules below are left intact -
+   DirectionsView.tsx uses both directly, without this wrapper, and needs
+   their original independent-scroll behavior. */
+.sidebar__scroll .sidebar__body,
+.sidebar__scroll .sidebar__rows {
+  flex: none;
+  min-height: 0;
+  overflow: visible;
 }
 
 .sidebar__body {
@@ -789,8 +1067,8 @@ button {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px;
+  gap: 10px;
+  padding: 6px 8px;
   border: none;
   background: transparent;
   cursor: pointer;
@@ -823,11 +1101,42 @@ button {
   opacity: 1;
 }
 
-.sidebar__dot {
+/* Category icon badge (list rows) - Apple Maps marks each place with a
+   colored badge carrying a small glyph, not a bare color dot. The glyph
+   itself is a plain Unicode character keyed off data-category rather than
+   a new SVG icon set - already-legible at 14px and needs no asset/build
+   step, matching the pin colors already defined in categoryStyle.ts. */
+.sidebar__badge {
   flex: 0 0 auto;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.sidebar__badge[data-category='viewpoint']::before {
+  content: '\1F441';
+  /* Emoji glyphs render in full color regardless of CSS `color` - a plain
+     monochrome triangle/hut/eye shape reads more like a native map-pin
+     glyph than a color emoji would sitting on top of an already-colored
+     badge, so peak/alpine_hut use plain characters instead (below). */
+  filter: grayscale(1) brightness(2.2);
+}
+
+.sidebar__badge[data-category='peak']::before,
+.sidebar__badge[data-category='computed_peak']::before {
+  content: '\25B2';
+  font-size: 12px;
+}
+
+.sidebar__badge[data-category='alpine_hut']::before {
+  content: '\2302';
+  font-size: 15px;
 }
 
 .sidebar__row-text {
@@ -1017,6 +1326,89 @@ button {
   filter: brightness(1.08);
 }
 
+/* Primary CTA to switch DirectionsView from "here's the route" preview into
+   live turn-by-turn (LocationLayer.tsx then takes over the camera). Full-
+   width and chunky - this is the one thing a driver taps before setting
+   the phone down, so it gets Apple/Google's own oversized-button treatment
+   rather than the smaller open-in-maps button beside it. */
+.sidebar__start-nav {
+  padding: 12px;
+  font-family: var(--vf-font);
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+  background: var(--vf-accent);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.sidebar__start-nav:hover {
+  filter: brightness(1.08);
+}
+
+/* The live "what to do right now" banner while navigating - Apple/Google's
+   own top-of-screen turn card, condensed to fit this sidebar's width. */
+.sidebar__turn-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--vf-accent);
+  color: #ffffff;
+}
+
+.sidebar__turn-card-icon {
+  flex: 0 0 auto;
+  display: flex;
+}
+
+.sidebar__turn-card-distance {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.sidebar__turn-card .sidebar__row-name {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.sidebar__route-switcher {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px;
+  font-size: 13px;
+  color: var(--vf-text-secondary);
+}
+
+.sidebar__route-switcher button {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--vf-divider);
+  border-radius: 6px;
+  background: var(--vf-card-bg);
+  color: var(--vf-text-primary);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sidebar__route-switcher button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.sidebar__route-counter {
+  font-size: 12px;
+  min-width: 60px;
+  text-align: center;
+}
+
 .sidebar__step {
   display: flex;
   align-items: flex-start;
@@ -1029,18 +1421,21 @@ button {
   border-bottom: none;
 }
 
-.sidebar__step-index {
+/* Dims a maneuver once the driver's GPS fix has passed it (see
+   DirectionsView.tsx's passedStepIndex) - same idea as Apple/Google
+   greying out completed turns in a turn list. */
+.sidebar__step--done {
+  opacity: 0.4;
+}
+
+.sidebar__step-icon {
   flex: 0 0 auto;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  background: var(--vf-accent);
-  color: #ffffff;
-  font-size: 11px;
-  font-weight: 600;
+  color: var(--vf-accent);
 }
 
 /* "Directions" / "Open in Maps" buttons inside the map-pin popup
@@ -1082,4 +1477,133 @@ button {
 
 .vf-popup__open-in-maps:hover {
   background: var(--vf-hover);
+}
+
+.directions-search {
+  padding: 12px;
+}
+
+.directions-search__field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--vf-card-bg);
+  border: 1px solid var(--vf-card-border);
+  border-radius: var(--vf-radius-md);
+}
+
+.directions-search__icon {
+  color: var(--vf-text-secondary);
+  flex: 0 0 auto;
+}
+
+.directions-search__input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  color: var(--vf-text-primary);
+  outline: none;
+}
+
+.directions-search__input::placeholder {
+  color: var(--vf-text-secondary);
+}
+
+.directions-search__dropdown {
+  position: absolute;
+  top: 100%;
+  left: 12px;
+  right: 12px;
+  margin-top: 4px;
+  background: var(--vf-card-bg);
+  border: 1px solid var(--vf-card-border);
+  border-radius: var(--vf-radius-md);
+  box-shadow: var(--vf-card-shadow);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 10;
+}
+
+.directions-search__result {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-size: 14px;
+  color: var(--vf-text-primary);
+  cursor: pointer;
+  border-bottom: 1px solid var(--vf-divider);
+}
+
+.directions-search__result:last-child {
+  border-bottom: none;
+}
+
+.directions-search__result:hover {
+  background: var(--vf-hover);
+}
+
+.directions-search__status {
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--vf-text-secondary);
+  text-align: center;
+}
+
+.saved-locations {
+  padding: 12px;
+  border-top: 1px solid var(--vf-divider);
+}
+
+.saved-locations__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.saved-locations__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--vf-text-primary);
+  margin: 0;
+}
+
+.saved-locations__badge {
+  font-size: 11px;
+  padding: 4px 8px;
+  background: var(--vf-hover);
+  border-radius: 4px;
+  color: var(--vf-text-secondary);
+}
+
+.saved-locations__empty {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  opacity: 0.6;
+}
+
+.saved-locations__text {
+  font-size: 13px;
+  color: var(--vf-text-secondary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.saved-locations__signin {
+  padding: 10px 12px;
+  background: var(--vf-accent);
+  color: white;
+  border: none;
+  border-radius: var(--vf-radius-md);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: not-allowed;
+  opacity: 0.5;
 }

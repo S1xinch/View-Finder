@@ -14,13 +14,16 @@ type SearchStatus = 'idle' | 'loading' | 'error'
 // Global place search (via Nominatim - see core/geocoding/nominatimClient.ts),
 // distinct from the "Search this area" button: this jumps the map to
 // wherever the user typed, rather than re-querying the current viewport.
+// When a place is selected, shows "Get directions" button to route to it.
 // Deliberately local component state, not the shared store - nothing else
 // in the app needs to know what's mid-type in this box.
 export function SearchBar(): React.JSX.Element {
   const map = useViewFinderStore((s) => s.map)
+  const requestRoute = useViewFinderStore((s) => s.requestRoute)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<PlaceResult[]>([])
   const [status, setStatus] = useState<SearchStatus>('idle')
+  const [selectedPlace, setSelectedPlace] = useState<PlaceResult | null>(null)
   const [open, setOpen] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>()
   const requestIdRef = useRef(0)
@@ -80,13 +83,34 @@ export function SearchBar(): React.JSX.Element {
     }
 
     setQuery(place.name)
+    setSelectedPlace(place)
     setOpen(false)
+  }
+
+  const getDirections = (): void => {
+    if (!selectedPlace) return
+    requestRoute({
+      id: selectedPlace.id,
+      name: selectedPlace.name,
+      lat: selectedPlace.lat,
+      lng: selectedPlace.lng,
+      category: 'viewpoint',
+      tags: {}
+    })
   }
 
   const showDropdown = open && (results.length > 0 || (status === 'idle' && query.trim().length >= MIN_QUERY_LENGTH))
 
   return (
     <div className="search-bar">
+      {selectedPlace && (
+        <div className="search-bar__action">
+          <span className="search-bar__selected">{selectedPlace.name}</span>
+          <button type="button" className="search-bar__directions" onClick={getDirections} aria-label={`Get directions to ${selectedPlace.name}`}>
+            →
+          </button>
+        </div>
+      )}
       <div className="search-bar__field">
         <svg
           width="14"

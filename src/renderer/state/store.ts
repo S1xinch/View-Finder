@@ -92,6 +92,12 @@ interface ViewFinderStore {
   setRouteLoading: () => void
   setRouteLoaded: (route: RouteResult) => void
   setRouteError: (message: string) => void
+  // Distinguishes "here's the route overview" (routeStatus === 'ready') from
+  // "actually driving it" - flipped on by the DirectionsView's own Start
+  // button once the user is ready to go. LocationLayer.tsx only takes over
+  // the camera (follow + zoom) and shows a heading arrow while this is true.
+  navigating: boolean
+  startNavigation: () => void
 
   satelliteView: boolean
   toggleSatelliteView: () => void
@@ -157,11 +163,20 @@ export const useViewFinderStore = create<ViewFinderStore>((set) => ({
   // if it's already on) so the user doesn't have to separately find the
   // locate button before directions can work.
   requestRoute: (destination) =>
-    set({ locationTracking: true, routeDestination: destination, route: null, routeStatus: 'idle', routeError: null }),
-  clearRoute: () => set({ routeDestination: null, route: null, routeStatus: 'idle', routeError: null }),
+    set({
+      locationTracking: true,
+      routeDestination: destination,
+      route: null,
+      routeStatus: 'idle',
+      routeError: null,
+      navigating: false
+    }),
+  clearRoute: () => set({ routeDestination: null, route: null, routeStatus: 'idle', routeError: null, navigating: false }),
   setRouteLoading: () => set({ routeStatus: 'loading', routeError: null }),
   setRouteLoaded: (route) => set({ route, routeStatus: 'ready', routeError: null }),
   setRouteError: (message) => set({ routeStatus: 'error', routeError: message }),
+  navigating: false,
+  startNavigation: () => set({ navigating: true }),
 
   satelliteView: false,
   toggleSatelliteView: () => set((s) => ({ satelliteView: !s.satelliteView }))

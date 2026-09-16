@@ -303,6 +303,22 @@ button {
   animation: location-dot-pulse 2.2s ease-out infinite;
 }
 
+/* Heading wedge, shown only while turn-by-turn navigation is active
+   (LocationLayer.tsx toggles display + rotation directly). Sits behind the
+   core dot, pointing whichever way the last couple of GPS fixes moved. */
+.location-dot__heading {
+  position: absolute;
+  top: -22px;
+  left: 0;
+  width: 18px;
+  height: 22px;
+  display: none;
+  transform-origin: 50% 22px;
+  clip-path: polygon(50% 0%, 100% 100%, 50% 78%, 0% 100%);
+  background: var(--vf-accent);
+  opacity: 0.9;
+}
+
 @keyframes location-dot-pulse {
   0% {
     transform: scale(0.6);
@@ -1272,6 +1288,54 @@ button {
   filter: brightness(1.08);
 }
 
+/* Primary CTA to switch DirectionsView from "here's the route" preview into
+   live turn-by-turn (LocationLayer.tsx then takes over the camera). Full-
+   width and chunky - this is the one thing a driver taps before setting
+   the phone down, so it gets Apple/Google's own oversized-button treatment
+   rather than the smaller open-in-maps button beside it. */
+.sidebar__start-nav {
+  padding: 12px;
+  font-family: var(--vf-font);
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+  background: var(--vf-accent);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.sidebar__start-nav:hover {
+  filter: brightness(1.08);
+}
+
+/* The live "what to do right now" banner while navigating - Apple/Google's
+   own top-of-screen turn card, condensed to fit this sidebar's width. */
+.sidebar__turn-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--vf-accent);
+  color: #ffffff;
+}
+
+.sidebar__turn-card-icon {
+  flex: 0 0 auto;
+  display: flex;
+}
+
+.sidebar__turn-card-distance {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.sidebar__turn-card .sidebar__row-name {
+  color: #ffffff;
+  font-weight: 600;
+}
+
 .sidebar__step {
   display: flex;
   align-items: flex-start;
@@ -1284,18 +1348,21 @@ button {
   border-bottom: none;
 }
 
-.sidebar__step-index {
+/* Dims a maneuver once the driver's GPS fix has passed it (see
+   DirectionsView.tsx's passedStepIndex) - same idea as Apple/Google
+   greying out completed turns in a turn list. */
+.sidebar__step--done {
+  opacity: 0.4;
+}
+
+.sidebar__step-icon {
   flex: 0 0 auto;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  background: var(--vf-accent);
-  color: #ffffff;
-  font-size: 11px;
-  font-weight: 600;
+  color: var(--vf-accent);
 }
 
 /* "Directions" / "Open in Maps" buttons inside the map-pin popup

@@ -445,6 +445,7 @@ export function Sidebar(): React.JSX.Element {
   const toggleShowComputedPeaks = useViewFinderStore((s) => s.toggleShowComputedPeaks)
   const routeDestination = useViewFinderStore((s) => s.routeDestination)
   const requestRoute = useViewFinderStore((s) => s.requestRoute)
+  const clearRoute = useViewFinderStore((s) => s.clearRoute)
   const requestViewpointsRefresh = useViewFinderStore((s) => s.requestViewpointsRefresh)
 
   // On phone portrait the sheet IS the collapsed bar - it just sits pushed
@@ -562,9 +563,16 @@ export function Sidebar(): React.JSX.Element {
           them literally: the <title> tag and the mark's alt text below. */}
       <header className="sidebar__header" title="View Finder — scenic high ground, reachable by car" aria-label="View Finder">
         <Logo />
-        <button type="button" className="sidebar__collapse" onClick={toggleSidebar} aria-label="Hide sidebar">
-          ‹
-        </button>
+        {/* The old open/close arrow here was redundant - tapping anywhere
+            else in this header already toggles the sheet via zoneHandlers'
+            tap-to-toggle (see useSheetDrag above), on both touch and mouse.
+            This slot is reused instead for the one thing that has no other
+            affordance up here: bailing out of an active route. */}
+        {routeDestination && (
+          <button type="button" className="sidebar__cancel-route" onClick={clearRoute} aria-label="Cancel directions">
+            ×
+          </button>
+        )}
       </header>
 
       {/* The search field is inside the strip that stays visible while the

@@ -492,8 +492,8 @@ button {
   .locate-ctrl__button,
   .satellite-ctrl__button,
   .maplibregl-ctrl-group button {
-    width: 34px;
-    height: 34px;
+    width: 28px;
+    height: 28px;
   }
 
   /* Relocated from MapLibre's default bottom-right corner up to

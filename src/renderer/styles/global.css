@@ -479,6 +479,12 @@ button {
     font-size: 16px;
   }
 
+  .sidebar__header--directions .sidebar__cancel-route {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+
   /* The zoom/locate/satellite buttons stay small (unlike the sidebar's
      own touch targets above) - they're reached for occasionally, not
      the primary thing being tapped, and at 44px they read as oversized
@@ -616,6 +622,21 @@ button {
   align-items: center;
   justify-content: space-between;
   padding: 6px 8px 0 10px;
+}
+
+.sidebar__header--directions {
+  padding: 10px 10px 8px 14px;
+  gap: 12px;
+}
+
+.sidebar__directions-title {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--vf-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Global "jump to a place" search (SearchBar.tsx) - distinct from the

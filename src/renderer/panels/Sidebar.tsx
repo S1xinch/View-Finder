@@ -3,7 +3,6 @@ import { useViewFinderStore } from '../state/store'
 import { CATEGORY_COLOR, CATEGORY_LABEL } from '../map/categoryStyle'
 import { DirectionsView } from './DirectionsView'
 import { SearchBar } from './SearchBar'
-import { DirectionsSearch } from './DirectionsSearch'
 import { SavedLocations } from './SavedLocations'
 import type { Viewpoint } from '@shared/ipcContract'
 
@@ -600,7 +599,6 @@ export function Sidebar(): React.JSX.Element {
           }}
         >
           <SearchBar />
-          <DirectionsSearch />
         </div>
       )}
 

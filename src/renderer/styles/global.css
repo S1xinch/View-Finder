@@ -496,6 +496,19 @@ button {
     height: 28px;
   }
 
+  /* Crush dead space above search bar on mobile only */
+  .sidebar__header {
+    padding: 2px 8px 0 10px;
+  }
+
+  .search-bar {
+    padding: 0px 14px 6px;
+  }
+
+  .search-bar__field {
+    padding: 7px 12px;
+  }
+
   /* Relocated from MapLibre's default bottom-right corner up to
      top-right, clear of the bottom sheet - and given real breathing
      room below the top edge (not just the usual 10px) rather than
@@ -621,7 +634,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 2px 8px 0 10px;
+  padding: 6px 8px 0 10px;
 }
 
 .sidebar__header--directions {
@@ -650,14 +663,14 @@ button {
    among several - deliberately heavier than the rest of the chrome. */
 .search-bar {
   position: relative;
-  padding: 0px 14px 6px;
+  padding: 4px 14px 8px;
 }
 
 .search-bar__field {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 12px;
+  padding: 9px 12px;
   border: none;
   border-radius: 10px;
   background: var(--vf-hover);

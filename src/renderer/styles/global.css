@@ -496,6 +496,14 @@ button {
     height: 28px;
   }
 
+  /* Shrink icons inside map control buttons on mobile */
+  .locate-ctrl__button svg,
+  .satellite-ctrl__button svg,
+  .maplibregl-ctrl-group button svg {
+    width: 65%;
+    height: 65%;
+  }
+
   /* Crush dead space above search bar on mobile only */
   .sidebar__header {
     padding: 2px 8px 0 10px;

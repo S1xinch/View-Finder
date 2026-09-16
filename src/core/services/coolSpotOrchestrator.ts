@@ -393,42 +393,39 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
       )
     }
 
-    // Computed before deferredFetches (unlike before NSW tenure existed) so
-    // the tenure lookups below - unlike roads/land-use, which only need the
-    // bbox - have the actual candidate points to sample.
     const merged = mergeCandidates(osmViewpoints, computedPeaks)
 
     if (merged.length === 0 && !osmViewpoints.length) {
       throw new Error('No viewpoints found and elevation query failed')
     }
 
-    // Defer roads, land-use & NSW tenure: fire them off but don't wait.
-    // They're all "nice-to-have" filtering (see roadReachability/
-    // landUseFilter) and finish in the background while results are
-    // already on screen. This is a ponytail: trade eventual consistency
-    // (results may briefly show unfiltered before secondary data arrives)
-    // for speed.
+    // Land-use and NSW tenure are exclusion filters (don't send someone onto
+    // private property), not scoring/quality ones - they're awaited before
+    // returning, even at the cost of some latency. This used to be a
+    // deferred fire-and-forget fetch like roads below, on the theory that a
+    // later pan would benefit from the now-warm cache. In practice it never
+    // filtered anything, on any pan: landUse/tenureByKey were local to this
+    // call, reset to empty every time, and the exclusion-filtering line
+    // always ran synchronously right after *starting* the fetch, before its
+    // first `await` inside had a chance to resolve - so every single
+    // getViewpoints call filtered against empty data, permanently. Found
+    // from a real field-test report: a peak NSW's own service classifies as
+    // Private was shown unfiltered and someone drove out to it.
+    const [landUse, tenureByKey] = await Promise.all([
+      getExcludedLandAreas(bbox, request.signal),
+      getTenureForCandidates(merged, request.signal)
+    ])
+
+    // Roads stay deferred - road-reachability is a "how good a suggestion
+    // is this" quality signal, not an access/safety one, so it's fine for
+    // it to arrive stale on the first response and catch up on a later pan.
     let roads: RoadSegment[] = []
-    let landUse: ExcludedLandArea[] = []
-    let tenureByKey: Map<string, NswTenureClass | null> = new Map()
-    const deferredFetches = (async () => {
-      if (request.signal.aborted) return
-      const [roadsResult, landUseResult, tenureResult] = await Promise.allSettled([
-        getRoads(bbox, request.signal),
-        getExcludedLandAreas(bbox, request.signal),
-        getTenureForCandidates(merged, request.signal)
-      ])
-      if (roadsResult.status === 'fulfilled') roads = roadsResult.value
-      if (landUseResult.status === 'fulfilled') landUse = landUseResult.value
-      if (tenureResult.status === 'fulfilled') tenureByKey = tenureResult.value
-    })()
+    const deferredRoads = getRoads(bbox, request.signal)
+      .then((result) => {
+        roads = result
+      })
+      .catch(() => {})
 
-    // Don't await deferredFetches - return results immediately with OSM +
-    // elevation. Roads, land-use & tenure will populate in the background,
-    // but we return now with unfiltered results for speed. Next pan will
-    // use the cached data.
-
-    // Apply filtering with current data (empty on first load, populated from cache on pans)
     const landFiltered = filterExcludedTenure(filterExcludedLand(merged, landUse), tenureByKey)
     const scored = scoreCandidates(landFiltered, roads)
     const ranked = scored
@@ -437,12 +434,13 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
 
     console.log(
       `[coolSpotOrchestrator] getViewpoints returning ${ranked.length} (${osmViewpoints.length} OSM, ${merged.length - osmViewpoints.length} computed, ` +
-        `deferred: roads+landuse+tenure)`
+        `deferred: roads)`
     )
 
-    // Keep deferred fetches running even after we return (fire-and-forget)
-    // They populate the cache for the next view
-    deferredFetches.catch(() => {})
+    // deferredRoads keeps running after we return (fire-and-forget) and
+    // already swallows its own errors above, so nothing further to do with
+    // it here - it just populates `roads`/the cache for whoever asks next.
+    void deferredRoads
 
     return ranked
   }

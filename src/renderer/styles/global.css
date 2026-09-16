@@ -732,21 +732,23 @@ button {
 
 .sidebar__cancel-route {
   flex: 0 0 auto;
-  width: 26px;
-  height: 26px;
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
-  background: transparent;
-  border-radius: 8px;
-  color: var(--vf-text-secondary);
-  font-size: 15px;
+  border-radius: 50%;
+  background: var(--vf-danger);
+  color: #fff;
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1;
   cursor: pointer;
 }
 
 .sidebar__cancel-route:hover {
-  background: var(--vf-hover);
+  filter: brightness(1.1);
 }
 
 /* Makes a fetch in progress visible even with the sidebar collapsed, where

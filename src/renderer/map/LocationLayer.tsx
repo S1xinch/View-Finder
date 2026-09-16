@@ -22,8 +22,11 @@ function buildLocationDotElement(): HTMLDivElement {
 // and LocateControl.ts (the map button that toggles tracking on/off). Also
 // owns the camera while turn-by-turn navigation is active (store's
 // `navigating`, set by DirectionsView's Start button): instead of centering
-// once, it re-centers and zooms in on every GPS fix, and rotates a heading
-// wedge on the dot toward whichever way the last fix moved.
+// once, it re-centers, zooms in, and rotates the whole map to face whichever
+// way the last fix moved (Apple/Google Maps' driving-mode convention) - the
+// dot's own heading wedge just points straight up in that mode, since the
+// map rotation already encodes the direction; it only needs its own CSS
+// rotation for the (non-navigating) plain compass-up view.
 export function LocationLayer(): null {
   const map = useViewFinderStore((s) => s.map)
   const tracking = useViewFinderStore((s) => s.locationTracking)
@@ -33,6 +36,7 @@ export function LocationLayer(): null {
   const hasCenteredRef = useRef(false)
   const lastFixRef = useRef<{ lat: number; lng: number } | null>(null)
   const headingRef = useRef(0)
+  const wasNavigatingRef = useRef(false)
 
   useEffect(() => {
     if (!map) return
@@ -53,27 +57,52 @@ export function LocationLayer(): null {
       markerRef.current.setLngLat([userLocation.lng, userLocation.lat])
     }
 
-    const headingEl = markerRef.current.getElement().querySelector<HTMLDivElement>('.location-dot__heading')
-    if (headingEl) {
-      const from = lastFixRef.current
-      if (navigating && from) {
-        const moved = Math.hypot(userLocation.lat - from.lat, userLocation.lng - from.lng) * 111_000
-        if (moved >= MIN_MOVEMENT_FOR_BEARING_METERS) {
-          headingRef.current = bearing([from.lng, from.lat], [userLocation.lng, userLocation.lat])
-        }
+    const from = lastFixRef.current
+    if (navigating && from) {
+      const moved = Math.hypot(userLocation.lat - from.lat, userLocation.lng - from.lng) * 111_000
+      if (moved >= MIN_MOVEMENT_FOR_BEARING_METERS) {
+        headingRef.current = bearing([from.lng, from.lat], [userLocation.lng, userLocation.lat])
       }
-      headingEl.style.display = navigating ? 'block' : 'none'
-      headingEl.style.transform = `rotate(${headingRef.current}deg)`
     }
     lastFixRef.current = { lat: userLocation.lat, lng: userLocation.lng }
 
+    const headingEl = markerRef.current.getElement().querySelector<HTMLDivElement>('.location-dot__heading')
+    if (headingEl) {
+      headingEl.style.display = navigating ? 'block' : 'none'
+      // While navigating, the map itself rotates to headingRef.current (see
+      // easeTo below), so "up" on screen already means "the way you're
+      // facing" - the wedge just needs to point straight up on top of that,
+      // not rotate a second time on top of the map's own rotation.
+      headingEl.style.transform = 'rotate(0deg)'
+    }
+
     if (navigating) {
-      // Re-centers on every fix (a manual pan away gets pulled back on the
-      // next GPS update) - a "recenter" affordance for the driver to pan
-      // freely mid-nav is a real gap, just not one worth the extra state
-      // for a first version of this.
-      map.easeTo({ center: [userLocation.lng, userLocation.lat], zoom: NAVIGATION_ZOOM, duration: 500 })
+      // Re-centers and re-rotates on every fix (a manual pan/rotate away
+      // gets pulled back on the next GPS update) - a "recenter" affordance
+      // for the driver to look around freely mid-nav is a real gap, just
+      // not one worth the extra state for a first version of this.
+      map.easeTo({
+        center: [userLocation.lng, userLocation.lat],
+        zoom: NAVIGATION_ZOOM,
+        bearing: headingRef.current,
+        duration: 500
+      })
+      wasNavigatingRef.current = true
       return
+    }
+
+    // Coming out of navigation - hand the compass back to north-up rather
+    // than leaving the camera stuck at whatever heading the drive ended on.
+    // Also satisfies the "center once" flyTo below: the camera is already
+    // centered on the user from navigation's own follow-camera, so letting
+    // that flyTo additionally fire here would start a second, conflicting
+    // camera animation (flyTo doesn't touch bearing, so it would re-assert
+    // whatever heading was still active at the exact moment it was called,
+    // fighting the bearing reset above for whichever animation loses).
+    if (wasNavigatingRef.current) {
+      wasNavigatingRef.current = false
+      hasCenteredRef.current = true
+      map.easeTo({ bearing: 0, duration: 500 })
     }
 
     // Center on the user's location once per tracking session, not on every

@@ -474,8 +474,9 @@ button {
      minimum touch target both Apple's and Google's platform guidelines
      call for. */
   .sidebar__cancel-route {
-    width: 44px;
-    height: 44px;
+    width: 28px;
+    height: 28px;
+    font-size: 16px;
   }
 
   /* The zoom/locate/satellite buttons stay small (unlike the sidebar's

@@ -315,7 +315,16 @@ function useSheetDrag(
     // so the handoff has no visible jump.
     scrollHandlers: {
       onPointerDown: (e) => {
-        if ((e.target as HTMLElement).closest('input, button, a, textarea, select')) return
+        // Unlike zoneHandlers, this never captures the pointer or starts a
+        // drag here - it only records where the touch began, so a real row
+        // button/link tap underneath is never disturbed either way. Most of
+        // the visible list *is* buttons (each row is one), so excluding
+        // them here (as zoneHandlers correctly does, to avoid breaking
+        // their tap) meant a pull-to-close gesture that began on a row -
+        // the overwhelmingly common case - never even started tracking,
+        // and so could never hand off to closing no matter how far it was
+        // pulled. Whether this becomes a real drag is still decided later,
+        // in onPointerMove, purely from actual movement + scrollTop.
         if (!open) return
         startYRef.current = e.clientY
         startTimeRef.current = e.timeStamp

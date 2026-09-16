@@ -76,6 +76,15 @@ export function LocationLayer(): null {
       headingEl.style.transform = 'rotate(0deg)'
     }
 
+    const pulseEl = markerRef.current.getElement().querySelector<HTMLDivElement>('.location-dot__pulse')
+    if (pulseEl) {
+      // Signal strength: poor GPS accuracy (>30m) dims the pulse,
+      // good accuracy (<5m) shows it bright. Linear fade over 5-30m range.
+      const accuracy = userLocation.accuracyMeters
+      const opacity = accuracy < 5 ? 1 : accuracy > 30 ? 0.3 : 1 - ((accuracy - 5) / 25) * 0.7
+      pulseEl.style.opacity = String(opacity)
+    }
+
     if (navigating) {
       // Re-centers and re-rotates on every fix (a manual pan/rotate away
       // gets pulled back on the next GPS update) - a "recenter" affordance

@@ -173,6 +173,14 @@ export function DirectionsView(): React.JSX.Element {
     return haversineDistanceMeters([userLocation.lng, userLocation.lat], upcomingStep.location)
   }, [upcomingStep, userLocation])
 
+  const estimatedMinutesRemaining = useMemo(() => {
+    if (!route || passedStepIndex >= route.steps.length - 1) return null
+    const remainingMeters = route.steps.slice(passedStepIndex + 1).reduce((sum, s) => sum + s.distanceMeters, 0)
+    const avgSpeedKmh = 15
+    const totalHours = remainingMeters / 1000 / avgSpeedKmh
+    return Math.round(totalHours * 60)
+  }, [route, passedStepIndex])
+
   const openInMaps = (): void => {
     if (!destination) return
     window.open(
@@ -240,6 +248,7 @@ export function DirectionsView(): React.JSX.Element {
               <span className="sidebar__row-text">
                 <span className="sidebar__turn-card-distance">
                   {distanceToUpcoming != null ? formatRouteDistance(distanceToUpcoming) : ''}
+                  {estimatedMinutesRemaining != null && ` · ${estimatedMinutesRemaining} min`}
                 </span>
                 <span className="sidebar__row-name">{upcomingStep.instruction}</span>
               </span>

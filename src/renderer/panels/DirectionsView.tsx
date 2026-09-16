@@ -156,9 +156,13 @@ export function DirectionsView(): React.JSX.Element {
   // own; only a fresh route (a new destination, or Start pressed again)
   // resets it, matching how real turn-by-turn never un-advances a turn.
   const [passedStepIndex, setPassedStepIndex] = useState(0)
+  // When multiple routes are available, track which one is being previewed
+  // (0 = primary, 1+ = alternatives). Resets to 0 on new route.
+  const [selectedRouteIndex, setSelectedRouteIndex] = useState(0)
 
   useEffect(() => {
     setPassedStepIndex(0)
+    setSelectedRouteIndex(0)
   }, [route])
 
   useEffect(() => {
@@ -167,19 +171,26 @@ export function DirectionsView(): React.JSX.Element {
     setPassedStepIndex((prev) => advancePassedStepIndex(prev, here, route.steps))
   }, [navigating, route, userLocation])
 
-  const upcomingStep = route && route.steps.length > 1 ? route.steps[passedStepIndex + 1] : null
+  const selectedRoute = useMemo(() => {
+    if (!route) return null
+    if (selectedRouteIndex === 0) return route
+    const altIndex = selectedRouteIndex - 1
+    return route.alternatives?.[altIndex] ?? null
+  }, [route, selectedRouteIndex])
+
+  const upcomingStep = selectedRoute && selectedRoute.steps.length > 1 ? selectedRoute.steps[passedStepIndex + 1] : null
   const distanceToUpcoming = useMemo(() => {
     if (!upcomingStep || !userLocation) return null
     return haversineDistanceMeters([userLocation.lng, userLocation.lat], upcomingStep.location)
   }, [upcomingStep, userLocation])
 
   const estimatedMinutesRemaining = useMemo(() => {
-    if (!route || passedStepIndex >= route.steps.length - 1) return null
-    const remainingMeters = route.steps.slice(passedStepIndex + 1).reduce((sum, s) => sum + s.distanceMeters, 0)
+    if (!selectedRoute || passedStepIndex >= selectedRoute.steps.length - 1) return null
+    const remainingMeters = selectedRoute.steps.slice(passedStepIndex + 1).reduce((sum, s) => sum + s.distanceMeters, 0)
     const avgSpeedKmh = 15
     const totalHours = remainingMeters / 1000 / avgSpeedKmh
     return Math.round(totalHours * 60)
-  }, [route, passedStepIndex])
+  }, [selectedRoute, passedStepIndex])
 
   const openInMaps = (): void => {
     if (!destination) return
@@ -221,10 +232,10 @@ export function DirectionsView(): React.JSX.Element {
 
       {status === 'error' && <div className="sidebar__status sidebar__status--error">{error}</div>}
 
-      {status === 'ready' && route && (
+      {status === 'ready' && route && selectedRoute && (
         <>
           <div className="sidebar__directions-summary">
-            {formatRouteDistance(route.distanceMeters)} · {formatDuration(route.durationSeconds)} drive
+            {formatRouteDistance(selectedRoute.distanceMeters)} · {formatDuration(selectedRoute.durationSeconds)} drive
             {/* The route ends at the nearest road, not necessarily right on
                 top of the spot (see RouteLayer.tsx's dashed walk-in segment)
                 - distanceToRoadMeters is the same figure already shown in
@@ -233,6 +244,27 @@ export function DirectionsView(): React.JSX.Element {
               <> · {formatRouteDistance(destination.distanceToRoadMeters)} walk</>
             )}
           </div>
+          {route.alternatives && route.alternatives.length > 0 && (
+            <div className="sidebar__route-switcher">
+              <button
+                type="button"
+                disabled={selectedRouteIndex === 0}
+                onClick={() => setSelectedRouteIndex(selectedRouteIndex - 1)}
+                aria-label="Previous route"
+              >
+                ‹
+              </button>
+              <span className="sidebar__route-counter">{selectedRouteIndex + 1} of {1 + route.alternatives.length}</span>
+              <button
+                type="button"
+                disabled={selectedRouteIndex >= route.alternatives.length}
+                onClick={() => setSelectedRouteIndex(selectedRouteIndex + 1)}
+                aria-label="Next route"
+              >
+                ›
+              </button>
+            </div>
+          )}
 
           {!navigating && (
             <button type="button" className="sidebar__start-nav" onClick={startNavigation}>
@@ -256,7 +288,7 @@ export function DirectionsView(): React.JSX.Element {
           )}
 
           <div className="sidebar__rows">
-            {route.steps.map((step, i) => (
+            {selectedRoute.steps.map((step, i) => (
               <div
                 className={navigating && i <= passedStepIndex ? 'sidebar__step sidebar__step--done' : 'sidebar__step'}
                 key={i}

@@ -1336,6 +1336,41 @@ button {
   font-weight: 600;
 }
 
+.sidebar__route-switcher {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px;
+  font-size: 13px;
+  color: var(--vf-text-secondary);
+}
+
+.sidebar__route-switcher button {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--vf-divider);
+  border-radius: 6px;
+  background: var(--vf-card-bg);
+  color: var(--vf-text-primary);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sidebar__route-switcher button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.sidebar__route-counter {
+  font-size: 12px;
+  min-width: 60px;
+  text-align: center;
+}
+
 .sidebar__step {
   display: flex;
   align-items: flex-start;

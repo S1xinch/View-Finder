@@ -572,31 +572,34 @@ export function Sidebar(): React.JSX.Element {
           sits noticeably higher instead of under a full title block. The
           app's actual name/description still exist for anyone who needs
           them literally: the <title> tag and the mark's alt text below. */}
-      <header className="sidebar__header" title="View Finder — scenic high ground, reachable by car" aria-label="View Finder">
-        {/* The old open/close arrow here was redundant - tapping anywhere
-            else in this header already toggles the sheet via zoneHandlers'
-            tap-to-toggle (see useSheetDrag above), on both touch and mouse.
-            This slot is reused instead for the one thing that has no other
-            affordance up here: bailing out of an active route. */}
-        {routeDestination && (
+      {routeDestination ? (
+        <header className="sidebar__header sidebar__header--directions" title={`Directions to ${routeDestination.name || 'destination'}`}>
+          <div className="sidebar__directions-title">
+            {routeDestination.name || 'Directions'}
+          </div>
           <button type="button" className="sidebar__cancel-route" onClick={clearRoute} aria-label="Cancel directions">
             ×
           </button>
-        )}
-      </header>
+        </header>
+      ) : (
+        <header className="sidebar__header" title="View Finder — scenic high ground, reachable by car" aria-label="View Finder">
+        </header>
+      )}
 
       {/* The search field is inside the strip that stays visible while the
           sheet is collapsed, so it can be tapped without opening the sheet
           first - but its results dropdown would render below the fold. Any
           focus landing in here opens the sheet so the results have
           somewhere to go. */}
-      <div
-        onFocus={() => {
-          if (!sidebarOpen) setSidebarOpen(true)
-        }}
-      >
-        <SearchBar />
-      </div>
+      {!routeDestination && (
+        <div
+          onFocus={() => {
+            if (!sidebarOpen) setSidebarOpen(true)
+          }}
+        >
+          <SearchBar />
+        </div>
+      )}
 
       {routeDestination ? (
         <div className="sidebar__body">

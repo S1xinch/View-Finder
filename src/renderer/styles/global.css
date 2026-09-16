@@ -176,6 +176,9 @@ button {
      circle: flex centering still centers correctly, but only within
      whatever's left after that default padding eats into one axis more
      than the border-radius makes obvious. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 0;
   border: none;
   background-color: transparent;
@@ -431,6 +434,10 @@ button {
    without also matching an actual small tablet in landscape, which is
    comfortably taller than this. */
 @media (max-width: 600px), (max-height: 500px) and (orientation: landscape) {
+  :root {
+    --vf-sheet-peek: 115px;
+  }
+
   .sidebar {
     top: auto;
     left: max(12px, env(safe-area-inset-left));

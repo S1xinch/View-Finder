@@ -49,6 +49,9 @@ export interface LatLng {
 export interface RouteStep {
   instruction: string
   distanceMeters: number
+  type: string
+  modifier?: string
+  location: [number, number]
 }
 
 export interface RouteResult {

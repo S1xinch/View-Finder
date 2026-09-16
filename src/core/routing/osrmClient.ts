@@ -13,6 +13,7 @@ export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
 interface OsrmManeuver {
   type: string
   modifier?: string
+  location: [number, number]
 }
 
 interface OsrmStep {
@@ -116,7 +117,13 @@ export async function queryRoute(from: LatLng, to: LatLng, options?: QueryRouteO
 
   const route = data.routes[0]
   const steps: RouteStep[] = route.legs.flatMap((leg) =>
-    leg.steps.map((step) => ({ instruction: describeStep(step), distanceMeters: step.distance }))
+    leg.steps.map((step) => ({
+      instruction: describeStep(step),
+      distanceMeters: step.distance,
+      type: step.maneuver.type,
+      modifier: step.maneuver.modifier,
+      location: step.maneuver.location
+    }))
   )
 
   return {

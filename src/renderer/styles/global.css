@@ -461,7 +461,7 @@ button {
      are genuinely fiddly to hit with a fingertip. Raised to the ~44px
      minimum touch target both Apple's and Google's platform guidelines
      call for. */
-  .sidebar__collapse {
+  .sidebar__cancel-route {
     width: 44px;
     height: 44px;
   }
@@ -730,7 +730,7 @@ button {
   text-decoration: underline;
 }
 
-.sidebar__collapse {
+.sidebar__cancel-route {
   flex: 0 0 auto;
   width: 26px;
   height: 26px;
@@ -745,7 +745,7 @@ button {
   cursor: pointer;
 }
 
-.sidebar__collapse:hover {
+.sidebar__cancel-route:hover {
   background: var(--vf-hover);
 }
 

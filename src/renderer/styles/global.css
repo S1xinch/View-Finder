@@ -190,8 +190,8 @@ button {
 }
 
 .locate-ctrl__button {
-  width: 29px;
-  height: 29px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -210,8 +210,8 @@ button {
 }
 
 .satellite-ctrl__button {
-  width: 29px;
-  height: 29px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -614,7 +614,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 8px 0 10px;
+  padding: 6px 8px 0 10px;
 }
 
 /* Global "jump to a place" search (SearchBar.tsx) - distinct from the
@@ -628,7 +628,7 @@ button {
    among several - deliberately heavier than the rest of the chrome. */
 .search-bar {
   position: relative;
-  padding: 6px 14px 12px;
+  padding: 4px 14px 8px;
 }
 
 .search-bar__field {

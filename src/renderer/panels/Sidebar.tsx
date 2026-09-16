@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useViewFinderStore } from '../state/store'
 import { CATEGORY_COLOR, CATEGORY_LABEL } from '../map/categoryStyle'
-import { Logo } from '../Logo'
 import { DirectionsView } from './DirectionsView'
 import { SearchBar } from './SearchBar'
 import type { Viewpoint } from '@shared/ipcContract'
@@ -574,7 +573,6 @@ export function Sidebar(): React.JSX.Element {
           app's actual name/description still exist for anyone who needs
           them literally: the <title> tag and the mark's alt text below. */}
       <header className="sidebar__header" title="View Finder — scenic high ground, reachable by car" aria-label="View Finder">
-        <Logo />
         {/* The old open/close arrow here was redundant - tapping anywhere
             else in this header already toggles the sheet via zoneHandlers'
             tap-to-toggle (see useSheetDrag above), on both touch and mouse.

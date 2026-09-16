@@ -1440,3 +1440,132 @@ button {
 .vf-popup__open-in-maps:hover {
   background: var(--vf-hover);
 }
+
+.directions-search {
+  padding: 12px;
+}
+
+.directions-search__field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--vf-card-bg);
+  border: 1px solid var(--vf-card-border);
+  border-radius: var(--vf-radius-md);
+}
+
+.directions-search__icon {
+  color: var(--vf-text-secondary);
+  flex: 0 0 auto;
+}
+
+.directions-search__input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  color: var(--vf-text-primary);
+  outline: none;
+}
+
+.directions-search__input::placeholder {
+  color: var(--vf-text-secondary);
+}
+
+.directions-search__dropdown {
+  position: absolute;
+  top: 100%;
+  left: 12px;
+  right: 12px;
+  margin-top: 4px;
+  background: var(--vf-card-bg);
+  border: 1px solid var(--vf-card-border);
+  border-radius: var(--vf-radius-md);
+  box-shadow: var(--vf-card-shadow);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 10;
+}
+
+.directions-search__result {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-size: 14px;
+  color: var(--vf-text-primary);
+  cursor: pointer;
+  border-bottom: 1px solid var(--vf-divider);
+}
+
+.directions-search__result:last-child {
+  border-bottom: none;
+}
+
+.directions-search__result:hover {
+  background: var(--vf-hover);
+}
+
+.directions-search__status {
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--vf-text-secondary);
+  text-align: center;
+}
+
+.saved-locations {
+  padding: 12px;
+  border-top: 1px solid var(--vf-divider);
+}
+
+.saved-locations__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.saved-locations__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--vf-text-primary);
+  margin: 0;
+}
+
+.saved-locations__badge {
+  font-size: 11px;
+  padding: 4px 8px;
+  background: var(--vf-hover);
+  border-radius: 4px;
+  color: var(--vf-text-secondary);
+}
+
+.saved-locations__empty {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  opacity: 0.6;
+}
+
+.saved-locations__text {
+  font-size: 13px;
+  color: var(--vf-text-secondary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.saved-locations__signin {
+  padding: 10px 12px;
+  background: var(--vf-accent);
+  color: white;
+  border: none;
+  border-radius: var(--vf-radius-md);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: not-allowed;
+  opacity: 0.5;
+}

@@ -44,12 +44,14 @@
   --vf-space-xl: 24px;
   --vf-space-2xl: 32px;
 
-  /* Radii — Apple's generous rounding hierarchy */
+  /* Radii — three close, proportional steps (buttons/chips → fields/
+     controls → surfaces) instead of a wide spread, so a rounded surface
+     and the controls nested inside it read as one consistent family
+     rather than a very round box around visibly boxier buttons. */
   --vf-radius-sm: 10px;
   --vf-radius-md: 14px;
-  --vf-radius-lg: 24px;
-  --vf-radius-xl: 28px;
-  --vf-radius-2xl: 32px;
+  --vf-radius-lg: 18px;
+  --vf-radius-xl: 20px;
 
   /* Backwards compatibility aliases */
   --vf-card-bg: var(--vf-material-fg);
@@ -137,7 +139,7 @@ button {
   justify-content: center;
   padding: var(--vf-space-sm) var(--vf-space-lg);
   border: none;
-  border-radius: var(--vf-radius-lg);
+  border-radius: var(--vf-radius-sm);
   font-family: var(--vf-font);
   font-size: 14px;
   font-weight: 500;
@@ -247,7 +249,7 @@ button {
 .vf-card {
   background: var(--vf-card-bg);
   border: 1px solid var(--vf-card-border);
-  border-radius: var(--vf-radius-xl);
+  border-radius: var(--vf-radius-lg);
   box-shadow: var(--vf-card-shadow);
   backdrop-filter: var(--vf-blur);
   -webkit-backdrop-filter: var(--vf-blur);
@@ -303,7 +305,7 @@ button {
 .maplibregl-ctrl-group {
   background: var(--vf-card-bg);
   border: 1px solid var(--vf-card-border);
-  border-radius: var(--vf-radius-lg);
+  border-radius: var(--vf-radius-md);
   backdrop-filter: var(--vf-blur);
   -webkit-backdrop-filter: var(--vf-blur);
   overflow: hidden;
@@ -392,7 +394,7 @@ button {
 .maplibregl-popup.vf-popup .maplibregl-popup-content {
   background: var(--vf-card-bg);
   border: 1px solid var(--vf-card-border);
-  border-radius: var(--vf-radius-xl);
+  border-radius: var(--vf-radius-lg);
   box-shadow: var(--vf-card-shadow);
   backdrop-filter: var(--vf-blur);
   -webkit-backdrop-filter: var(--vf-blur);
@@ -488,7 +490,7 @@ button {
   color: var(--vf-text-secondary);
   background: var(--vf-card-bg);
   border: 1px solid var(--vf-card-border);
-  border-radius: var(--vf-radius-md);
+  border-radius: var(--vf-radius-sm);
   pointer-events: none;
   z-index: 10;
 }
@@ -571,7 +573,7 @@ button {
   overflow: hidden;
   background: var(--vf-material-fg);
   border: 1px solid var(--vf-divider);
-  border-radius: var(--vf-radius-2xl);
+  border-radius: var(--vf-radius-xl);
   box-shadow: var(--vf-shadow-lg);
   backdrop-filter: var(--vf-blur-standard);
   -webkit-backdrop-filter: var(--vf-blur-standard);
@@ -844,7 +846,7 @@ button {
   gap: var(--vf-space-sm);
   padding: var(--vf-space-md) var(--vf-space-md);
   border: 1px solid var(--vf-divider);
-  border-radius: var(--vf-radius-lg);
+  border-radius: var(--vf-radius-md);
   background: var(--vf-material-fg);
   box-shadow: var(--vf-shadow-sm);
   backdrop-filter: var(--vf-blur-light);
@@ -902,7 +904,7 @@ button {
   overflow-y: auto;
   background: var(--vf-card-bg);
   border: 1px solid var(--vf-card-border);
-  border-radius: var(--vf-radius-lg);
+  border-radius: var(--vf-radius-md);
   box-shadow: var(--vf-card-shadow);
   backdrop-filter: var(--vf-blur);
   -webkit-backdrop-filter: var(--vf-blur);
@@ -913,7 +915,7 @@ button {
   width: 100%;
   padding: 8px 10px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--vf-radius-sm);
   background: transparent;
   color: var(--vf-text-primary);
   font-size: 12px;
@@ -955,7 +957,7 @@ button {
   flex: 0 0 auto;
   padding: 4px 8px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--vf-radius-sm);
   background: var(--vf-accent);
   color: var(--vf-accent-text);
   font-size: 16px;
@@ -1115,7 +1117,7 @@ button {
   gap: 6px;
   padding: 7px 10px;
   border: 1px solid var(--vf-card-border);
-  border-radius: var(--vf-radius-md);
+  border-radius: var(--vf-radius-sm);
   background: transparent;
   color: var(--vf-text-primary);
   font-size: 12px;
@@ -1210,7 +1212,7 @@ button {
 .sidebar__row {
   display: flex;
   align-items: center;
-  border-radius: 8px;
+  border-radius: var(--vf-radius-sm);
 }
 
 .sidebar__row:hover {
@@ -1265,7 +1267,7 @@ button {
   flex: 0 0 auto;
   width: 30px;
   height: 30px;
-  border-radius: 9px;
+  border-radius: var(--vf-radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1330,7 +1332,7 @@ button {
   margin-top: 8px;
   padding: 6px 12px;
   border: 1px solid currentColor;
-  border-radius: 8px;
+  border-radius: var(--vf-radius-sm);
   background: transparent;
   color: var(--vf-danger);
   font-size: 12px;
@@ -1446,7 +1448,7 @@ button {
   justify-content: center;
   border: none;
   background: transparent;
-  border-radius: 8px;
+  border-radius: var(--vf-radius-sm);
   color: var(--vf-text-secondary);
   font-size: 15px;
   cursor: pointer;
@@ -1473,7 +1475,7 @@ button {
   color: #ffffff;
   background: var(--vf-accent);
   border: none;
-  border-radius: 10px;
+  border-radius: var(--vf-radius-sm);
   cursor: pointer;
 }
 
@@ -1494,7 +1496,7 @@ button {
   color: #ffffff;
   background: var(--vf-accent);
   border: none;
-  border-radius: 10px;
+  border-radius: var(--vf-radius-sm);
   cursor: pointer;
 }
 
@@ -1509,7 +1511,7 @@ button {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  border-radius: 12px;
+  border-radius: var(--vf-radius-md);
   background: var(--vf-accent);
   color: #ffffff;
 }
@@ -1545,7 +1547,7 @@ button {
   height: 28px;
   padding: 0;
   border: 1px solid var(--vf-divider);
-  border-radius: 6px;
+  border-radius: var(--vf-radius-sm);
   background: var(--vf-card-bg);
   color: var(--vf-text-primary);
   font-size: 16px;
@@ -1607,7 +1609,7 @@ button {
   font-family: var(--vf-font);
   font-size: 12px;
   font-weight: 600;
-  border-radius: 8px;
+  border-radius: var(--vf-radius-sm);
   cursor: pointer;
 }
 
@@ -1733,7 +1735,7 @@ button {
   font-size: 11px;
   padding: 4px 8px;
   background: var(--vf-hover);
-  border-radius: 4px;
+  border-radius: var(--vf-radius-sm);
   color: var(--vf-text-secondary);
 }
 
@@ -1817,7 +1819,7 @@ button {
     top: auto;
     bottom: 0;
     max-height: 65vh;
-    border-radius: 16px 16px 0 0;
+    border-radius: var(--vf-radius-xl) var(--vf-radius-xl) 0 0;
     box-shadow: var(--vf-shadow-lg);
   }
 

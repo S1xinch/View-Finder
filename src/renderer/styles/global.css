@@ -31,10 +31,10 @@
   --vf-blur-standard: blur(24px) saturate(180%);
   --vf-blur-light: blur(12px) saturate(140%);
 
-  /* Shadow system — context-aware depth */
-  --vf-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
-  --vf-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.12);
-  --vf-shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.16);
+  /* Shadow system — Apple's layered floating effects */
+  --vf-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+  --vf-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.1), 0 4px 12px rgba(0, 0, 0, 0.08);
+  --vf-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.14), 0 8px 24px rgba(0, 0, 0, 0.1);
 
   /* Spacing scale (8px base) */
   --vf-space-xs: 4px;
@@ -44,11 +44,12 @@
   --vf-space-xl: 24px;
   --vf-space-2xl: 32px;
 
-  /* Radii — ordered by hierarchy */
-  --vf-radius-sm: 8px;
-  --vf-radius-md: 12px;
-  --vf-radius-lg: 16px;
-  --vf-radius-xl: 20px;
+  /* Radii — Apple's generous rounding hierarchy */
+  --vf-radius-sm: 10px;
+  --vf-radius-md: 14px;
+  --vf-radius-lg: 24px;
+  --vf-radius-xl: 28px;
+  --vf-radius-2xl: 32px;
 
   /* Backwards compatibility aliases */
   --vf-card-bg: var(--vf-material-fg);
@@ -136,7 +137,7 @@ button {
   justify-content: center;
   padding: var(--vf-space-sm) var(--vf-space-lg);
   border: none;
-  border-radius: var(--vf-radius-md);
+  border-radius: var(--vf-radius-lg);
   font-family: var(--vf-font);
   font-size: 14px;
   font-weight: 500;
@@ -246,7 +247,7 @@ button {
 .vf-card {
   background: var(--vf-card-bg);
   border: 1px solid var(--vf-card-border);
-  border-radius: var(--vf-radius-lg);
+  border-radius: var(--vf-radius-xl);
   box-shadow: var(--vf-card-shadow);
   backdrop-filter: var(--vf-blur);
   -webkit-backdrop-filter: var(--vf-blur);
@@ -302,7 +303,7 @@ button {
 .maplibregl-ctrl-group {
   background: var(--vf-card-bg);
   border: 1px solid var(--vf-card-border);
-  border-radius: var(--vf-radius-md);
+  border-radius: var(--vf-radius-lg);
   backdrop-filter: var(--vf-blur);
   -webkit-backdrop-filter: var(--vf-blur);
   overflow: hidden;
@@ -391,7 +392,7 @@ button {
 .maplibregl-popup.vf-popup .maplibregl-popup-content {
   background: var(--vf-card-bg);
   border: 1px solid var(--vf-card-border);
-  border-radius: var(--vf-radius-md);
+  border-radius: var(--vf-radius-xl);
   box-shadow: var(--vf-card-shadow);
   backdrop-filter: var(--vf-blur);
   -webkit-backdrop-filter: var(--vf-blur);
@@ -487,7 +488,7 @@ button {
   color: var(--vf-text-secondary);
   background: var(--vf-card-bg);
   border: 1px solid var(--vf-card-border);
-  border-radius: 6px;
+  border-radius: var(--vf-radius-md);
   pointer-events: none;
   z-index: 10;
 }
@@ -570,7 +571,7 @@ button {
   overflow: hidden;
   background: var(--vf-material-fg);
   border: 1px solid var(--vf-divider);
-  border-radius: var(--vf-radius-lg);
+  border-radius: var(--vf-radius-2xl);
   box-shadow: var(--vf-shadow-lg);
   backdrop-filter: var(--vf-blur-standard);
   -webkit-backdrop-filter: var(--vf-blur-standard);
@@ -843,7 +844,7 @@ button {
   gap: var(--vf-space-sm);
   padding: var(--vf-space-md) var(--vf-space-md);
   border: 1px solid var(--vf-divider);
-  border-radius: var(--vf-radius-md);
+  border-radius: var(--vf-radius-lg);
   background: var(--vf-material-fg);
   box-shadow: var(--vf-shadow-sm);
   backdrop-filter: var(--vf-blur-light);
@@ -901,7 +902,7 @@ button {
   overflow-y: auto;
   background: var(--vf-card-bg);
   border: 1px solid var(--vf-card-border);
-  border-radius: var(--vf-radius-md);
+  border-radius: var(--vf-radius-lg);
   box-shadow: var(--vf-card-shadow);
   backdrop-filter: var(--vf-blur);
   -webkit-backdrop-filter: var(--vf-blur);
@@ -1114,7 +1115,7 @@ button {
   gap: 6px;
   padding: 7px 10px;
   border: 1px solid var(--vf-card-border);
-  border-radius: 8px;
+  border-radius: var(--vf-radius-md);
   background: transparent;
   color: var(--vf-text-primary);
   font-size: 12px;

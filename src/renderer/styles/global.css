@@ -129,6 +129,57 @@ button {
   touch-action: manipulation;
 }
 
+/* Apple Design System Button Component */
+.vf-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--vf-space-sm) var(--vf-space-lg);
+  border: none;
+  border-radius: var(--vf-radius-md);
+  font-family: var(--vf-font);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: none;
+  /* Spring animations via Motion library, no CSS transitions */
+}
+
+.vf-button--primary {
+  background: var(--vf-primary-accent);
+  color: white;
+  box-shadow: var(--vf-shadow-sm);
+}
+
+.vf-button--primary:hover {
+  opacity: 0.9;
+}
+
+.vf-button--secondary {
+  background: var(--vf-hover-bg);
+  color: var(--vf-text-primary);
+  border: 1px solid var(--vf-divider);
+}
+
+.vf-button--secondary:hover {
+  background: var(--vf-pressed-bg);
+}
+
+.vf-button--icon {
+  padding: var(--vf-space-sm);
+  background: transparent;
+  color: var(--vf-text-primary);
+}
+
+.vf-button--icon:hover {
+  background: var(--vf-hover-bg);
+}
+
+.vf-button:disabled {
+  opacity: var(--vf-disabled-alpha);
+  cursor: not-allowed;
+}
+
 /* Typography scale — Apple HIG optical sizing */
 .vf-display {
   font-size: 32px;
@@ -517,13 +568,13 @@ button {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  /* Drives the snap-to-rest after a drag release on phone portrait (see
-     useSheetDrag in Sidebar.tsx, which sets this element's height
-     directly and briefly disables this transition during the drag itself
-     for 1:1 finger tracking, restoring it right before setting the final
-     resting height). Unused on desktop/landscape, where the collapsed
-     state is a plain display: none swap instead - harmless to declare
-     unconditionally. */
+  background: var(--vf-material-fg);
+  border: 1px solid var(--vf-divider);
+  border-radius: var(--vf-radius-lg);
+  box-shadow: var(--vf-shadow-lg);
+  backdrop-filter: var(--vf-blur-standard);
+  -webkit-backdrop-filter: var(--vf-blur-standard);
+  /* Drives the snap-to-rest after a drag release on phone portrait */
   transition: height 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -785,11 +836,14 @@ button {
 .search-bar__field {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 9px 12px;
-  border: none;
-  border-radius: 10px;
-  background: var(--vf-hover);
+  gap: var(--vf-space-sm);
+  padding: var(--vf-space-md) var(--vf-space-md);
+  border: 1px solid var(--vf-divider);
+  border-radius: var(--vf-radius-md);
+  background: var(--vf-material-fg);
+  box-shadow: var(--vf-shadow-sm);
+  backdrop-filter: var(--vf-blur-light);
+  -webkit-backdrop-filter: var(--vf-blur-light);
 }
 
 .search-bar__icon {

@@ -148,6 +148,21 @@ function useSheetDrag(
   const pointerHandledAtRef = useRef(0)
   const startYRef = useRef<number | null>(null)
   const startTimeRef = useRef(0)
+  // Y position at the moment the scroll container first reached scrollTop 0
+  // during the current touch, not wherever the finger originally touched
+  // down. Without this, pulledDown (below) was measured from the original
+  // touch-down point - fine for a short list where you're never far from
+  // the top, but on a long list, scrolling from the middle up to the top
+  // already moves the finger past OVERSCROLL_START_PX by the time the list
+  // gets there, triggering an instant handoff to closing while the list is
+  // still mid-scroll/momentum. The browser can respond to a pointer capture
+  // grabbed in the middle of its own native scroll by firing pointercancel
+  // instead of continuing - cancelDrag() then abandons the gesture without
+  // closing, which is exactly the "bugs out and doesn't close" symptom.
+  // Re-baselining here means a real close-pull always has to happen after
+  // the list has actually settled at its top, not as a side effect of the
+  // scroll gesture that got it there.
+  const topReachedYRef = useRef<number | null>(null)
   const baseHeightRef = useRef(0)
   const peekHeightRef = useRef(0)
   const openHeightRef = useRef(0)
@@ -260,6 +275,7 @@ function useSheetDrag(
     const wasDragging = activeSourceRef.current !== null
     startYRef.current = null
     activeSourceRef.current = null
+    topReachedYRef.current = null
     pointerHandledAtRef.current = timeStamp
     if (!el || !wasDragging) return
     el.style.transition = ''
@@ -335,6 +351,11 @@ function useSheetDrag(
         startYRef.current = e.clientY
         startTimeRef.current = e.timeStamp
         activeSourceRef.current = null
+        // If the touch starts already at the top (a short list, or one
+        // scrolled there before this touch began), the pull can be
+        // measured from here right away - matches the original behavior
+        // for that case.
+        topReachedYRef.current = scrollRef.current && scrollRef.current.scrollTop < 1 ? e.clientY : null
       },
       onPointerMove: (e) => {
         const scrollEl = scrollRef.current
@@ -345,9 +366,21 @@ function useSheetDrag(
           return
         }
         if (activeSourceRef.current !== null) return
-        const pulledDown = e.clientY - startYRef.current
-        const scrolledToTop = scrollEl.scrollTop < 1
-        if (scrolledToTop && pulledDown > OVERSCROLL_START_PX) {
+        if (scrollEl.scrollTop >= 1) {
+          // Scrolled back away from the top - a later arrival there this
+          // same touch (e.g. a bounce) should start measuring fresh, not
+          // reuse a stale baseline from earlier in the gesture.
+          topReachedYRef.current = null
+          return
+        }
+        if (topReachedYRef.current == null) {
+          // Just reached the top this gesture - start measuring the pull
+          // from here rather than from the original touch-down point.
+          topReachedYRef.current = e.clientY
+          return
+        }
+        const pulledDown = e.clientY - topReachedYRef.current
+        if (pulledDown > OVERSCROLL_START_PX) {
           try {
             e.currentTarget.setPointerCapture(e.pointerId)
           } catch {
@@ -364,6 +397,7 @@ function useSheetDrag(
         // the only one to set it) - belt and suspenders so this stays
         // correct even if that changes later.
         pointerHandledAtRef.current = e.timeStamp
+        topReachedYRef.current = null
         if (activeSourceRef.current !== 'scroll') {
           startYRef.current = null
           return

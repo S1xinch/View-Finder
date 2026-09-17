@@ -690,29 +690,33 @@ button {
 
   .sidebar__handle {
     display: block;
-    width: 36px;
-    height: 4px;
-    border-radius: 2px;
+    width: 40px;
+    height: 5px;
+    border-radius: 2.5px;
     background: var(--vf-text-secondary);
-    opacity: 0.35;
+    opacity: 0.6;
+    transition: opacity 200ms ease, width 200ms ease;
+  }
+
+  .sidebar__grabber:active .sidebar__handle {
+    opacity: 0.8;
+    width: 44px;
   }
 
   /* A dedicated swipe-down-to-close target at the very top of the open
-     sheet, above the header - matching how a native bottom sheet's own
-     drag handle behaves. The explicit collapse button in the header
-     still covers a mouse/keyboard user; this is the touch-first one.
-     Padded well past the visible 4px handle bar - a thumb aiming for
-     "the handle" routinely lands a few px above/below the bar itself,
-     and the previous ~14px-tall zone missed that real-world margin for
-     error often enough to read as "dragging doesn't work". 44px total
-     matches Apple's/Google's own minimum touch target guideline. */
+     sheet, above the header. Made larger (52px) for easier touch access on
+     mobile - users don't need to aim precisely for a small bar. The handle
+     bar itself expands on press for tactile feedback.
+     52px total matches and exceeds Apple's/Google's minimum touch target. */
   .sidebar__grabber {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 10px 0 0 0;
+    padding: 6px 0 8px 0;
     cursor: grab;
     touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
   }
 
   /* Also a drag surface (see useSheetDrag's onPointerDown) - closing was

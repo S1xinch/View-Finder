@@ -54,10 +54,10 @@ function formatDistance(meters: number | null | undefined): string {
 const TAP_THRESHOLD_PX = 8
 
 // A release moving at least this fast commits in the direction of travel
-// regardless of how far it actually got - a quick flick is a clear signal
-// of intent even when it barely moves, and requiring distance alone was
-// what made quick swipes feel like they did nothing.
-const FLICK_VELOCITY_PX_PER_MS = 0.35
+// regardless of how far it actually got. Lowered from 0.35 to 0.25 for
+// more responsive close gestures - easier to flick the sheet closed even
+// with smaller finger movements.
+const FLICK_VELOCITY_PX_PER_MS = 0.25
 
 // A click landing within this long after a real pointer sequence ended on
 // the sheet is treated as part of that same gesture, not a fresh one -
@@ -112,16 +112,10 @@ const SHEET_MAX_VIEWPORT_FRACTION = 0.65
 // see its own comment - from double-toggling.
 // Finger movement past this, while the scroll container is already at
 // scrollTop 0, hands the gesture off from "tried to scroll further up,
-// there's nothing there" to "closing the sheet" - the real content this
-// container holds (list rows, checkboxes, sliders) still needs normal
-// tap/scroll behavior below this, so the handoff only fires once an
-// actual overscroll is under way, not on every touch that happens to
-// start at the top of the list. A freshly-populated list is *always* at
-// scrollTop 0 - the very first scroll attempt on it - so this needs to be
-// generous enough that ordinary finger wobble during a real scroll swipe
-// doesn't cross it and get mistaken for a close-pull (which hijacked the
-// rest of that gesture from scrolling into resizing the sheet instead).
-const OVERSCROLL_START_PX = 24
+// there's nothing there" to "closing the sheet". Reduced to 8px for faster
+// responsiveness to close gestures - users can still scroll normally since
+// this only triggers when scroll is already at top AND they keep pulling.
+const OVERSCROLL_START_PX = 8
 
 function useSheetDrag(
   sheetRef: React.RefObject<HTMLElement | null>,

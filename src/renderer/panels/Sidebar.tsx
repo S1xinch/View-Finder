@@ -346,7 +346,10 @@ function useSheetDrag(
         }
         if (activeSourceRef.current !== null) return
         const pulledDown = e.clientY - startYRef.current
-        if (scrollEl.scrollTop <= 0 && pulledDown > OVERSCROLL_START_PX) {
+        // Allow up to 2px tolerance for scrollTop to handle browser quirks
+        // where scroll doesn't settle exactly at 0. Also check if we're
+        // pulling down (positive movement), not up.
+        if (scrollEl.scrollTop <= 2 && pulledDown > OVERSCROLL_START_PX) {
           try {
             e.currentTarget.setPointerCapture(e.pointerId)
           } catch {

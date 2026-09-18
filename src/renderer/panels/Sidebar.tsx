@@ -277,6 +277,10 @@ function useSheetDrag(
     activeSourceRef.current = null
     topReachedYRef.current = null
     pointerHandledAtRef.current = timeStamp
+    // Undo the scroll handoff's touch-action override regardless of
+    // wasDragging below - a cancel can arrive after the override was set
+    // but before a matching onPointerUp gets the chance to clear it.
+    if (scrollRef.current) scrollRef.current.style.touchAction = ''
     if (!el || !wasDragging) return
     el.style.transition = ''
     el.style.height = ''
@@ -387,6 +391,17 @@ function useSheetDrag(
             /* not a real pointer session (e.g. a test) - ignore */
           }
           activeSourceRef.current = 'scroll'
+          // The list still has touch-action: auto (it has to, for normal
+          // scrolling) - which means the browser can still treat this
+          // same touch as its own native scroll/bounce gesture even after
+          // we've grabbed pointer capture, and fight our height changes or
+          // cancel the pointer sequence outright (see cancelDrag's own
+          // comment on this). Forcing it to 'none' for the rest of this
+          // gesture hands the browser off completely, the same way every
+          // other drag surface here already does (.sidebar__grabber,
+          // .sidebar__header, .sidebar--hidden) - reset once the gesture
+          // ends so normal scrolling comes back for the next touch.
+          scrollEl.style.touchAction = 'none'
           beginDrag(e.clientY, e.timeStamp)
           e.preventDefault()
         }
@@ -407,6 +422,7 @@ function useSheetDrag(
         } catch {
           /* already released, or never really captured - ignore */
         }
+        if (scrollRef.current) scrollRef.current.style.touchAction = ''
         endDrag(e.clientY, e.timeStamp)
       },
       onPointerCancel: (e) => cancelDrag(e.timeStamp)

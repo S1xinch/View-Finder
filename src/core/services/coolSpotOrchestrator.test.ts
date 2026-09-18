@@ -100,3 +100,45 @@ describe('getViewpoints progress reporting', () => {
     expect(last.viewpointsFound).toBeGreaterThan(0)
   })
 })
+
+describe('getViewpoints road-distance scoring', () => {
+  it('threads real road data into distanceToRoadMeters instead of scoring against an empty roads list', async () => {
+    // Regression test for a real bug: roads were fetched via a deferred,
+    // fire-and-forget promise, then read synchronously (still empty) by
+    // scoreCandidates() before that promise ever resolved - so every
+    // viewpoint always reported "distance to road unknown", not just on a
+    // cold cache. This asserts the fetched road segment actually reaches
+    // distanceToRoadMeters, which fails again if that regresses.
+    const smallBbox: BBox = { west: 0, south: 0, east: 0.1, north: 0.1 }
+    const viewpointElement = { type: 'node', id: 1, lat: 0.05, lon: 0.05, tags: { tourism: 'viewpoint' } }
+    // Runs right past the viewpoint, so distanceToRoadMeters should come
+    // back small once roads are actually threaded into scoring - not just
+    // non-null from any old road far away.
+    const roadElement = {
+      type: 'way',
+      id: 2,
+      tags: { highway: 'residential' },
+      geometry: [
+        { lat: 0.05, lon: 0.049 },
+        { lat: 0.05, lon: 0.051 }
+      ]
+    }
+
+    // Only the road query's body contains "highway" (see buildRoadQuery) -
+    // every other query this exercises (viewpoints, land-use, and the NSW
+    // tenure GET, which has no body at all) falls through to the
+    // viewpoint element, which parses to an empty result for those non-node
+    // consumers without erroring.
+    const fetchImpl = vi.fn().mockImplementation(async (_url: string, init?: { body?: string }) => {
+      const isRoadQuery = init?.body?.includes('highway') ?? false
+      return jsonResponse({ elements: [isRoadQuery ? roadElement : viewpointElement] })
+    })
+
+    const orchestrator = createCoolSpotOrchestrator({ fetchImpl, cache: new MemoryCacheStore() })
+    const results = await orchestrator.getViewpoints(smallBbox, () => {})
+
+    expect(results).toHaveLength(1)
+    expect(results[0].distanceToRoadMeters).not.toBeNull()
+    expect(results[0].distanceToRoadMeters).toBeLessThan(500)
+  })
+})

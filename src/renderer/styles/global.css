@@ -281,6 +281,27 @@ button:not(:disabled):active {
   height: 100dvh;
 }
 
+/* A real WebKit bug, not a config mistake: on an installed iOS home-screen
+   app specifically, with viewport-fit=cover and a translucent status bar
+   (both of which this site sets - see index.html - so the page can paint
+   its own content under the status bar), 100% / 100svh / 100dvh all
+   resolve *short* by the status bar's own height. The app was rendering
+   that much shorter than the real screen, leaving a dead gap the height
+   of the status bar sitting at the *bottom* of the screen, over the home
+   indicator, showing raw page background instead of app content - a
+   viewport-height miscalculation, not a background-color problem (which
+   is why giving the page a dark background just changed the gap's color
+   instead of closing it). display-mode: standalone only matches an
+   installed app (never a plain browser tab, which isn't affected), and
+   100lvh - the "largest possible viewport" unit - is the one value iOS
+   still reports correctly as the true full screen height in this exact
+   situation. */
+@media (display-mode: standalone) {
+  .app {
+    height: 100lvh;
+  }
+}
+
 .map-view {
   position: absolute;
   inset: 0;

@@ -118,6 +118,15 @@ html {
 body {
   font-family: var(--vf-font);
   color: var(--vf-text-primary);
+  /* Without this, the page's raw background is the browser default
+     (white) - normally invisible since the map/sidebar cover the whole
+     viewport, but any gap that briefly reveals the page underneath (a
+     rubber-band bounce at the very edge, content painting a beat after
+     the page itself, a safe-area sliver on a notched phone) flashes
+     white instead of just blending in. Matches the app/map's own dark
+     tone here and a light equivalent below, so whichever shows through
+     reads as part of the app rather than a glitch. */
+  background: #1e1e20;
   overflow: hidden;
   /* Mobile Safari/Chrome otherwise let an edge-of-screen drag (e.g. the
      start of a map pan gesture right at the top of the viewport) trigger
@@ -126,6 +135,12 @@ body {
      so that gesture should only ever pan the map. */
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
+}
+
+@media (prefers-color-scheme: light) {
+  body {
+    background: #f5f5f7;
+  }
 }
 
 button {

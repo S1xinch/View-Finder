@@ -56,11 +56,25 @@ interface ViewFinderStore {
 
   sidebarOpen: boolean
   toggleSidebar: () => void
+  // Explicit setter alongside the toggle - the drag gesture decides an
+  // absolute target state from where the sheet was released (and the
+  // search field opens the sheet on focus), neither of which is a
+  // "flip whatever it currently is" operation.
+  setSidebarOpen: (open: boolean) => void
 
   showPrivateLand: boolean
   togglePrivateLand: () => void
   excludedLandAreas: ExcludedLandArea[]
   setExcludedLandAreas: (areas: ExcludedLandArea[]) => void
+
+  // Lets a user isolate OSM-tagged spots ("viewpoint"/"peak"/"alpine_hut")
+  // from elevation-derived ones ("computed_peak") or vice versa - useful
+  // since the two have very different confidence (OSM is human-confirmed,
+  // computed peaks are a best-effort guess from terrain data alone).
+  showOsmViewpoints: boolean
+  toggleShowOsmViewpoints: () => void
+  showComputedPeaks: boolean
+  toggleShowComputedPeaks: () => void
 
   locationTracking: boolean
   toggleLocationTracking: () => void
@@ -78,6 +92,12 @@ interface ViewFinderStore {
   setRouteLoading: () => void
   setRouteLoaded: (route: RouteResult) => void
   setRouteError: (message: string) => void
+  // Distinguishes "here's the route overview" (routeStatus === 'ready') from
+  // "actually driving it" - flipped on by the DirectionsView's own Start
+  // button once the user is ready to go. LocationLayer.tsx only takes over
+  // the camera (follow + zoom) and shows a heading arrow while this is true.
+  navigating: boolean
+  startNavigation: () => void
 
   satelliteView: boolean
   toggleSatelliteView: () => void
@@ -97,7 +117,12 @@ export const useViewFinderStore = create<ViewFinderStore>((set) => ({
     set({ viewpoints: [], viewpointsStatus: 'zoomed-out', viewpointsError: null, viewpointsProgress: null }),
   setViewpointsLoaded: (viewpoints) =>
     set({ viewpoints, viewpointsStatus: 'ready', viewpointsError: null, viewpointsProgress: null }),
-  setViewpointsError: (message) => set({ viewpointsStatus: 'error', viewpointsError: message, viewpointsProgress: null }),
+  // Progress is deliberately NOT cleared here (unlike the other status
+  // setters) - the error UI wants to know how many tiles the failed
+  // request was covering, to hint "try zooming in" when it was a lot.
+  // It gets overwritten by the next setViewpointsLoading() regardless, so
+  // it can never leak into a genuinely new/different request's display.
+  setViewpointsError: (message) => set({ viewpointsStatus: 'error', viewpointsError: message }),
   viewpointsRefreshNonce: 0,
   requestViewpointsRefresh: () => set((s) => ({ viewpointsRefreshNonce: s.viewpointsRefreshNonce + 1 })),
 
@@ -107,11 +132,17 @@ export const useViewFinderStore = create<ViewFinderStore>((set) => ({
 
   sidebarOpen: true,
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
+  setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
 
   showPrivateLand: false,
   togglePrivateLand: () => set((s) => ({ showPrivateLand: !s.showPrivateLand })),
   excludedLandAreas: [],
   setExcludedLandAreas: (excludedLandAreas) => set({ excludedLandAreas }),
+
+  showOsmViewpoints: true,
+  toggleShowOsmViewpoints: () => set((s) => ({ showOsmViewpoints: !s.showOsmViewpoints })),
+  showComputedPeaks: true,
+  toggleShowComputedPeaks: () => set((s) => ({ showComputedPeaks: !s.showComputedPeaks })),
 
   locationTracking: false,
   toggleLocationTracking: () =>
@@ -132,11 +163,20 @@ export const useViewFinderStore = create<ViewFinderStore>((set) => ({
   // if it's already on) so the user doesn't have to separately find the
   // locate button before directions can work.
   requestRoute: (destination) =>
-    set({ locationTracking: true, routeDestination: destination, route: null, routeStatus: 'idle', routeError: null }),
-  clearRoute: () => set({ routeDestination: null, route: null, routeStatus: 'idle', routeError: null }),
+    set({
+      locationTracking: true,
+      routeDestination: destination,
+      route: null,
+      routeStatus: 'idle',
+      routeError: null,
+      navigating: false
+    }),
+  clearRoute: () => set({ routeDestination: null, route: null, routeStatus: 'idle', routeError: null, navigating: false }),
   setRouteLoading: () => set({ routeStatus: 'loading', routeError: null }),
   setRouteLoaded: (route) => set({ route, routeStatus: 'ready', routeError: null }),
   setRouteError: (message) => set({ routeStatus: 'error', routeError: message }),
+  navigating: false,
+  startNavigation: () => set({ navigating: true }),
 
   satelliteView: false,
   toggleSatelliteView: () => set((s) => ({ satelliteView: !s.satelliteView }))

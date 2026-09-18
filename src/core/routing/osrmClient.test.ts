@@ -25,9 +25,9 @@ const SAMPLE_OSRM_RESPONSE = {
       legs: [
         {
           steps: [
-            { distance: 100, name: 'Main St', maneuver: { type: 'depart' } },
-            { distance: 2000, name: 'Ridge Rd', maneuver: { type: 'turn', modifier: 'left' } },
-            { distance: 2100, name: 'Ridge Rd', maneuver: { type: 'arrive' } }
+            { distance: 100, name: 'Main St', maneuver: { type: 'depart', location: [150.3, -33.7] } },
+            { distance: 2000, name: 'Ridge Rd', maneuver: { type: 'turn', modifier: 'left', location: [150.31, -33.705] } },
+            { distance: 2100, name: 'Ridge Rd', maneuver: { type: 'arrive', location: [150.32, -33.71] } }
           ]
         }
       ]
@@ -45,9 +45,21 @@ describe('queryRoute', () => {
     expect(result.durationSeconds).toBe(360)
     expect(result.coordinates).toEqual(SAMPLE_OSRM_RESPONSE.routes[0].geometry.coordinates)
     expect(result.steps).toEqual([
-      { instruction: 'Head out', distanceMeters: 100 },
-      { instruction: 'Turn left onto Ridge Rd', distanceMeters: 2000 },
-      { instruction: 'You have arrived at your destination', distanceMeters: 2100 }
+      { instruction: 'Head out', distanceMeters: 100, type: 'depart', modifier: undefined, location: [150.3, -33.7] },
+      {
+        instruction: 'Turn left onto Ridge Rd',
+        distanceMeters: 2000,
+        type: 'turn',
+        modifier: 'left',
+        location: [150.31, -33.705]
+      },
+      {
+        instruction: 'You have arrived at your destination',
+        distanceMeters: 2100,
+        type: 'arrive',
+        modifier: undefined,
+        location: [150.32, -33.71]
+      }
     ])
     expect(fetchImpl).toHaveBeenCalledTimes(1)
     const [url] = fetchImpl.mock.calls[0]

@@ -4,7 +4,6 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import {
   DEFAULT_VIEW,
-  GEOLOCATED_INITIAL_ZOOM,
   MAP_STYLE_URL,
   addSatelliteLayer,
   applyAppleStyleTweaks,
@@ -90,37 +89,32 @@ export function MapView(): React.JSX.Element {
       applyBaseStyleTweaks()
       addSatelliteLayer(map)
       setSatelliteVisible(map, useViewFinderStore.getState().satelliteView)
+
+      // OpenStreetMap's and OpenFreeMap's terms of use both require this
+      // attribution to be shown - it can't just be removed - but MapLibre's
+      // compact mode still renders it as an already-*expanded* native
+      // <details open> element rather than starting collapsed to just the
+      // (i) toggle. Forcing `open = false` here (not right after
+      // construction - the control's actual DOM element isn't there yet
+      // that early) keeps the attribution, and the native <details>/
+      // <summary> tap-to-expand needing no JS of its own, while not
+      // permanently taking up space over the map.
+      const attributionDetails = map.getContainer().querySelector<HTMLDetailsElement>('.maplibregl-ctrl-attrib')
+      if (attributionDetails) attributionDetails.open = false
+
       mapRef.current = map
       setMap(map)
     }
     if (map.isStyleLoaded()) markMapReady()
     else map.once('load', markMapReady)
 
-    // Silent, one-shot "roughly where is the user" lookup to settle on a
-    // relevant starting view - separate from the explicit locate-me
-    // control (LocateControl.ts/useGeolocation.ts), which keeps watching
-    // position and shows the blue tracking dot; this is a single read
-    // that only ever moves the camera once, right at load, and never
-    // turns tracking on or surfaces an error if it fails/is denied - the
-    // world view already showing (DEFAULT_VIEW) is a perfectly fine
-    // fallback, not a failure state worth bothering the user about.
-    let cancelled = false
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          if (cancelled) return
-          map.easeTo({
-            center: [position.coords.longitude, position.coords.latitude],
-            zoom: GEOLOCATED_INITIAL_ZOOM,
-            duration: 1200
-          })
-        },
-        () => {
-          // Denied, unavailable, or timed out - stay on the world view.
-        },
-        { maximumAge: 5 * 60 * 1000, timeout: 8_000 }
-      )
-    }
+    // No silent geolocation lookup on load anymore - this used to fire
+    // navigator.geolocation.getCurrentPosition() immediately on mount to
+    // recenter the map, which means the browser's own location-permission
+    // prompt appeared before the user had done anything at all. Location
+    // is now purely opt-in: the map opens on DEFAULT_VIEW and only ever
+    // asks for a position when the user taps the explicit locate-me
+    // control (LocateControl.ts/useGeolocation.ts).
 
     // Repaints the map's own base colors to follow the OS-level light/dark
     // setting, the same way the rest of the app's chrome already does via
@@ -139,7 +133,6 @@ export function MapView(): React.JSX.Element {
     colorSchemeQuery.addEventListener('change', onColorSchemeChange)
 
     return () => {
-      cancelled = true
       colorSchemeQuery.removeEventListener('change', onColorSchemeChange)
       setMap(null)
       map.remove()

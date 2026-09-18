@@ -1,39 +1,95 @@
 :root {
-  --vf-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', system-ui, sans-serif;
-  --vf-card-bg: rgba(255, 255, 255, 0.72);
-  --vf-card-border: rgba(0, 0, 0, 0.08);
-  --vf-card-shadow: 0 8px 30px rgba(0, 0, 0, 0.14), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --vf-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+
+  /* Core palette — Apple iOS HIG */
+  --vf-primary-accent: #5a8fd4;
+  --vf-secondary-accent: #34c759;
+  --vf-warning-accent: #ff9500;
+  --vf-danger-accent: #ff3b30;
+
+  /* Materials — layer hierarchy */
+  --vf-material-base: transparent;
+  --vf-material-fg: rgba(255, 255, 255, 0.72);
+  --vf-material-glass: rgba(255, 255, 255, 0.60);
+  --vf-material-overlay: rgba(0, 0, 0, 0.3);
+
+  /* Text */
   --vf-text-primary: #1c1c1e;
   --vf-text-secondary: #6e6e73;
-  --vf-accent: #5a8fd4;
-  --vf-danger: #a8563e;
-  --vf-hover: rgba(0, 0, 0, 0.05);
+  --vf-text-tertiary: #a1a1a6;
+
+  /* Dividers & borders */
   --vf-divider: rgba(0, 0, 0, 0.08);
-  /* Real Apple Maps "material" panels aren't just blurred - saturate()
-     pumps the color of whatever's behind the glass before it's blurred,
-     which is what gives frosted panels that vivid, slightly-tinted look
-     instead of a flat gray smear. One token so every glass surface below
-     (sidebar, popups, controls, search results) stays in sync. */
-  --vf-blur: blur(24px) saturate(180%);
+  --vf-border-light: rgba(0, 0, 0, 0.05);
+
+  /* Interactive states */
+  --vf-hover-bg: rgba(0, 0, 0, 0.05);
+  --vf-pressed-bg: rgba(0, 0, 0, 0.1);
+  --vf-disabled-alpha: 0.5;
+
+  /* Glass/Blur */
+  --vf-blur-standard: blur(24px) saturate(180%);
+  --vf-blur-light: blur(12px) saturate(140%);
+
+  /* Shadow system — Apple's layered floating effects */
+  --vf-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+  --vf-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.1), 0 4px 12px rgba(0, 0, 0, 0.08);
+  --vf-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.14), 0 8px 24px rgba(0, 0, 0, 0.1);
+
+  /* Spacing scale (8px base) */
+  --vf-space-xs: 4px;
+  --vf-space-sm: 8px;
+  --vf-space-md: 12px;
+  --vf-space-lg: 16px;
+  --vf-space-xl: 24px;
+  --vf-space-2xl: 32px;
+
+  /* Radii — three close, proportional steps (buttons/chips → fields/
+     controls → surfaces) instead of a wide spread, so a rounded surface
+     and the controls nested inside it read as one consistent family
+     rather than a very round box around visibly boxier buttons. */
+  --vf-radius-sm: 10px;
+  --vf-radius-md: 14px;
   --vf-radius-lg: 18px;
-  --vf-radius-md: 12px;
-  /* How much of the bottom sheet stays on screen when it's collapsed on
-     phone portrait - enough for the grab handle, the title row and the
-     whole search field, so search is usable without opening the sheet.
-     Read back by useSheetDrag (Sidebar.tsx) so the drag maths and this
-     resting position stay in lockstep. */
+  --vf-radius-xl: 20px;
+
+  /* Backwards compatibility aliases */
+  --vf-card-bg: var(--vf-material-fg);
+  --vf-card-border: var(--vf-divider);
+  --vf-card-shadow: var(--vf-shadow-md);
+  --vf-accent: var(--vf-primary-accent);
+  --vf-danger: var(--vf-danger-accent);
+  --vf-hover: var(--vf-hover-bg);
+  --vf-blur: var(--vf-blur-standard);
+  --vf-accent-text: #ffffff;
+
+  /* Bottom sheet peek height for mobile */
   --vf-sheet-peek: 132px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --vf-card-bg: rgba(30, 30, 32, 0.78);
-    --vf-card-border: rgba(255, 255, 255, 0.1);
-    --vf-card-shadow: 0 8px 30px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.3);
+    /* Materials */
+    --vf-material-fg: rgba(30, 30, 32, 0.78);
+    --vf-material-glass: rgba(30, 30, 32, 0.65);
+
+    /* Text */
     --vf-text-primary: #f5f5f7;
     --vf-text-secondary: #a1a1a6;
-    --vf-hover: rgba(255, 255, 255, 0.08);
+    --vf-text-tertiary: #6e6e73;
+
+    /* Dividers & borders */
     --vf-divider: rgba(255, 255, 255, 0.1);
+    --vf-border-light: rgba(255, 255, 255, 0.08);
+
+    /* Interactive states */
+    --vf-hover-bg: rgba(255, 255, 255, 0.08);
+    --vf-pressed-bg: rgba(255, 255, 255, 0.12);
+
+    /* Shadows */
+    --vf-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.24);
+    --vf-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.36);
+    --vf-shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.48);
   }
 }
 
@@ -74,6 +130,100 @@ button {
      see if a tap becomes a double-tap-to-zoom - buttons here never need
      double-tap-zoom, so this just makes every tap feel instant. */
   touch-action: manipulation;
+}
+
+/* Apple Design System Button Component */
+.vf-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--vf-space-sm) var(--vf-space-lg);
+  border: none;
+  border-radius: var(--vf-radius-sm);
+  font-family: var(--vf-font);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: none;
+  /* Spring animations via Motion library, no CSS transitions */
+}
+
+.vf-button--primary {
+  background: var(--vf-primary-accent);
+  color: white;
+  box-shadow: var(--vf-shadow-sm);
+}
+
+.vf-button--primary:hover {
+  opacity: 0.9;
+}
+
+.vf-button--secondary {
+  background: var(--vf-hover-bg);
+  color: var(--vf-text-primary);
+  border: 1px solid var(--vf-divider);
+}
+
+.vf-button--secondary:hover {
+  background: var(--vf-pressed-bg);
+}
+
+.vf-button--icon {
+  padding: var(--vf-space-sm);
+  background: transparent;
+  color: var(--vf-text-primary);
+}
+
+.vf-button--icon:hover {
+  background: var(--vf-hover-bg);
+}
+
+.vf-button:disabled {
+  opacity: var(--vf-disabled-alpha);
+  cursor: not-allowed;
+}
+
+/* Typography scale — Apple HIG optical sizing */
+.vf-display {
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.vf-headline {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.vf-subheading {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: 0em;
+}
+
+.vf-body {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+}
+
+.vf-caption {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+}
+
+.vf-label {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: 0.03em;
 }
 
 .app {
@@ -244,7 +394,7 @@ button {
 .maplibregl-popup.vf-popup .maplibregl-popup-content {
   background: var(--vf-card-bg);
   border: 1px solid var(--vf-card-border);
-  border-radius: var(--vf-radius-md);
+  border-radius: var(--vf-radius-lg);
   box-shadow: var(--vf-card-shadow);
   backdrop-filter: var(--vf-blur);
   -webkit-backdrop-filter: var(--vf-blur);
@@ -340,7 +490,7 @@ button {
   color: var(--vf-text-secondary);
   background: var(--vf-card-bg);
   border: 1px solid var(--vf-card-border);
-  border-radius: 6px;
+  border-radius: var(--vf-radius-sm);
   pointer-events: none;
   z-index: 10;
 }
@@ -421,13 +571,13 @@ button {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  /* Drives the snap-to-rest after a drag release on phone portrait (see
-     useSheetDrag in Sidebar.tsx, which sets this element's height
-     directly and briefly disables this transition during the drag itself
-     for 1:1 finger tracking, restoring it right before setting the final
-     resting height). Unused on desktop/landscape, where the collapsed
-     state is a plain display: none swap instead - harmless to declare
-     unconditionally. */
+  background: var(--vf-material-fg);
+  border: 1px solid var(--vf-divider);
+  border-radius: var(--vf-radius-xl);
+  box-shadow: var(--vf-shadow-lg);
+  backdrop-filter: var(--vf-blur-standard);
+  -webkit-backdrop-filter: var(--vf-blur-standard);
+  /* Drives the snap-to-rest after a drag release on phone portrait */
   transition: height 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -543,29 +693,33 @@ button {
 
   .sidebar__handle {
     display: block;
-    width: 36px;
-    height: 4px;
-    border-radius: 2px;
+    width: 40px;
+    height: 5px;
+    border-radius: 2.5px;
     background: var(--vf-text-secondary);
-    opacity: 0.35;
+    opacity: 0.6;
+    transition: opacity 200ms ease, width 200ms ease;
+  }
+
+  .sidebar__grabber:active .sidebar__handle {
+    opacity: 0.8;
+    width: 44px;
   }
 
   /* A dedicated swipe-down-to-close target at the very top of the open
-     sheet, above the header - matching how a native bottom sheet's own
-     drag handle behaves. The explicit collapse button in the header
-     still covers a mouse/keyboard user; this is the touch-first one.
-     Padded well past the visible 4px handle bar - a thumb aiming for
-     "the handle" routinely lands a few px above/below the bar itself,
-     and the previous ~14px-tall zone missed that real-world margin for
-     error often enough to read as "dragging doesn't work". 44px total
-     matches Apple's/Google's own minimum touch target guideline. */
+     sheet, above the header. Made larger (52px) for easier touch access on
+     mobile - users don't need to aim precisely for a small bar. The handle
+     bar itself expands on press for tactile feedback.
+     52px total matches and exceeds Apple's/Google's minimum touch target. */
   .sidebar__grabber {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 10px 0 0 0;
+    padding: 6px 0 8px 0;
     cursor: grab;
     touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
   }
 
   /* Also a drag surface (see useSheetDrag's onPointerDown) - closing was
@@ -689,11 +843,14 @@ button {
 .search-bar__field {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 9px 12px;
-  border: none;
-  border-radius: 10px;
-  background: var(--vf-hover);
+  gap: var(--vf-space-sm);
+  padding: var(--vf-space-md) var(--vf-space-md);
+  border: 1px solid var(--vf-divider);
+  border-radius: var(--vf-radius-md);
+  background: var(--vf-material-fg);
+  box-shadow: var(--vf-shadow-sm);
+  backdrop-filter: var(--vf-blur-light);
+  -webkit-backdrop-filter: var(--vf-blur-light);
 }
 
 .search-bar__icon {
@@ -758,7 +915,7 @@ button {
   width: 100%;
   padding: 8px 10px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--vf-radius-sm);
   background: transparent;
   color: var(--vf-text-primary);
   font-size: 12px;
@@ -800,7 +957,7 @@ button {
   flex: 0 0 auto;
   padding: 4px 8px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--vf-radius-sm);
   background: var(--vf-accent);
   color: var(--vf-accent-text);
   font-size: 16px;
@@ -925,7 +1082,7 @@ button {
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+  /* Transitions removed for spring animations via Motion library */
 }
 
 .sidebar__checkbox input[type='checkbox'] {
@@ -960,7 +1117,7 @@ button {
   gap: 6px;
   padding: 7px 10px;
   border: 1px solid var(--vf-card-border);
-  border-radius: 8px;
+  border-radius: var(--vf-radius-sm);
   background: transparent;
   color: var(--vf-text-primary);
   font-size: 12px;
@@ -1055,7 +1212,7 @@ button {
 .sidebar__row {
   display: flex;
   align-items: center;
-  border-radius: 8px;
+  border-radius: var(--vf-radius-sm);
 }
 
 .sidebar__row:hover {
@@ -1093,7 +1250,7 @@ button {
   font-size: 12px;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 120ms ease;
+  /* Opacity transitions handled by spring animations */
 }
 
 .sidebar__row:hover .sidebar__row-directions,
@@ -1110,7 +1267,7 @@ button {
   flex: 0 0 auto;
   width: 30px;
   height: 30px;
-  border-radius: 9px;
+  border-radius: var(--vf-radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1175,7 +1332,7 @@ button {
   margin-top: 8px;
   padding: 6px 12px;
   border: 1px solid currentColor;
-  border-radius: 8px;
+  border-radius: var(--vf-radius-sm);
   background: transparent;
   color: var(--vf-danger);
   font-size: 12px;
@@ -1232,7 +1389,7 @@ button {
   transform: none;
   opacity: 0.7;
   animation: none;
-  transition: width 300ms ease;
+  /* Width transitions handled by spring animations when needed */
 }
 
 .sidebar__status-progress--determinate::after {
@@ -1291,7 +1448,7 @@ button {
   justify-content: center;
   border: none;
   background: transparent;
-  border-radius: 8px;
+  border-radius: var(--vf-radius-sm);
   color: var(--vf-text-secondary);
   font-size: 15px;
   cursor: pointer;
@@ -1318,7 +1475,7 @@ button {
   color: #ffffff;
   background: var(--vf-accent);
   border: none;
-  border-radius: 10px;
+  border-radius: var(--vf-radius-sm);
   cursor: pointer;
 }
 
@@ -1339,7 +1496,7 @@ button {
   color: #ffffff;
   background: var(--vf-accent);
   border: none;
-  border-radius: 10px;
+  border-radius: var(--vf-radius-sm);
   cursor: pointer;
 }
 
@@ -1354,7 +1511,7 @@ button {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  border-radius: 12px;
+  border-radius: var(--vf-radius-md);
   background: var(--vf-accent);
   color: #ffffff;
 }
@@ -1390,7 +1547,7 @@ button {
   height: 28px;
   padding: 0;
   border: 1px solid var(--vf-divider);
-  border-radius: 6px;
+  border-radius: var(--vf-radius-sm);
   background: var(--vf-card-bg);
   color: var(--vf-text-primary);
   font-size: 16px;
@@ -1452,7 +1609,7 @@ button {
   font-family: var(--vf-font);
   font-size: 12px;
   font-weight: 600;
-  border-radius: 8px;
+  border-radius: var(--vf-radius-sm);
   cursor: pointer;
 }
 
@@ -1578,7 +1735,7 @@ button {
   font-size: 11px;
   padding: 4px 8px;
   background: var(--vf-hover);
-  border-radius: 4px;
+  border-radius: var(--vf-radius-sm);
   color: var(--vf-text-secondary);
 }
 
@@ -1594,6 +1751,95 @@ button {
   color: var(--vf-text-secondary);
   margin: 0;
   line-height: 1.4;
+}
+
+/* ============================================================================
+   PLATFORM-SPECIFIC RESPONSIVE DESIGN
+   Desktop, Tablet, Mobile Portrait/Landscape layouts
+   ============================================================================ */
+
+/* Desktop layout (1200px+) — persistent, resizable sidebar */
+@media (min-width: 1200px) {
+  /* Allow viewport > 100% to accommodate resizable sidebar + map side-by-side */
+  .app {
+    display: flex;
+    flex-direction: row;
+  }
+
+  .sidebar {
+    position: relative;
+    flex: 0 0 auto;
+    width: 320px;
+    min-width: 280px;
+    max-width: 600px;
+    height: 100%;
+    border: none;
+    border-right: 1px solid var(--vf-divider);
+    border-radius: 0;
+    bottom: auto;
+    box-shadow: none;
+  }
+
+  .sidebar--hidden {
+    display: none;
+  }
+
+  .sidebar-reopen {
+    display: none;
+  }
+
+  .map-view {
+    position: relative;
+    flex: 1;
+  }
+
+  /* Sidebar resizing handle (right edge) */
+  .sidebar::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    cursor: col-resize;
+    transition: background 0.2s ease;
+  }
+
+  .sidebar::after:hover {
+    background: var(--vf-accent);
+  }
+}
+
+/* Tablet layout (600px–1200px) — adaptive with swipeable sidebar */
+@media (min-width: 600px) and (max-width: 1199px) {
+  .sidebar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: 0;
+    max-height: 65vh;
+    border-radius: var(--vf-radius-xl) var(--vf-radius-xl) 0 0;
+    box-shadow: var(--vf-shadow-lg);
+  }
+
+  .sidebar--hidden {
+    max-height: var(--vf-sheet-peek);
+  }
+}
+
+/* Mobile portrait layout (max 600px width) — gesture-driven bottom sheet */
+@media (max-width: 600px), (max-height: 500px) and (orientation: landscape) {
+  /* Keep existing mobile styles */
+}
+
+/* Reduced motion: respect user preference */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 .saved-locations__signin {

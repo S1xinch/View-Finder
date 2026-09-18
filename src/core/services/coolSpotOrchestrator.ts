@@ -11,7 +11,8 @@ import { queryElevations } from '../elevation/elevationClient'
 import { buildSampleGrid, findLocalMaxima } from '../elevation/prominence'
 import type { PeakCandidate } from '../elevation/types'
 import { mergeCandidates } from '../scoring/candidateBuilder'
-import { filterExcludedLand } from '../scoring/landUseFilter'
+import { filterExcludedLand, filterExcludedTenure, tenureCacheKey } from '../scoring/landUseFilter'
+import { queryTenureClass, type NswTenureClass } from '../landTenure/nswLandTenureClient'
 import { scoreCandidates } from '../scoring/coolSpotScore'
 import { isReachableByRoad } from '../scoring/roadReachability'
 import type { CacheStore } from '../cache/CacheStore'
@@ -24,6 +25,11 @@ const OSM_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000
 // Elevation is immutable - terrain doesn't change - so this is effectively
 // "cache forever" within a single app session.
 const ELEVATION_CACHE_TTL_MS = 365 * 24 * 60 * 60 * 1000
+
+// Government land tenure classifications change far less often than OSM
+// tags (a rezoning is a rare, deliberate event, not routine map editing),
+// so this can safely outlive OSM_CACHE_TTL_MS.
+const NSW_TENURE_CACHE_TTL_MS = 90 * 24 * 60 * 60 * 1000
 
 function bboxKey(prefix: string, bbox: BBox): string {
   const round = (n: number): string => n.toFixed(3)
@@ -307,53 +313,120 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
     }
   }
 
+  // NSW's government Land Tenure service (see nswLandTenureClient.ts) is a
+  // raster classified image, not vector polygons - there's no single bbox
+  // query that hands back "every private-land shape in this area" the way
+  // getExcludedLandAreas' OSM query does. Point-sampling every candidate
+  // individually is the only option, so each one gets its own cached
+  // identify lookup instead of one bulk fetch. Best-effort like every other
+  // deferred fetch here: a candidate a lookup couldn't resolve for (cache
+  // miss + a failed request) just doesn't appear in the returned map, and
+  // filterExcludedTenure treats that as "don't exclude".
+  async function getTenureForCandidates(
+    candidates: Viewpoint[],
+    signal: AbortSignal
+  ): Promise<Map<string, NswTenureClass | null>> {
+    const tenureByKey = new Map<string, NswTenureClass | null>()
+
+    await Promise.allSettled(
+      candidates.map(async (candidate) => {
+        const key = tenureCacheKey(candidate)
+        const cacheKey = `nswTenure:${key}`
+        const cached = await cache.get<NswTenureClass | null>(cacheKey)
+        if (cached !== undefined) {
+          tenureByKey.set(key, cached)
+          return
+        }
+
+        try {
+          const tenure = await queryTenureClass(candidate, { fetchImpl, signal })
+          await cache.set(cacheKey, tenure, NSW_TENURE_CACHE_TTL_MS)
+          tenureByKey.set(key, tenure)
+        } catch (error) {
+          // Left out of the map entirely (not cached as a failure, and not
+          // rethrown - a supersede-abort here just means this deferred,
+          // best-effort lookup stops mattering, same as landUse/roads
+          // above) so the next pan/refresh gets a fresh chance to resolve
+          // it, rather than a transient network hiccup permanently reading
+          // as "unknown".
+          console.warn('[coolSpotOrchestrator] NSW tenure lookup failed for one candidate (continuing):', error)
+        }
+      })
+    )
+
+    return tenureByKey
+  }
+
   async function getViewpoints(bbox: BBox, onProgress?: ViewpointsProgressCallback): Promise<Viewpoint[]> {
     currentRequest?.abort()
     const request = new AbortController()
     currentRequest = request
 
-    // allSettled, not all: getComputedPeaks/getRoads/getExcludedLandAreas
-    // are already fail-soft internally (see above), but a genuine
-    // OSM/Overpass failure used to reject the whole call via Promise.all
-    // even when other sources had *already* succeeded - throwing away a
-    // perfectly good result because one independent data source
-    // hiccuped.
-    const [osmResult, elevationResult, roadsResult, landUseResult] = await Promise.allSettled([
-      getOsmViewpoints(bbox, request.signal, onProgress),
-      getComputedPeaks(bbox, request.signal),
-      getRoads(bbox, request.signal),
-      getExcludedLandAreas(bbox, request.signal)
-    ])
+    // Critical path: OSM viewpoints first. Roads & land-use are deferred to
+    // background - they load in parallel but don't block the response.
+    let osmViewpoints: Viewpoint[] = []
+    try {
+      osmViewpoints = await getOsmViewpoints(bbox, request.signal, onProgress)
+    } catch (error) {
+      if (isAbortError(error)) throw error
+      console.warn('[coolSpotOrchestrator] OSM viewpoints failed:', error)
+    }
 
-    // A supersession-abort on any of them should still propagate so the
-    // overall call rejects - the caller's staleness guard already
-    // discards a stale rejection silently, so this never produces a
-    // visible error, but it does stop us returning a bogus "result" for
-    // a viewport the caller has already moved on from.
-    if (osmResult.status === 'rejected' && isAbortError(osmResult.reason)) throw osmResult.reason
-    if (elevationResult.status === 'rejected' && isAbortError(elevationResult.reason)) throw elevationResult.reason
-    if (roadsResult.status === 'rejected' && isAbortError(roadsResult.reason)) throw roadsResult.reason
-    if (landUseResult.status === 'rejected' && isAbortError(landUseResult.reason)) throw landUseResult.reason
-
-    const osmViewpoints = osmResult.status === 'fulfilled' ? osmResult.value : []
-    const computedPeaks = elevationResult.status === 'fulfilled' ? elevationResult.value : []
-    const roads = roadsResult.status === 'fulfilled' ? roadsResult.value : []
-    const excludedAreas = landUseResult.status === 'fulfilled' ? landUseResult.value : []
+    // Lazy elevation: skip the full-grid elevation sample+scan entirely when
+    // OSM already tagged enough viewpoints in this tile. Computed peaks exist
+    // to fill in areas OSM hasn't covered (see getComputedPeaks docs) - if
+    // OSM already found a healthy number, the grid scan is pure extra
+    // latency for marginal benefit. Below the threshold, an area is likely
+    // under-tagged in OSM and the computed-peaks fallback earns its cost.
+    const SKIP_ELEVATION_IF_OSM_COUNT_AT_LEAST = 5
+    let computedPeaks: PeakCandidate[] = []
+    if (osmViewpoints.length < SKIP_ELEVATION_IF_OSM_COUNT_AT_LEAST) {
+      try {
+        computedPeaks = await getComputedPeaks(bbox, request.signal)
+      } catch (error) {
+        if (isAbortError(error)) throw error
+        console.warn('[coolSpotOrchestrator] computed peaks failed:', error)
+      }
+    } else {
+      console.log(
+        `[coolSpotOrchestrator] skipping elevation grid - OSM already found ${osmViewpoints.length} viewpoint(s)`
+      )
+    }
 
     const merged = mergeCandidates(osmViewpoints, computedPeaks)
 
-    if (osmResult.status === 'rejected') {
-      console.warn('[coolSpotOrchestrator] OSM viewpoints failed:', osmResult.reason)
-      if (merged.length === 0) {
-        // Nothing useful to show at all - surface the real failure
-        // instead of a misleading "no viewpoints in this area" empty
-        // state.
-        throw osmResult.reason
-      }
-      console.log(`[coolSpotOrchestrator] continuing with ${merged.length} computed peak(s) only`)
+    if (merged.length === 0 && !osmViewpoints.length) {
+      throw new Error('No viewpoints found and elevation query failed')
     }
 
-    const landFiltered = filterExcludedLand(merged, excludedAreas)
+    // Land-use and NSW tenure are exclusion filters (don't send someone onto
+    // private property), not scoring/quality ones - they're awaited before
+    // returning, even at the cost of some latency. This used to be a
+    // deferred fire-and-forget fetch like roads below, on the theory that a
+    // later pan would benefit from the now-warm cache. In practice it never
+    // filtered anything, on any pan: landUse/tenureByKey were local to this
+    // call, reset to empty every time, and the exclusion-filtering line
+    // always ran synchronously right after *starting* the fetch, before its
+    // first `await` inside had a chance to resolve - so every single
+    // getViewpoints call filtered against empty data, permanently. Found
+    // from a real field-test report: a peak NSW's own service classifies as
+    // Private was shown unfiltered and someone drove out to it.
+    const [landUse, tenureByKey] = await Promise.all([
+      getExcludedLandAreas(bbox, request.signal),
+      getTenureForCandidates(merged, request.signal)
+    ])
+
+    // Roads stay deferred - road-reachability is a "how good a suggestion
+    // is this" quality signal, not an access/safety one, so it's fine for
+    // it to arrive stale on the first response and catch up on a later pan.
+    let roads: RoadSegment[] = []
+    const deferredRoads = getRoads(bbox, request.signal)
+      .then((result) => {
+        roads = result
+      })
+      .catch(() => {})
+
+    const landFiltered = filterExcludedTenure(filterExcludedLand(merged, landUse), tenureByKey)
     const scored = scoreCandidates(landFiltered, roads)
     const ranked = scored
       .filter((candidate) => isReachableByRoad(candidate.distanceToRoadMeters ?? null))
@@ -361,8 +434,14 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
 
     console.log(
       `[coolSpotOrchestrator] getViewpoints returning ${ranked.length} (${osmViewpoints.length} OSM, ${merged.length - osmViewpoints.length} computed, ` +
-        `${merged.length - landFiltered.length} excluded by land-use, ${landFiltered.length - ranked.length} excluded as unreachable by road)`
+        `deferred: roads)`
     )
+
+    // deferredRoads keeps running after we return (fire-and-forget) and
+    // already swallows its own errors above, so nothing further to do with
+    // it here - it just populates `roads`/the cache for whoever asks next.
+    void deferredRoads
+
     return ranked
   }
 

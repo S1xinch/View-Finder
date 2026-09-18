@@ -10,7 +10,8 @@ It surfaces "cool spots to drive to" by combining:
 - Curated viewpoints already tagged in OpenStreetMap (`tourism=viewpoint`, `natural=peak`, ...)
 - Computed local high points from elevation data, even where nothing is tagged
 - Road-reachability filtering, so results are places you can actually drive to
-- Exclusion of farmland/private-access land (best-effort, based on OSM tagging)
+- Exclusion of private/Indigenous land, using NSW's official Land Tenure data
+  where available (OSM tagging as a best-effort fallback elsewhere)
 - Turn-by-turn driving directions (or hand off to your phone's own maps app for real navigation)
 - Live GPS location and a satellite view toggle
 

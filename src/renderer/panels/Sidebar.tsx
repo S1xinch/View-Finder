@@ -117,12 +117,6 @@ const SHEET_MAX_VIEWPORT_FRACTION = 0.65
 // this only triggers when scroll is already at top AND they keep pulling.
 const OVERSCROLL_START_PX = 8
 
-// How long the list must have been sitting at scrollTop 0, with no
-// scrolling in between, before a pull-down is trusted as a deliberate
-// close gesture rather than residual momentum from the scroll that got
-// it there. Matches Vaul's own documented default for the same guard.
-const SCROLL_SETTLE_MS = 500
-
 function useSheetDrag(
   sheetRef: React.RefObject<HTMLElement | null>,
   scrollRef: React.RefObject<HTMLElement | null>,
@@ -169,19 +163,6 @@ function useSheetDrag(
   // the list has actually settled at its top, not as a side effect of the
   // scroll gesture that got it there.
   const topReachedYRef = useRef<number | null>(null)
-  // Timestamp of the last pointermove this touch that saw the list still
-  // genuinely scrollable (scrollTop >= 1). A fast scroll-to-top can still
-  // be carrying real momentum for a brief moment after scrollTop first
-  // hits 0 - momentum the browser is still actively resolving on its own,
-  // which is exactly when grabbing pointer capture is most likely to
-  // collide with native scroll handling and misfire (see the
-  // touch-action note in scrollHandlers below). Vaul (a widely-used
-  // production drawer library that solves this same scrollable-content-
-  // plus-drag-to-dismiss problem) guards against this with a settle
-  // window after the last scroll before it allows a close-drag to start;
-  // 500ms is its own documented default, kept the same here rather than
-  // guessing a different number.
-  const lastScrollingAtRef = useRef(0)
   const baseHeightRef = useRef(0)
   const peekHeightRef = useRef(0)
   const openHeightRef = useRef(0)
@@ -374,6 +355,16 @@ function useSheetDrag(
         startYRef.current = e.clientY
         startTimeRef.current = e.timeStamp
         activeSourceRef.current = null
+        // Defensive reset, not just an optimization: on a real touchscreen
+        // a previous gesture doesn't always deliver a matching pointerup/
+        // pointercancel (see cancelDrag's own comment on this), which can
+        // leave touch-action stuck at 'none' from a prior close-drag with
+        // nothing left to reset it - freezing this list's scrolling for
+        // every touch after that point ("worked once or twice, then
+        // stopped"). Clearing it unconditionally on every fresh touch-down
+        // means a missed cleanup on the last gesture can never carry over
+        // and break this one.
+        if (scrollRef.current) scrollRef.current.style.touchAction = ''
         // If the touch starts already at the top (a short list, or one
         // scrolled there before this touch began), the pull can be
         // measured from here right away - matches the original behavior
@@ -394,7 +385,6 @@ function useSheetDrag(
           // same touch (e.g. a bounce) should start measuring fresh, not
           // reuse a stale baseline from earlier in the gesture.
           topReachedYRef.current = null
-          lastScrollingAtRef.current = e.timeStamp
           return
         }
         if (topReachedYRef.current == null) {
@@ -404,25 +394,13 @@ function useSheetDrag(
           return
         }
         const pulledDown = e.clientY - topReachedYRef.current
-        const settledSinceScrolling = e.timeStamp - lastScrollingAtRef.current >= SCROLL_SETTLE_MS
-        if (pulledDown > OVERSCROLL_START_PX && settledSinceScrolling) {
+        if (pulledDown > OVERSCROLL_START_PX) {
           try {
             e.currentTarget.setPointerCapture(e.pointerId)
           } catch {
             /* not a real pointer session (e.g. a test) - ignore */
           }
           activeSourceRef.current = 'scroll'
-          // The list still has touch-action: auto (it has to, for normal
-          // scrolling) - which means the browser can still treat this
-          // same touch as its own native scroll/bounce gesture even after
-          // we've grabbed pointer capture, and fight our height changes or
-          // cancel the pointer sequence outright (see cancelDrag's own
-          // comment on this). Forcing it to 'none' for the rest of this
-          // gesture hands the browser off completely, the same way every
-          // other drag surface here already does (.sidebar__grabber,
-          // .sidebar__header, .sidebar--hidden) - reset once the gesture
-          // ends so normal scrolling comes back for the next touch.
-          scrollEl.style.touchAction = 'none'
           beginDrag(e.clientY, e.timeStamp)
           e.preventDefault()
         }

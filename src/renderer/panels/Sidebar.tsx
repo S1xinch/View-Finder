@@ -117,6 +117,12 @@ const SHEET_MAX_VIEWPORT_FRACTION = 0.65
 // this only triggers when scroll is already at top AND they keep pulling.
 const OVERSCROLL_START_PX = 8
 
+// How long the list must have been sitting at scrollTop 0, with no
+// scrolling in between, before a pull-down is trusted as a deliberate
+// close gesture rather than residual momentum from the scroll that got
+// it there. Matches Vaul's own documented default for the same guard.
+const SCROLL_SETTLE_MS = 500
+
 function useSheetDrag(
   sheetRef: React.RefObject<HTMLElement | null>,
   scrollRef: React.RefObject<HTMLElement | null>,
@@ -163,6 +169,19 @@ function useSheetDrag(
   // the list has actually settled at its top, not as a side effect of the
   // scroll gesture that got it there.
   const topReachedYRef = useRef<number | null>(null)
+  // Timestamp of the last pointermove this touch that saw the list still
+  // genuinely scrollable (scrollTop >= 1). A fast scroll-to-top can still
+  // be carrying real momentum for a brief moment after scrollTop first
+  // hits 0 - momentum the browser is still actively resolving on its own,
+  // which is exactly when grabbing pointer capture is most likely to
+  // collide with native scroll handling and misfire (see the
+  // touch-action note in scrollHandlers below). Vaul (a widely-used
+  // production drawer library that solves this same scrollable-content-
+  // plus-drag-to-dismiss problem) guards against this with a settle
+  // window after the last scroll before it allows a close-drag to start;
+  // 500ms is its own documented default, kept the same here rather than
+  // guessing a different number.
+  const lastScrollingAtRef = useRef(0)
   const baseHeightRef = useRef(0)
   const peekHeightRef = useRef(0)
   const openHeightRef = useRef(0)
@@ -375,6 +394,7 @@ function useSheetDrag(
           // same touch (e.g. a bounce) should start measuring fresh, not
           // reuse a stale baseline from earlier in the gesture.
           topReachedYRef.current = null
+          lastScrollingAtRef.current = e.timeStamp
           return
         }
         if (topReachedYRef.current == null) {
@@ -384,7 +404,8 @@ function useSheetDrag(
           return
         }
         const pulledDown = e.clientY - topReachedYRef.current
-        if (pulledDown > OVERSCROLL_START_PX) {
+        const settledSinceScrolling = e.timeStamp - lastScrollingAtRef.current >= SCROLL_SETTLE_MS
+        if (pulledDown > OVERSCROLL_START_PX && settledSinceScrolling) {
           try {
             e.currentTarget.setPointerCapture(e.pointerId)
           } catch {

@@ -399,32 +399,25 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
       throw new Error('No viewpoints found and elevation query failed')
     }
 
-    // Land-use and NSW tenure are exclusion filters (don't send someone onto
-    // private property), not scoring/quality ones - they're awaited before
-    // returning, even at the cost of some latency. This used to be a
-    // deferred fire-and-forget fetch like roads below, on the theory that a
-    // later pan would benefit from the now-warm cache. In practice it never
-    // filtered anything, on any pan: landUse/tenureByKey were local to this
-    // call, reset to empty every time, and the exclusion-filtering line
-    // always ran synchronously right after *starting* the fetch, before its
-    // first `await` inside had a chance to resolve - so every single
-    // getViewpoints call filtered against empty data, permanently. Found
-    // from a real field-test report: a peak NSW's own service classifies as
-    // Private was shown unfiltered and someone drove out to it.
-    const [landUse, tenureByKey] = await Promise.all([
+    // Land-use, NSW tenure, and roads are all awaited together before
+    // returning. Roads used to be a deferred fire-and-forget fetch, on the
+    // theory that road-reachability is just a "how good is this suggestion"
+    // quality signal and could arrive stale on the first response, catching
+    // up on a later pan. That reasoning doesn't hold up: `roads` was a plain
+    // local variable, reset to [] every call, and scoreCandidates() below
+    // ran synchronously right after *starting* the fetch, before its first
+    // `await` inside had a chance to resolve - so every single call scored
+    // against an empty roads list, permanently, not just "on the first
+    // response." That's the exact same bug landUse/tenureByKey already hit
+    // above (see git history) - it just showed up as every result saying
+    // "distance to road unknown" instead of a filtering miss. Folding roads
+    // into this same Promise.all fixes it while keeping the three fetches
+    // running in parallel, same total latency as the two-way version before.
+    const [landUse, tenureByKey, roads] = await Promise.all([
       getExcludedLandAreas(bbox, request.signal),
-      getTenureForCandidates(merged, request.signal)
+      getTenureForCandidates(merged, request.signal),
+      getRoads(bbox, request.signal).catch((): RoadSegment[] => [])
     ])
-
-    // Roads stay deferred - road-reachability is a "how good a suggestion
-    // is this" quality signal, not an access/safety one, so it's fine for
-    // it to arrive stale on the first response and catch up on a later pan.
-    let roads: RoadSegment[] = []
-    const deferredRoads = getRoads(bbox, request.signal)
-      .then((result) => {
-        roads = result
-      })
-      .catch(() => {})
 
     const landFiltered = filterExcludedTenure(filterExcludedLand(merged, landUse), tenureByKey)
     const scored = scoreCandidates(landFiltered, roads)
@@ -433,14 +426,8 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
       .sort((a, b) => b.score - a.score)
 
     console.log(
-      `[coolSpotOrchestrator] getViewpoints returning ${ranked.length} (${osmViewpoints.length} OSM, ${merged.length - osmViewpoints.length} computed, ` +
-        `deferred: roads)`
+      `[coolSpotOrchestrator] getViewpoints returning ${ranked.length} (${osmViewpoints.length} OSM, ${merged.length - osmViewpoints.length} computed)`
     )
-
-    // deferredRoads keeps running after we return (fire-and-forget) and
-    // already swallows its own errors above, so nothing further to do with
-    // it here - it just populates `roads`/the cache for whoever asks next.
-    void deferredRoads
 
     return ranked
   }

@@ -402,6 +402,28 @@ function useSheetDrag(
           return
         }
         const pulledDown = e.clientY - topReachedYRef.current
+        // Only ever mattered for a genuinely long list: with plenty of
+        // scrollable content, the browser's own compositor-thread scroll
+        // recognizer can claim a downward drag as its own native scroll
+        // (even though there's nothing left to scroll to, sitting at the
+        // top) before this handler ever gets to decide anything - calling
+        // preventDefault only once OVERSCROLL_START_PX was already
+        // crossed was too late to still cancel that by then, which is
+        // exactly the difference between this working reliably from a
+        // <button> (real interactive elements get their own tap-vs-scroll
+        // disambiguation delay from the browser, buying this handler a
+        // little more time) and silently doing nothing from plain text/
+        // empty space, only once there was enough content to make the
+        // container genuinely scrollable in the first place - a short or
+        // empty list never gave the browser a reason to claim the
+        // gesture, so it worked from anywhere regardless. Calling this on
+        // every downward move while already pinned to the top - not just
+        // once the close-pull is confirmed - denies the browser that head
+        // start; upward movement (scrolling normally back into the list)
+        // is left untouched.
+        if (pulledDown > 0) {
+          e.preventDefault()
+        }
         if (pulledDown > OVERSCROLL_START_PX) {
           try {
             e.currentTarget.setPointerCapture(e.pointerId)
@@ -410,7 +432,6 @@ function useSheetDrag(
           }
           activeSourceRef.current = 'scroll'
           beginDrag(e.clientY, e.timeStamp)
-          e.preventDefault()
         }
       },
       onPointerUp: (e) => {

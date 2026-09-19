@@ -160,21 +160,21 @@ function useSheetDrag(
   const pointerHandledAtRef = useRef(0)
   const startYRef = useRef<number | null>(null)
   const startTimeRef = useRef(0)
-  // Y position at the moment the scroll container first reached scrollTop 0
-  // during the current touch, not wherever the finger originally touched
-  // down. Without this, pulledDown (below) was measured from the original
-  // touch-down point - fine for a short list where you're never far from
-  // the top, but on a long list, scrolling from the middle up to the top
-  // already moves the finger past OVERSCROLL_START_PX by the time the list
-  // gets there, triggering an instant handoff to closing while the list is
-  // still mid-scroll/momentum. The browser can respond to a pointer capture
-  // grabbed in the middle of its own native scroll by firing pointercancel
-  // instead of continuing - cancelDrag() then abandons the gesture without
-  // closing, which is exactly the "bugs out and doesn't close" symptom.
-  // Re-baselining here means a real close-pull always has to happen after
-  // the list has actually settled at its top, not as a side effect of the
-  // scroll gesture that got it there.
-  const topReachedYRef = useRef<number | null>(null)
+  // scrollTop at the moment the current touch began on the list. Repeated
+  // attempts to fix this by reacting to the *browser's own* scrollTop
+  // (waiting for it to settle at 0, then measuring a pull from there) kept
+  // failing in different ways - the real problem was relying on native
+  // touch-scrolling at all. A genuinely long list is exactly the case
+  // where the browser's own compositor claims a touch as its own native
+  // scroll gesture before this handler ever gets a say (confirmed via a
+  // debug overlay on a real device: touching blank space fired an
+  // immediate pointercancel; touching a real button/link didn't, because
+  // interactive elements get their own brief tap-vs-scroll grace delay
+  // from the browser that plain content doesn't). scrollHandlers now
+  // drives scrollTop itself from this baseline instead of trusting native
+  // scrolling to do it - see onPointerMove - so there's no native gesture
+  // left to race against in the first place.
+  const startScrollTopRef = useRef(0)
   const baseHeightRef = useRef(0)
   const peekHeightRef = useRef(0)
   const openHeightRef = useRef(0)
@@ -285,15 +285,10 @@ function useSheetDrag(
     // being cancelled - a stray cancel from ordinary scrolling, which
     // never touched activeSourceRef, has nothing on the sheet to undo.
     const wasDragging = activeSourceRef.current !== null
-    logEvent(`CANCEL wasDragging=${wasDragging} wasTrackingTop=${topReachedYRef.current != null}`)
+    logEvent(`CANCEL wasDragging=${wasDragging}`)
     startYRef.current = null
     activeSourceRef.current = null
-    topReachedYRef.current = null
     pointerHandledAtRef.current = timeStamp
-    // Undo the scroll handoff's touch-action override regardless of
-    // wasDragging below - a cancel can arrive after the override was set
-    // but before a matching onPointerUp gets the chance to clear it.
-    if (scrollRef.current) scrollRef.current.style.touchAction = ''
     if (!el || !wasDragging) return
     el.style.transition = ''
     el.style.height = ''
@@ -376,75 +371,47 @@ function useSheetDrag(
         startYRef.current = e.clientY
         startTimeRef.current = e.timeStamp
         activeSourceRef.current = null
-        // Defensive reset, not just an optimization: on a real touchscreen
-        // a previous gesture doesn't always deliver a matching pointerup/
-        // pointercancel (see cancelDrag's own comment on this), which can
-        // leave touch-action stuck at 'none' from a prior close-drag with
-        // nothing left to reset it - freezing this list's scrolling for
-        // every touch after that point ("worked once or twice, then
-        // stopped"). Clearing it unconditionally on every fresh touch-down
-        // means a missed cleanup on the last gesture can never carry over
-        // and break this one.
-        if (scrollRef.current) scrollRef.current.style.touchAction = ''
-        // If the touch starts already at the top (a short list, or one
-        // scrolled there before this touch began), the pull can be
-        // measured from here right away - matches the original behavior
-        // for that case.
-        topReachedYRef.current = scrollRef.current && scrollRef.current.scrollTop < 1 ? e.clientY : null
+        startScrollTopRef.current = scrollRef.current ? scrollRef.current.scrollTop : 0
         logEvent(
           `DOWN tgt=${(e.target as HTMLElement).tagName}.${(e.target as HTMLElement).className.toString().slice(0, 20)} top=${scrollRef.current?.scrollTop}`
         )
       },
+      // touch-action: none on .sidebar__scroll (mobile - see global.css)
+      // means the browser never touches this element's scrolling at all
+      // on touch, so this drives scrollTop itself from the fixed
+      // pointerdown baseline instead of reading back whatever the browser
+      // decided: dragging within bounds scrolls the list exactly like
+      // native scrolling would, and the exact instant the drag would pull
+      // scrollTop negative, that excess becomes the close-drag distance
+      // instead - one continuous calculation, not two mechanisms handing
+      // off to each other. This is also what a scroll-to-top-mid-gesture
+      // needs (see startScrollTopRef's own comment): the overscroll
+      // amount is always "how far past the boundary", never "how far
+      // the finger has moved in total", so it's naturally zero at the
+      // exact moment the top is reached regardless of how far the list
+      // had to scroll to get there.
       onPointerMove: (e) => {
         const scrollEl = scrollRef.current
         if (!scrollEl || startYRef.current == null) return
         if (activeSourceRef.current === 'scroll') {
           e.preventDefault()
           updateDrag(e.clientY)
-          logEvent(`MOVE(drag) dy=${Math.round(e.clientY - (topReachedYRef.current ?? 0))}`)
+          logEvent(`MOVE(drag) dy=${Math.round(e.clientY - (startYRef.current ?? 0))}`)
           return
         }
         if (activeSourceRef.current !== null) return
-        if (scrollEl.scrollTop >= 1) {
-          // Scrolled back away from the top - a later arrival there this
-          // same touch (e.g. a bounce) should start measuring fresh, not
-          // reuse a stale baseline from earlier in the gesture.
-          if (topReachedYRef.current != null) logEvent(`MOVE left-top top=${scrollEl.scrollTop}`)
-          topReachedYRef.current = null
+        e.preventDefault()
+        const dy = e.clientY - startYRef.current
+        const desiredScrollTop = startScrollTopRef.current - dy
+        if (desiredScrollTop > 0) {
+          scrollEl.scrollTop = desiredScrollTop
+          logEvent(`MOVE scroll->${Math.round(desiredScrollTop)}`)
           return
         }
-        if (topReachedYRef.current == null) {
-          // Just reached the top this gesture - start measuring the pull
-          // from here rather than from the original touch-down point.
-          topReachedYRef.current = e.clientY
-          logEvent(`MOVE reached-top top=${scrollEl.scrollTop}`)
-          return
-        }
-        const pulledDown = e.clientY - topReachedYRef.current
-        logEvent(`MOVE pull=${Math.round(pulledDown)} top=${scrollEl.scrollTop}`)
-        // Only ever mattered for a genuinely long list: with plenty of
-        // scrollable content, the browser's own compositor-thread scroll
-        // recognizer can claim a downward drag as its own native scroll
-        // (even though there's nothing left to scroll to, sitting at the
-        // top) before this handler ever gets to decide anything - calling
-        // preventDefault only once OVERSCROLL_START_PX was already
-        // crossed was too late to still cancel that by then, which is
-        // exactly the difference between this working reliably from a
-        // <button> (real interactive elements get their own tap-vs-scroll
-        // disambiguation delay from the browser, buying this handler a
-        // little more time) and silently doing nothing from plain text/
-        // empty space, only once there was enough content to make the
-        // container genuinely scrollable in the first place - a short or
-        // empty list never gave the browser a reason to claim the
-        // gesture, so it worked from anywhere regardless. Calling this on
-        // every downward move while already pinned to the top - not just
-        // once the close-pull is confirmed - denies the browser that head
-        // start; upward movement (scrolling normally back into the list)
-        // is left untouched.
-        if (pulledDown > 0) {
-          e.preventDefault()
-        }
-        if (pulledDown > OVERSCROLL_START_PX) {
+        scrollEl.scrollTop = 0
+        const overscrolled = -desiredScrollTop
+        logEvent(`MOVE overscroll=${Math.round(overscrolled)}`)
+        if (overscrolled > OVERSCROLL_START_PX) {
           try {
             e.currentTarget.setPointerCapture(e.pointerId)
           } catch {
@@ -461,7 +428,6 @@ function useSheetDrag(
         // correct even if that changes later.
         pointerHandledAtRef.current = e.timeStamp
         logEvent(`UP act=${activeSourceRef.current}`)
-        topReachedYRef.current = null
         if (activeSourceRef.current !== 'scroll') {
           startYRef.current = null
           return
@@ -471,7 +437,6 @@ function useSheetDrag(
         } catch {
           /* already released, or never really captured - ignore */
         }
-        if (scrollRef.current) scrollRef.current.style.touchAction = ''
         endDrag(e.clientY, e.timeStamp)
       },
       onPointerCancel: (e) => cancelDrag(e.timeStamp)

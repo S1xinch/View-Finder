@@ -163,10 +163,25 @@ button:not(:disabled):active {
   transform: scale(0.96);
 }
 
+/* .sidebar__scroll sets touch-action: none on mobile (see its own
+   comment in global.css) so it can drive its own scrolling manually in
+   JS instead of racing the browser for gesture ownership. That would
+   otherwise reach every descendant that doesn't set its own touch-action
+   - <button> already gets manipulation above, but a native range slider
+   thumb-drag and a <label>'s tap-forwarding to the checkbox it wraps are
+   both browser-native touch behaviors too, and touch-action: none on an
+   ancestor can suppress those exactly like it can suppress a synthetic
+   click - breaking the elevation/road-distance sliders and the filter
+   chips silently. */
+input[type='range'] {
+  touch-action: manipulation;
+}
+
 /* Same press feedback for the filter chips - a <label> wrapping a
    visually-hidden checkbox (see .sidebar__checkbox below), not a real
    button, so the generic rule above doesn't reach it. */
 .sidebar__checkbox {
+  touch-action: manipulation;
   transition: transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -814,6 +829,26 @@ button:not(:disabled):active {
 
   .sidebar__footer a {
     touch-action: manipulation;
+  }
+
+  /* Static, permanent - not toggled at runtime. An earlier attempt at
+     this exact interaction dynamically flipped touch-action on and off
+     in JS mid-gesture, which is genuinely unreliable across browsers
+     (can silently disrupt event delivery) and caused its own "works
+     once, then stops" regression. This is the opposite approach: the
+     browser never owns any touch-driven scrolling on this element at
+     all, ever, on mobile - useSheetDrag's scrollHandlers drives
+     scrollTop itself in JS instead (see its own comment). That's what
+     actually fixes the real bug this was chasing: on a long list, the
+     browser's own compositor can silently claim a touch as native
+     scrolling before JS ever gets a say (confirmed via a debug overlay
+     on a real device - a real <button>/<a> gets a brief tap-vs-scroll
+     grace delay from the browser that plain content doesn't, which is
+     why the close-gesture worked reliably from a button/row but not
+     from blank space). With no native gesture left to claim here at
+     all, there's nothing left to race. */
+  .sidebar__scroll {
+    touch-action: none;
   }
 
   /* iOS Safari auto-zooms the whole page on focusing any input whose

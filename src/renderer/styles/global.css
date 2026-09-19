@@ -798,6 +798,24 @@ button:not(:disabled):active {
     touch-action: none;
   }
 
+  /* Same drag surface treatment for the footer at the bottom of the open
+     sheet (see the matching comment in useSheetDrag's onDragZone) - it
+     sits outside .sidebar__scroll, so without this a close-drag starting
+     there had no touch-action override and could lose the gesture to the
+     browser's own pan handling the same way the header once did. Its
+     links need their own explicit override back to a normal touch-action:
+     unlike <button>, <a> has no such global rule elsewhere in this file,
+     and this container's touch-action: none would otherwise suppress the
+     synthetic click a real tap on GitHub/download/troubleshooting relies
+     on. */
+  .sidebar__footer {
+    touch-action: none;
+  }
+
+  .sidebar__footer a {
+    touch-action: manipulation;
+  }
+
   /* iOS Safari auto-zooms the whole page on focusing any input whose
      computed font-size is under 16px - the search box's normal 13px is
      exactly small enough to trigger that, and the zoom sticks around

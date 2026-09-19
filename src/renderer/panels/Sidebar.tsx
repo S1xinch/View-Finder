@@ -289,13 +289,21 @@ function useSheetDrag(
   return {
     // The grabber + header row (logo, empty space - real controls like
     // the collapse button are excluded) are a drag surface at all times,
-    // open or collapsed. This is the "always works" zone; scrollHandlers
-    // below covers the rest of the open sheet via overscroll instead.
+    // open or collapsed - same for the footer (GitHub/download/
+    // troubleshooting links) at the bottom of the open sheet, which sits
+    // outside .sidebar__scroll (see its own comment) and so isn't covered
+    // by scrollHandlers' overscroll-to-close either. Without this, the
+    // footer was a dead zone once open: not the always-on zone (header/
+    // grabber only) and not part of the scrollable content, so a
+    // close-drag starting there did nothing at all - the sheet only
+    // responded to a swipe started at the top, never lower down. This is
+    // the "always works" zone; scrollHandlers below covers the rest of
+    // the open sheet via overscroll instead.
     zoneHandlers: {
       onPointerDown: (e) => {
         const target = e.target as HTMLElement
         if (target.closest('input, button, a, textarea, select')) return
-        const onDragZone = target.closest('.sidebar__grabber, .sidebar__header') != null
+        const onDragZone = target.closest('.sidebar__grabber, .sidebar__header, .sidebar__footer') != null
         if (!onDragZone && open) return
         try {
           e.currentTarget.setPointerCapture(e.pointerId)

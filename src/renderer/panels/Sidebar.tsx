@@ -136,7 +136,19 @@ function useSheetDrag(
     onPointerUp: (e: React.PointerEvent) => void
     onPointerCancel: (e: React.PointerEvent) => void
   }
+  // TEMPORARY - remove once the blank-space swipe-to-close bug is
+  // actually diagnosed. Real touchscreen gesture arbitration (whether
+  // the browser silently claims a touch as its own scroll before our
+  // handlers get a say) can't be reproduced by synthetic testing in a
+  // desktop browser, so this surfaces what's actually happening on a
+  // real device directly in the UI instead of guessing blind again.
+  debugLog: string[]
 } {
+  const [debugLog, setDebugLog] = useState<string[]>([])
+  const logEvent = (msg: string): void => {
+    setDebugLog((prev) => [...prev.slice(-13), `${new Date().toISOString().slice(14, 23)} ${msg}`])
+  }
+
   // A timestamp, not a one-shot boolean: clicking a <label> (the filter
   // chips) makes the browser fire a SECOND click, forwarded to the
   // checkbox it wraps, for one physical tap. A boolean flag that resets
@@ -273,6 +285,7 @@ function useSheetDrag(
     // being cancelled - a stray cancel from ordinary scrolling, which
     // never touched activeSourceRef, has nothing on the sheet to undo.
     const wasDragging = activeSourceRef.current !== null
+    logEvent(`CANCEL wasDragging=${wasDragging} wasTrackingTop=${topReachedYRef.current != null}`)
     startYRef.current = null
     activeSourceRef.current = null
     topReachedYRef.current = null
@@ -378,6 +391,9 @@ function useSheetDrag(
         // measured from here right away - matches the original behavior
         // for that case.
         topReachedYRef.current = scrollRef.current && scrollRef.current.scrollTop < 1 ? e.clientY : null
+        logEvent(
+          `DOWN tgt=${(e.target as HTMLElement).tagName}.${(e.target as HTMLElement).className.toString().slice(0, 20)} top=${scrollRef.current?.scrollTop}`
+        )
       },
       onPointerMove: (e) => {
         const scrollEl = scrollRef.current
@@ -385,6 +401,7 @@ function useSheetDrag(
         if (activeSourceRef.current === 'scroll') {
           e.preventDefault()
           updateDrag(e.clientY)
+          logEvent(`MOVE(drag) dy=${Math.round(e.clientY - (topReachedYRef.current ?? 0))}`)
           return
         }
         if (activeSourceRef.current !== null) return
@@ -392,6 +409,7 @@ function useSheetDrag(
           // Scrolled back away from the top - a later arrival there this
           // same touch (e.g. a bounce) should start measuring fresh, not
           // reuse a stale baseline from earlier in the gesture.
+          if (topReachedYRef.current != null) logEvent(`MOVE left-top top=${scrollEl.scrollTop}`)
           topReachedYRef.current = null
           return
         }
@@ -399,9 +417,11 @@ function useSheetDrag(
           // Just reached the top this gesture - start measuring the pull
           // from here rather than from the original touch-down point.
           topReachedYRef.current = e.clientY
+          logEvent(`MOVE reached-top top=${scrollEl.scrollTop}`)
           return
         }
         const pulledDown = e.clientY - topReachedYRef.current
+        logEvent(`MOVE pull=${Math.round(pulledDown)} top=${scrollEl.scrollTop}`)
         // Only ever mattered for a genuinely long list: with plenty of
         // scrollable content, the browser's own compositor-thread scroll
         // recognizer can claim a downward drag as its own native scroll
@@ -440,6 +460,7 @@ function useSheetDrag(
         // the only one to set it) - belt and suspenders so this stays
         // correct even if that changes later.
         pointerHandledAtRef.current = e.timeStamp
+        logEvent(`UP act=${activeSourceRef.current}`)
         topReachedYRef.current = null
         if (activeSourceRef.current !== 'scroll') {
           startYRef.current = null
@@ -454,7 +475,8 @@ function useSheetDrag(
         endDrag(e.clientY, e.timeStamp)
       },
       onPointerCancel: (e) => cancelDrag(e.timeStamp)
-    }
+    },
+    debugLog
   }
 }
 
@@ -540,7 +562,7 @@ export function Sidebar(): React.JSX.Element {
   // and needs no drag at all: it's a plain click target there.
   const sheetRef = useRef<HTMLElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const { zoneHandlers, scrollHandlers } = useSheetDrag(sheetRef, scrollRef, sidebarOpen, setSidebarOpen)
+  const { zoneHandlers, scrollHandlers, debugLog } = useSheetDrag(sheetRef, scrollRef, sidebarOpen, setSidebarOpen)
 
   // The collapsed sheet should peek exactly far enough to show everything
   // down to the bottom of the search field. Measuring that (rather than
@@ -600,6 +622,33 @@ export function Sidebar(): React.JSX.Element {
 
   return (
     <>
+      {/* TEMPORARY gesture debug overlay - remove once the blank-space
+          swipe-to-close bug is diagnosed. pointerEvents: none so it never
+          blocks the actual gesture being tested underneath it. */}
+      {debugLog.length > 0 && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 9999,
+            maxHeight: '40vh',
+            overflow: 'hidden',
+            background: 'rgba(0,0,0,0.85)',
+            color: '#0f0',
+            fontFamily: 'monospace',
+            fontSize: '10px',
+            lineHeight: 1.4,
+            padding: '4px 6px',
+            pointerEvents: 'none',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-all'
+          }}
+        >
+          {debugLog.join('\n')}
+        </div>
+      )}
       {/* Desktop and landscape only - phone portrait hides this entirely
           (see global.css) because there the sheet itself stays on screen,
           peeking, instead of being replaced by a separate control. */}

@@ -118,6 +118,17 @@ const SHEET_MAX_VIEWPORT_FRACTION = 0.65
 // this only triggers when scroll is already at top AND they keep pulling.
 const OVERSCROLL_START_PX = 8
 
+// Momentum for the manually-driven list scroll (see scrollHandlers) - the
+// browser's own inertia is gone once it no longer owns the scrolling, so a
+// flick has to be continued here. Friction matches iOS's normal
+// deceleration rate (0.998 per ms); only the last ~100ms of movement
+// counts, so a finger that stops before lifting doesn't fling.
+const MOMENTUM_FRICTION_PER_MS = 0.998
+const MOMENTUM_SAMPLE_WINDOW_MS = 100
+const MOMENTUM_START_PX_PER_MS = 0.2
+const MOMENTUM_STOP_PX_PER_MS = 0.02
+const MOMENTUM_MAX_PX_PER_MS = 8
+
 function useSheetDrag(
   sheetRef: React.RefObject<HTMLElement | null>,
   scrollRef: React.RefObject<HTMLElement | null>,
@@ -136,6 +147,7 @@ function useSheetDrag(
     onPointerMove: (e: React.PointerEvent) => void
     onPointerUp: (e: React.PointerEvent) => void
     onPointerCancel: (e: React.PointerEvent) => void
+    onClickCapture: (e: React.MouseEvent) => void
   }
 } {
   // A timestamp, not a one-shot boolean: clicking a <label> (the filter
@@ -172,10 +184,42 @@ function useSheetDrag(
   // container) - only that one's pointerup/pointermove should act on it,
   // since both handler sets can see events bubbling through the sheet.
   const activeSourceRef = useRef<'zone' | 'scroll' | null>(null)
+  const moveSamplesRef = useRef<{ y: number; t: number }[]>([])
+  const momentumFrameRef = useRef<number | null>(null)
+  // A tap that stops a gliding list shouldn't also activate the row under
+  // the finger - same as native scrolling.
+  const suppressClickRef = useRef(false)
+
+  const stopMomentum = (): boolean => {
+    if (momentumFrameRef.current == null) return false
+    cancelAnimationFrame(momentumFrameRef.current)
+    momentumFrameRef.current = null
+    return true
+  }
+
+  const startMomentum = (scrollEl: HTMLElement, initialVelocity: number): void => {
+    let velocity = Math.max(-MOMENTUM_MAX_PX_PER_MS, Math.min(MOMENTUM_MAX_PX_PER_MS, initialVelocity))
+    let last = performance.now()
+    const step = (now: number): void => {
+      const dt = Math.max(0, now - last)
+      last = now
+      velocity *= Math.pow(MOMENTUM_FRICTION_PER_MS, dt)
+      const max = scrollEl.scrollHeight - scrollEl.clientHeight
+      const next = Math.min(Math.max(scrollEl.scrollTop + velocity * dt, 0), max)
+      scrollEl.scrollTop = next
+      if (Math.abs(velocity) < MOMENTUM_STOP_PX_PER_MS || next <= 0 || next >= max) {
+        momentumFrameRef.current = null
+        return
+      }
+      momentumFrameRef.current = requestAnimationFrame(step)
+    }
+    momentumFrameRef.current = requestAnimationFrame(step)
+  }
 
   useEffect(
     () => () => {
       if (settleTimerRef.current) clearTimeout(settleTimerRef.current)
+      if (momentumFrameRef.current != null) cancelAnimationFrame(momentumFrameRef.current)
     },
     []
   )
@@ -356,6 +400,8 @@ function useSheetDrag(
         // pulled. Whether this becomes a real drag is still decided later,
         // in onPointerMove, purely from actual movement + scrollTop.
         if (!open) return
+        suppressClickRef.current = stopMomentum()
+        moveSamplesRef.current = []
         // A slider/checkbox owns its own drag - otherwise any vertical drift
         // while sliding gets read as scroll/close-drag movement.
         if ((e.target as HTMLElement).closest('input, select, textarea')) {
@@ -391,6 +437,9 @@ function useSheetDrag(
         }
         if (activeSourceRef.current !== null) return
         e.preventDefault()
+        const samples = moveSamplesRef.current
+        samples.push({ y: e.clientY, t: e.timeStamp })
+        while (samples.length > 2 && e.timeStamp - samples[0].t > MOMENTUM_SAMPLE_WINDOW_MS) samples.shift()
         const dy = e.clientY - startYRef.current
         const desiredScrollTop = startScrollTopRef.current - dy
         if (desiredScrollTop > 0) {
@@ -416,7 +465,17 @@ function useSheetDrag(
         // correct even if that changes later.
         pointerHandledAtRef.current = e.timeStamp
         if (activeSourceRef.current !== 'scroll') {
+          const wasScrolling = startYRef.current != null
           startYRef.current = null
+          const scrollEl = scrollRef.current
+          if (!wasScrolling || !scrollEl || e.pointerType !== 'touch') return
+          const recent = moveSamplesRef.current.filter((s) => e.timeStamp - s.t <= MOMENTUM_SAMPLE_WINDOW_MS)
+          moveSamplesRef.current = []
+          if (recent.length < 2) return
+          const first = recent[0]
+          const last = recent[recent.length - 1]
+          const velocity = (first.y - last.y) / Math.max(1, last.t - first.t)
+          if (Math.abs(velocity) >= MOMENTUM_START_PX_PER_MS) startMomentum(scrollEl, velocity)
           return
         }
         try {
@@ -426,7 +485,13 @@ function useSheetDrag(
         }
         endDrag(e.clientY, e.timeStamp)
       },
-      onPointerCancel: (e) => cancelDrag(e.timeStamp)
+      onPointerCancel: (e) => cancelDrag(e.timeStamp),
+      onClickCapture: (e) => {
+        if (!suppressClickRef.current) return
+        suppressClickRef.current = false
+        e.preventDefault()
+        e.stopPropagation()
+      }
     }
   }
 }

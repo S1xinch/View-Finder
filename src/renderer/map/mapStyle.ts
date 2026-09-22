@@ -19,6 +19,40 @@ export const DEFAULT_VIEW = {
   zoom: 1.5
 }
 
+// Every base-style paint override below goes through this, remembering the
+// style's own original value the first time a property is touched - so a
+// light<->dark switch mid-session (e.g. iOS automatic appearance at
+// sunrise) can put the base style back before applying the other theme's
+// tweaks, instead of the new theme only partially overwriting the old one.
+type PaintProperty = Parameters<MapLibreMap['getPaintProperty']>[1]
+type PaintValue = Parameters<MapLibreMap['setPaintProperty']>[2]
+
+const originalPaint = new WeakMap<MapLibreMap, Map<string, [string, PaintProperty, PaintValue]>>()
+
+function setTrackedPaint(map: MapLibreMap, layerId: string, property: PaintProperty, value: PaintValue): void {
+  let originals = originalPaint.get(map)
+  if (!originals) {
+    originals = new Map()
+    originalPaint.set(map, originals)
+  }
+  const key = `${layerId}|${property}`
+  if (!originals.has(key)) originals.set(key, [layerId, property, map.getPaintProperty(layerId, property) as PaintValue])
+  map.setPaintProperty(layerId, property, value)
+}
+
+export function restoreBasePaint(map: MapLibreMap): void {
+  const originals = originalPaint.get(map)
+  if (!originals) return
+  for (const [layerId, property, value] of originals.values()) {
+    try {
+      map.setPaintProperty(layerId, property, value)
+    } catch {
+      // Same tolerance as the tweak passes themselves.
+    }
+  }
+  originals.clear()
+}
+
 // The positron style's default road rendering (light grey/white, minimal)
 // meant minor roads and tracks (e.g. fire trails, common in AU bushland)
 // were nearly the same color as the surrounding terrain - you couldn't
@@ -40,8 +74,8 @@ export function boostRoadContrast(map: MapLibreMap, color = ROAD_CONTRAST_COLOR)
     if (!('source-layer' in layer) || layer['source-layer'] !== 'transportation') continue
 
     try {
-      map.setPaintProperty(layer.id, 'line-color', color)
-      map.setPaintProperty(layer.id, 'line-opacity', 1)
+      setTrackedPaint(map, layer.id, 'line-color', color)
+      setTrackedPaint(map, layer.id, 'line-opacity', 1)
     } catch {
       // A handful of transportation-layer lines (e.g. patterned casings)
       // may not accept a flat line-color - skip those rather than let one
@@ -67,9 +101,9 @@ export function applyAppleStyleTweaks(map: MapLibreMap): void {
 
     try {
       if (layer['source-layer'] === 'water') {
-        map.setPaintProperty(layer.id, 'fill-color', WATER_TINT)
+        setTrackedPaint(map, layer.id, 'fill-color', WATER_TINT)
       } else if (layer['source-layer'] === 'landcover') {
-        map.setPaintProperty(layer.id, 'fill-color', LANDCOVER_TINT)
+        setTrackedPaint(map, layer.id, 'fill-color', LANDCOVER_TINT)
       }
     } catch {
       // Pattern-filled layers may not accept a flat fill-color - skip
@@ -104,7 +138,7 @@ export function applyDarkMapTweaks(map: MapLibreMap): void {
   for (const layer of style.layers) {
     try {
       if (layer.type === 'background') {
-        map.setPaintProperty(layer.id, 'background-color', DARK_BACKGROUND)
+        setTrackedPaint(map, layer.id, 'background-color', DARK_BACKGROUND)
         continue
       }
       // GeoJSON-sourced layers (this app's own private-land overlay, route
@@ -115,8 +149,8 @@ export function applyDarkMapTweaks(map: MapLibreMap): void {
       if (layer.type === 'fill' || layer.type === 'fill-extrusion') {
         const sourceLayer = layer['source-layer']
         const property = layer.type === 'fill' ? 'fill-color' : 'fill-extrusion-color'
-        if (sourceLayer === 'water') map.setPaintProperty(layer.id, property, DARK_WATER)
-        else if (sourceLayer === 'building') map.setPaintProperty(layer.id, property, DARK_BUILDING)
+        if (sourceLayer === 'water') setTrackedPaint(map, layer.id, property, DARK_WATER)
+        else if (sourceLayer === 'building') setTrackedPaint(map, layer.id, property, DARK_BUILDING)
         // Catch-all for every other land fill (landcover, landuse, park,
         // aeroway, cemetery, and anything else OpenMapTiles' schema adds
         // that isn't individually named here) - without a fallback, any
@@ -125,14 +159,14 @@ export function applyDarkMapTweaks(map: MapLibreMap): void {
         // patch against the dark basemap. A flat dark ground for all of
         // these, with water/roads/buildings/labels carrying the visual
         // hierarchy, is the same simplification most dark map styles make.
-        else map.setPaintProperty(layer.id, property, DARK_GROUND)
+        else setTrackedPaint(map, layer.id, property, DARK_GROUND)
       } else if (layer.type === 'symbol') {
         // Label halo flips dark<->light along with the basemap so text
         // stays legible against the new background instead of vanishing
         // (a light halo on a light style, kept as-is on a dark one, would
         // blend straight into the dark ground behind the text).
-        map.setPaintProperty(layer.id, 'text-color', DARK_LABEL_TEXT)
-        map.setPaintProperty(layer.id, 'text-halo-color', DARK_LABEL_HALO)
+        setTrackedPaint(map, layer.id, 'text-color', DARK_LABEL_TEXT)
+        setTrackedPaint(map, layer.id, 'text-halo-color', DARK_LABEL_HALO)
       }
     } catch {
       // As elsewhere in this file: a handful of pattern-filled or

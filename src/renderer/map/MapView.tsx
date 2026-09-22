@@ -9,6 +9,7 @@ import {
   applyAppleStyleTweaks,
   applyDarkMapTweaks,
   boostRoadContrast,
+  restoreBasePaint,
   setSatelliteVisible
 } from './mapStyle'
 import { LocateControl } from './LocateControl'
@@ -58,6 +59,7 @@ export function MapView(): React.JSX.Element {
     map.addControl(new LocateControl(), 'bottom-right')
 
     const applyBaseStyleTweaks = (): void => {
+      restoreBasePaint(map)
       if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
         applyDarkMapTweaks(map)
       } else {

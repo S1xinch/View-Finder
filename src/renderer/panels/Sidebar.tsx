@@ -4,6 +4,7 @@ import { CATEGORY_COLOR, CATEGORY_LABEL } from '../map/categoryStyle'
 import { DirectionsView } from './DirectionsView'
 import { SearchBar } from './SearchBar'
 import { SavedLocations } from './SavedLocations'
+import { visibleCenterOffset } from '../map/mapInsets'
 import type { Viewpoint } from '@shared/ipcContract'
 
 // Most fetches (especially cache hits, common while re-panning over
@@ -355,6 +356,12 @@ function useSheetDrag(
         // pulled. Whether this becomes a real drag is still decided later,
         // in onPointerMove, purely from actual movement + scrollTop.
         if (!open) return
+        // A slider/checkbox owns its own drag - otherwise any vertical drift
+        // while sliding gets read as scroll/close-drag movement.
+        if ((e.target as HTMLElement).closest('input, select, textarea')) {
+          startYRef.current = null
+          return
+        }
         startYRef.current = e.clientY
         startTimeRef.current = e.timeStamp
         activeSourceRef.current = null
@@ -561,7 +568,13 @@ export function Sidebar(): React.JSX.Element {
   const computedCount = viewpoints.length - osmCount
 
   const flyTo = (vp: Viewpoint): void => {
-    map?.flyTo({ center: [vp.lng, vp.lat], zoom: Math.max(map.getZoom(), 14), duration: 800 })
+    if (!map) return
+    map.flyTo({
+      center: [vp.lng, vp.lat],
+      zoom: Math.max(map.getZoom(), 14),
+      offset: visibleCenterOffset(map),
+      duration: 800
+    })
   }
 
   return (

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useViewFinderStore } from '../state/store'
 import type { PlaceResult } from '@shared/ipcContract'
+import { visibleCenterOffset, visiblePadding } from '../map/mapInsets'
 
 // A real network request per keystroke would hammer Nominatim's free
 // public instance well past its 1-request/second fair-use policy - this
@@ -76,10 +77,15 @@ export function SearchBar(): React.JSX.Element {
           [place.boundingBox.west, place.boundingBox.south],
           [place.boundingBox.east, place.boundingBox.north]
         ],
-        { padding: 48, duration: 800 }
+        { padding: visiblePadding(map), duration: 800 }
       )
     } else {
-      map.flyTo({ center: [place.lng, place.lat], zoom: Math.max(map.getZoom(), 13), duration: 800 })
+      map.flyTo({
+        center: [place.lng, place.lat],
+        zoom: Math.max(map.getZoom(), 13),
+        offset: visibleCenterOffset(map),
+        duration: 800
+      })
     }
 
     setQuery(place.name)

@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import type { GeoJSONSource } from 'maplibre-gl'
 import { useViewFinderStore } from '../state/store'
 import type { RouteResult, Viewpoint } from '@shared/ipcContract'
+import { visiblePadding } from './mapInsets'
 
 const SOURCE_ID = 'route'
 const CASING_LAYER_ID = 'route-casing'
@@ -155,7 +156,7 @@ export function RouteLayer(): null {
         [west, south],
         [east, north]
       ],
-      { padding: { top: 60, bottom: 60, left: 360, right: 60 }, duration: 800 }
+      { padding: visiblePadding(map), duration: 800 }
     )
   }, [map, route, routeDestination])
 

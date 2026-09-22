@@ -29,7 +29,7 @@ function openDb(): Promise<IDBDatabase> {
 // persistent cache that survives across page loads (a plain
 // MemoryCacheStore alone starts cold on every visit), so panning back to
 // an area you already visited last time you had the site open is an
-// instant local read instead of a fresh Overpass/OpenTopoData round trip.
+// instant local read instead of a fresh Overpass/elevation round trip.
 // Same CacheStore interface as every other implementation in this app, so
 // it drops straight into the same TieredCacheStore(memory, persistent)
 // pattern main/services/coolSpotService.ts already uses.

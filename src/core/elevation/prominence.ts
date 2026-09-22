@@ -1,7 +1,7 @@
 import type { BBox } from '../geo/types'
 import type { ElevationSample, LatLng, PeakCandidate } from './types'
 
-// 10x10 = 100 points, matching OpenTopoData's free public-instance
+// 10x10 = 100 points, matching Open-Meteo's elevation API
 // per-request limit (see elevationClient.ts) so a whole viewport's grid
 // fits in a single request.
 export const GRID_SIZE = 10

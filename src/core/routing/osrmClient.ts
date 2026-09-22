@@ -1,7 +1,7 @@
 import type { LatLng, RouteResult, RouteStep } from './types'
 
 // Free, no-API-key driving directions via OSRM's public demo server. Same
-// "free/open stack, no signup" philosophy as Overpass/OpenTopoData
+// "free/open stack, no signup" philosophy as Overpass/elevation
 // elsewhere in core/ - self-hostable later if this demo instance's fair-use
 // limits become a problem, without any caller-side changes.
 export const DEFAULT_OSRM_ENDPOINT = 'https://router.project-osrm.org/route/v1/driving'

@@ -20,7 +20,7 @@ const fetchImpl = net.fetch.bind(net)
 // disk-backed store keyed under Electron's userData dir so the same
 // benefit carries across app restarts too - panning back to an area you
 // already visited last time you had the app open is then an instant local
-// read instead of a fresh Overpass/OpenTopoData round trip.
+// read instead of a fresh Overpass/elevation round trip.
 const cache: CacheStore = new TieredCacheStore(new MemoryCacheStore(), new DiskCacheStore(join(app.getPath('userData'), 'cache')))
 
 // The actual pipeline logic (tiling, merging, scoring, caching) lives in

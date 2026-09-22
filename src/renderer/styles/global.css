@@ -1936,29 +1936,6 @@ input[type='range'] {
   }
 }
 
-/* Tablet layout (600px–1200px) — adaptive with swipeable sidebar */
-@media (min-width: 600px) and (max-width: 1199px) {
-  .sidebar {
-    position: fixed;
-    left: 0;
-    right: 0;
-    top: auto;
-    bottom: 0;
-    max-height: 65vh;
-    border-radius: var(--vf-radius-xl) var(--vf-radius-xl) 0 0;
-    box-shadow: var(--vf-shadow-lg);
-  }
-
-  .sidebar--hidden {
-    max-height: var(--vf-sheet-peek);
-  }
-}
-
-/* Mobile portrait layout (max 600px width) — gesture-driven bottom sheet */
-@media (max-width: 600px), (max-height: 500px) and (orientation: landscape) {
-  /* Keep existing mobile styles */
-}
-
 /* Reduced motion: respect user preference */
 @media (prefers-reduced-motion: reduce) {
   * {

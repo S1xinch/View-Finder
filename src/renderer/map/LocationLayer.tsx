@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { Marker } from 'maplibre-gl'
 import { bearing } from '@turf/turf'
 import { useViewFinderStore } from '../state/store'
+import { visibleCenterOffset } from './mapInsets'
 
 // Below this, two consecutive GPS fixes are more likely sensor jitter than
 // real movement - a bearing computed from a few centimeters of drift would
@@ -94,6 +95,7 @@ export function LocationLayer(): null {
         center: [userLocation.lng, userLocation.lat],
         zoom: NAVIGATION_ZOOM,
         bearing: headingRef.current,
+        offset: visibleCenterOffset(map),
         duration: 500
       })
       wasNavigatingRef.current = true
@@ -119,7 +121,12 @@ export function LocationLayer(): null {
     // would get yanked back on the next GPS fix.
     if (!hasCenteredRef.current) {
       hasCenteredRef.current = true
-      map.flyTo({ center: [userLocation.lng, userLocation.lat], zoom: Math.max(map.getZoom(), 13), duration: 800 })
+      map.flyTo({
+        center: [userLocation.lng, userLocation.lat],
+        zoom: Math.max(map.getZoom(), 13),
+        offset: visibleCenterOffset(map),
+        duration: 800
+      })
     }
   }, [map, tracking, userLocation, navigating])
 

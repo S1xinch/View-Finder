@@ -17,7 +17,7 @@ It surfaces "cool spots to drive to" by combining:
 
 Everything runs on free, no-API-key data sources: [OpenFreeMap](https://openfreemap.org)
 for map tiles, the public [Overpass API](https://overpass-api.de) for OSM data,
-[OpenTopoData](https://www.opentopodata.org) for elevation, [OSRM](https://project-osrm.org)
+[Open-Meteo](https://open-meteo.com) for elevation, [OSRM](https://project-osrm.org)
 for driving directions, and Esri World Imagery for the satellite layer.
 
 ## Download

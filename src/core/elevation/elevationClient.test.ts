@@ -13,16 +13,8 @@ describe('queryElevations', () => {
     expect(fetchImpl).not.toHaveBeenCalled()
   })
 
-  it('parses a successful response into ElevationSample[]', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(
-      jsonResponse({
-        status: 'OK',
-        results: [
-          { elevation: 1234.5, location: { lat: -33.7, lng: 150.3 } },
-          { elevation: null, location: { lat: -33.71, lng: 150.31 } }
-        ]
-      })
-    )
+  it('pairs each returned elevation with its input point, in order', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ elevation: [1234.5, null] }))
 
     const result = await queryElevations(
       [
@@ -38,8 +30,8 @@ describe('queryElevations', () => {
     ])
   })
 
-  it('sends all points as a single pipe-delimited request body', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ status: 'OK', results: [] }))
+  it('sends all points in one plain GET (no custom headers, so no CORS preflight)', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ elevation: [1, 2] }))
     await queryElevations(
       [
         { lat: 1, lng: 2 },
@@ -49,41 +41,49 @@ describe('queryElevations', () => {
     )
 
     expect(fetchImpl).toHaveBeenCalledTimes(1)
-    const [, init] = fetchImpl.mock.calls[0]
-    const body = JSON.parse(init.body as string)
-    expect(body.locations).toBe('1,2|3,4')
+    const [url, init] = fetchImpl.mock.calls[0]
+    const params = new URL(url as string).searchParams
+    expect(params.get('latitude')).toBe('1.00000,3.00000')
+    expect(params.get('longitude')).toBe('2.00000,4.00000')
+    expect(init.method).toBeUndefined()
+    expect(init.headers).toBeUndefined()
   })
 
-  it('throws for an HTTP error response', async () => {
+  it('throws with the API reason for an HTTP error response', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ error: true, reason: 'Latitude out of range' }, { status: 400, statusText: 'Bad Request' }))
+    await expect(queryElevations([{ lat: 1, lng: 2 }], { fetchImpl })).rejects.toThrow('Latitude out of range')
+  })
+
+  it('throws for a rate-limited response', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({}, { status: 429, statusText: 'Too Many Requests' }))
     await expect(queryElevations([{ lat: 1, lng: 2 }], { fetchImpl })).rejects.toThrow('429')
   })
 
-  it('throws when the API reports a non-OK status', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ status: 'INVALID_REQUEST', error: 'bad locations' }))
-    await expect(queryElevations([{ lat: 1, lng: 2 }], { fetchImpl })).rejects.toThrow('INVALID_REQUEST')
+  it('throws when the response has the wrong number of values', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ elevation: [1] }))
+    await expect(
+      queryElevations(
+        [
+          { lat: 1, lng: 2 },
+          { lat: 3, lng: 4 }
+        ],
+        { fetchImpl }
+      )
+    ).rejects.toThrow('1 value(s) for 2 point(s)')
   })
 
-  it('batches >100 points into parallel requests', async () => {
-    // A fresh Response per call - parallel batches each read their own body,
-    // and a Response's body can only be consumed once.
-    const fetchImpl = vi.fn().mockImplementation((_url: string, init: RequestInit) => {
-      const locations = (JSON.parse(init.body as string).locations as string).split('|')
-      return Promise.resolve(
-        jsonResponse({
-          status: 'OK',
-          results: locations.map((loc) => {
-            const [lat, lng] = loc.split(',').map(Number)
-            return { elevation: 1000 + lat, location: { lat, lng } }
-          })
-        })
-      )
+  it('batches >100 points into separate requests', async () => {
+    const fetchImpl = vi.fn().mockImplementation((url: string) => {
+      const count = new URL(url).searchParams.get('latitude')!.split(',').length
+      return Promise.resolve(jsonResponse({ elevation: Array.from({ length: count }, (_, i) => 1000 + i) }))
     })
-    const points = Array.from({ length: 110 }, (_, i) => ({ lat: i, lng: i }))
+    const points = Array.from({ length: 110 }, (_, i) => ({ lat: i / 10, lng: i / 10 }))
     const result = await queryElevations(points, { fetchImpl })
 
-    // Should make 2 requests: one for first 100, one for remaining 10
     expect(fetchImpl).toHaveBeenCalledTimes(2)
     expect(result).toHaveLength(110)
+    expect(result[105]).toEqual({ lat: 10.5, lng: 10.5, elevationMeters: 1005 })
   })
 })

@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import type { GeoJSONSource } from 'maplibre-gl'
-import { useViewFinderStore } from '../state/store'
+import { selectActiveRoute, useViewFinderStore } from '../state/store'
 import type { RouteResult, Viewpoint } from '@shared/ipcContract'
 import { visiblePadding } from './mapInsets'
 import { ROUTE_COLORS } from '../themes'
@@ -76,7 +76,7 @@ function toWalkFeatureCollection(route: RouteResult | null, destination: Viewpoi
 // gap between where the road ends and the actual spot.
 export function RouteLayer(): null {
   const map = useViewFinderStore((s) => s.map)
-  const route = useViewFinderStore((s) => s.route)
+  const route = useViewFinderStore(selectActiveRoute)
   const routeDestination = useViewFinderStore((s) => s.routeDestination)
   const theme = useViewFinderStore((s) => s.theme)
 

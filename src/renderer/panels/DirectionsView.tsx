@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useViewFinderStore } from '../state/store'
+import { selectActiveRoute, useViewFinderStore } from '../state/store'
 import { CATEGORY_LABEL } from '../map/categoryStyle'
 import { buildExternalMapsUrl } from '../utils/mapLinks'
 import { useWakeLock } from '../hooks/useWakeLock'
-import type { RouteStep } from '@shared/ipcContract'
+import type { RouteResult, RouteStep } from '@shared/ipcContract'
 
 function formatRouteDistance(meters: number): string {
   if (meters < 1000) return `${Math.round(meters)} m`
@@ -135,6 +135,29 @@ export function advancePassedStepIndex(
   return next
 }
 
+// OSRM's own duration scaled by the share of distance still to drive, so
+// the turn card agrees with the summary's drive time instead of assuming a
+// flat speed. The leg being driven counts by its road distance, scaled by
+// how much of the straight-line gap to its end is left - using the
+// straight-line gap directly undercounts any winding road. Exported for
+// DirectionsView.test.ts.
+export function estimateMinutesRemaining(
+  route: RouteResult | null,
+  passedStepIndex: number,
+  distanceToUpcomingMeters: number | null
+): number | null {
+  if (!route || route.distanceMeters <= 0 || passedStepIndex >= route.steps.length - 1) return null
+  const leg = route.steps[passedStepIndex]
+  let currentLeg = leg.distanceMeters
+  if (distanceToUpcomingMeters != null) {
+    const straight = haversineDistanceMeters(leg.location, route.steps[passedStepIndex + 1].location)
+    if (straight > 0) currentLeg *= Math.min(1, distanceToUpcomingMeters / straight)
+  }
+  const laterLegs = route.steps.slice(passedStepIndex + 1).reduce((sum, s) => sum + s.distanceMeters, 0)
+  const remainingMeters = Math.min(route.distanceMeters, currentLeg + laterLegs)
+  return Math.round((route.durationSeconds * (remainingMeters / route.distanceMeters)) / 60)
+}
+
 // Replaces the sidebar's normal filter/spot-list body while a route is
 // active (see useRoute.ts, requestRoute in state/store.ts). Rendered only
 // when routeDestination is set - Sidebar.tsx gates that.
@@ -142,6 +165,9 @@ export function DirectionsView(): React.JSX.Element {
   const destination = useViewFinderStore((s) => s.routeDestination)
   const status = useViewFinderStore((s) => s.routeStatus)
   const route = useViewFinderStore((s) => s.route)
+  const selectedRoute = useViewFinderStore(selectActiveRoute)
+  const routeChoice = useViewFinderStore((s) => s.routeChoice)
+  const setRouteChoice = useViewFinderStore((s) => s.setRouteChoice)
   const error = useViewFinderStore((s) => s.routeError)
   const clearRoute = useViewFinderStore((s) => s.clearRoute)
   const userLocation = useViewFinderStore((s) => s.userLocation)
@@ -156,27 +182,18 @@ export function DirectionsView(): React.JSX.Element {
   // own; only a fresh route (a new destination, or Start pressed again)
   // resets it, matching how real turn-by-turn never un-advances a turn.
   const [passedStepIndex, setPassedStepIndex] = useState(0)
-  // When multiple routes are available, track which one is being previewed
-  // (0 = primary, 1+ = alternatives). Resets to 0 on new route.
-  const [selectedRouteIndex, setSelectedRouteIndex] = useState(0)
 
   useEffect(() => {
     setPassedStepIndex(0)
-    setSelectedRouteIndex(0)
-  }, [route])
+  }, [selectedRoute])
 
+  // Advances through the route actually chosen (and drawn on the map), not
+  // always OSRM's primary one.
   useEffect(() => {
-    if (!navigating || !route || !userLocation || route.steps.length < 2) return
+    if (!navigating || !selectedRoute || !userLocation || selectedRoute.steps.length < 2) return
     const here: [number, number] = [userLocation.lng, userLocation.lat]
-    setPassedStepIndex((prev) => advancePassedStepIndex(prev, here, route.steps))
-  }, [navigating, route, userLocation])
-
-  const selectedRoute = useMemo(() => {
-    if (!route) return null
-    if (selectedRouteIndex === 0) return route
-    const altIndex = selectedRouteIndex - 1
-    return route.alternatives?.[altIndex] ?? null
-  }, [route, selectedRouteIndex])
+    setPassedStepIndex((prev) => advancePassedStepIndex(prev, here, selectedRoute.steps))
+  }, [navigating, selectedRoute, userLocation])
 
   const upcomingStep = selectedRoute && selectedRoute.steps.length > 1 ? selectedRoute.steps[passedStepIndex + 1] : null
   const distanceToUpcoming = useMemo(() => {
@@ -184,13 +201,10 @@ export function DirectionsView(): React.JSX.Element {
     return haversineDistanceMeters([userLocation.lng, userLocation.lat], upcomingStep.location)
   }, [upcomingStep, userLocation])
 
-  const estimatedMinutesRemaining = useMemo(() => {
-    if (!selectedRoute || passedStepIndex >= selectedRoute.steps.length - 1) return null
-    const remainingMeters = selectedRoute.steps.slice(passedStepIndex + 1).reduce((sum, s) => sum + s.distanceMeters, 0)
-    const avgSpeedKmh = 15
-    const totalHours = remainingMeters / 1000 / avgSpeedKmh
-    return Math.round(totalHours * 60)
-  }, [selectedRoute, passedStepIndex])
+  const estimatedMinutesRemaining = useMemo(
+    () => estimateMinutesRemaining(selectedRoute, passedStepIndex, distanceToUpcoming),
+    [selectedRoute, passedStepIndex, distanceToUpcoming]
+  )
 
   const walkMeters = useMemo(() => {
     const coords = selectedRoute?.coordinates
@@ -248,21 +262,21 @@ export function DirectionsView(): React.JSX.Element {
                 use and so can read "12 m" for what's really a 3 km walk. */}
             {walkMeters != null && walkMeters >= 15 && <> · {formatRouteDistance(walkMeters)} walk</>}
           </div>
-          {route.alternatives && route.alternatives.length > 0 && (
+          {!navigating && route.alternatives && route.alternatives.length > 0 && (
             <div className="sidebar__route-switcher">
               <button
                 type="button"
-                disabled={selectedRouteIndex === 0}
-                onClick={() => setSelectedRouteIndex(selectedRouteIndex - 1)}
+                disabled={routeChoice === 0}
+                onClick={() => setRouteChoice(routeChoice - 1)}
                 aria-label="Previous route"
               >
                 ‹
               </button>
-              <span className="sidebar__route-counter">{selectedRouteIndex + 1} of {1 + route.alternatives.length}</span>
+              <span className="sidebar__route-counter">{routeChoice + 1} of {1 + route.alternatives.length}</span>
               <button
                 type="button"
-                disabled={selectedRouteIndex >= route.alternatives.length}
-                onClick={() => setSelectedRouteIndex(selectedRouteIndex + 1)}
+                disabled={routeChoice >= route.alternatives.length}
+                onClick={() => setRouteChoice(routeChoice + 1)}
                 aria-label="Next route"
               >
                 ›

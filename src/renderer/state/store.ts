@@ -88,6 +88,15 @@ interface ViewFinderStore {
   route: RouteResult | null
   routeStatus: RouteStatus
   routeError: string | null
+  // Bumped by every requestRoute, even to the same destination - useRoute
+  // keys its fetch on this, since the destination object alone doesn't
+  // change when the same spot is asked for again.
+  routeRequestNonce: number
+  // 0 = OSRM's primary route, n = route.alternatives[n - 1]. Lives here (not
+  // in DirectionsView) so the map line, the step list and navigation all
+  // follow the same choice - read it through selectActiveRoute.
+  routeChoice: number
+  setRouteChoice: (choice: number) => void
   requestRoute: (destination: Viewpoint) => void
   clearRoute: () => void
   setRouteLoading: () => void
@@ -166,18 +175,24 @@ export const useViewFinderStore = create<ViewFinderStore>((set) => ({
   // "the effect that fetches it". Also turns location tracking on (a no-op
   // if it's already on) so the user doesn't have to separately find the
   // locate button before directions can work.
+  routeRequestNonce: 0,
+  routeChoice: 0,
+  setRouteChoice: (routeChoice) => set({ routeChoice }),
   requestRoute: (destination) =>
-    set({
+    set((s) => ({
       locationTracking: true,
       routeDestination: destination,
+      routeRequestNonce: s.routeRequestNonce + 1,
       route: null,
+      routeChoice: 0,
       routeStatus: 'idle',
       routeError: null,
       navigating: false
-    }),
-  clearRoute: () => set({ routeDestination: null, route: null, routeStatus: 'idle', routeError: null, navigating: false }),
+    })),
+  clearRoute: () =>
+    set({ routeDestination: null, route: null, routeChoice: 0, routeStatus: 'idle', routeError: null, navigating: false }),
   setRouteLoading: () => set({ routeStatus: 'loading', routeError: null }),
-  setRouteLoaded: (route) => set({ route, routeStatus: 'ready', routeError: null }),
+  setRouteLoaded: (route) => set({ route, routeChoice: 0, routeStatus: 'ready', routeError: null }),
   setRouteError: (message) => set({ routeStatus: 'error', routeError: message }),
   navigating: false,
   startNavigation: () => set({ navigating: true }),
@@ -191,5 +206,10 @@ export const useViewFinderStore = create<ViewFinderStore>((set) => ({
     set({ theme })
   }
 }))
+
+export function selectActiveRoute(s: Pick<ViewFinderStore, 'route' | 'routeChoice'>): RouteResult | null {
+  if (!s.route || s.routeChoice === 0) return s.route
+  return s.route.alternatives?.[s.routeChoice - 1] ?? s.route
+}
 
 export { MAX_ROAD_DISTANCE_SLIDER_METERS }

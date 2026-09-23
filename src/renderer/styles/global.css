@@ -2186,6 +2186,29 @@ input[type='range'] {
   font-family: var(--vf-number-font);
 }
 
+/* Installed iPhone app only (site/screenCorners.ts sets the class and
+   --vf-screen-radius): like Apple Maps, the sheet floats 8px off the screen
+   edges with bottom corners concentric to the display's own - its radius
+   minus that 8px inset - and extends down behind the home indicator,
+   padding its content up clear of it. */
+@media (max-width: 600px) {
+  :root.vf-device-corners .sidebar {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    border-bottom-left-radius: calc(var(--vf-screen-radius) - 8px);
+    border-bottom-right-radius: calc(var(--vf-screen-radius) - 8px);
+    padding-bottom: max(0px, calc(env(safe-area-inset-bottom) - 8px));
+  }
+
+  /* Collapsed, that padding is empty space under the search field (the
+     peek height includes it - see Sidebar's measure) - keep the list out
+     of it rather than peeking through below the search field. */
+  :root.vf-device-corners .sidebar--hidden :is(.sidebar__scroll, .sidebar__body, .sidebar__footer) {
+    visibility: hidden;
+  }
+}
+
 /* MapLibre's zoom +/- glyphs are dark background-images - invisible on
    the dark control buttons unless flipped. */
 :root[data-theme='night'] .maplibregl-ctrl-group .maplibregl-ctrl-icon {

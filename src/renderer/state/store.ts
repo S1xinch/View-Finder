@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Map as MapLibreMap } from 'maplibre-gl'
 import type { ExcludedLandArea, RouteResult, Viewpoint, ViewpointsProgress } from '@shared/ipcContract'
+import { loadTheme, saveTheme, type ThemeName } from '../themes'
 
 export type ViewpointsStatus = 'idle' | 'zoomed-out' | 'loading' | 'error' | 'ready'
 export type RouteStatus = 'idle' | 'loading' | 'error' | 'ready'
@@ -101,6 +102,9 @@ interface ViewFinderStore {
 
   satelliteView: boolean
   toggleSatelliteView: () => void
+
+  theme: ThemeName
+  setTheme: (theme: ThemeName) => void
 }
 
 export const useViewFinderStore = create<ViewFinderStore>((set) => ({
@@ -179,7 +183,13 @@ export const useViewFinderStore = create<ViewFinderStore>((set) => ({
   startNavigation: () => set({ navigating: true }),
 
   satelliteView: false,
-  toggleSatelliteView: () => set((s) => ({ satelliteView: !s.satelliteView }))
+  toggleSatelliteView: () => set((s) => ({ satelliteView: !s.satelliteView })),
+
+  theme: loadTheme(),
+  setTheme: (theme) => {
+    saveTheme(theme)
+    set({ theme })
+  }
 }))
 
 export { MAX_ROAD_DISTANCE_SLIDER_METERS }

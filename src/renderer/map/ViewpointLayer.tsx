@@ -2,7 +2,8 @@ import { useEffect, useRef } from 'react'
 import { Popup } from 'maplibre-gl'
 import type { GeoJSONSource, MapLayerMouseEvent } from 'maplibre-gl'
 import { useViewFinderStore } from '../state/store'
-import { CATEGORY_COLOR, CATEGORY_LABEL } from './categoryStyle'
+import { CATEGORY_LABEL } from './categoryStyle'
+import { CATEGORY_COLORS } from '../themes'
 import { buildExternalMapsUrl } from '../utils/mapLinks'
 import type { Viewpoint, ViewpointCategory } from '@shared/ipcContract'
 
@@ -10,6 +11,10 @@ const SOURCE_ID = 'viewpoints'
 const LAYER_ID = 'viewpoints-pins'
 const DIRECTIONS_BUTTON_CLASS = 'vf-popup__directions'
 const OPEN_IN_MAPS_BUTTON_CLASS = 'vf-popup__open-in-maps'
+
+// Capped at 3x - a pin only needs to look crisp, not consume 4x+ the
+// raster memory on very-high-DPI devices for no visible benefit.
+const PIN_PIXEL_RATIO = Math.min(window.devicePixelRatio || 1, 3)
 
 function iconIdFor(category: ViewpointCategory): string {
   return `vf-pin-${category}`
@@ -87,6 +92,7 @@ function buildPopupHtml(vp: Viewpoint): string {
 export function ViewpointLayer(): null {
   const map = useViewFinderStore((s) => s.map)
   const viewpoints = useViewFinderStore((s) => s.viewpoints)
+  const theme = useViewFinderStore((s) => s.theme)
   // The click/hover listeners below are registered once (inside the
   // layer-creation branch, which only runs the first time) rather than
   // re-subscribed on every viewpoints change - they read the *current*
@@ -103,12 +109,10 @@ export function ViewpointLayer(): null {
     const addLayer = (): void => {
       if (map.getSource(SOURCE_ID)) return
 
-      // Capped at 3x - a pin only needs to look crisp, not consume 4x+ the
-      // raster memory on very-high-DPI devices for no visible benefit.
-      const pixelRatio = Math.min(window.devicePixelRatio || 1, 3)
-      for (const category of Object.keys(CATEGORY_COLOR) as ViewpointCategory[]) {
+      const colors = CATEGORY_COLORS[useViewFinderStore.getState().theme]
+      for (const category of Object.keys(colors) as ViewpointCategory[]) {
         const id = iconIdFor(category)
-        if (!map.hasImage(id)) map.addImage(id, buildPinIcon(CATEGORY_COLOR[category], pixelRatio), { pixelRatio })
+        if (!map.hasImage(id)) map.addImage(id, buildPinIcon(colors[category], PIN_PIXEL_RATIO), { pixelRatio: PIN_PIXEL_RATIO })
       }
 
       map.addSource(SOURCE_ID, { type: 'geojson', data })
@@ -188,6 +192,17 @@ export function ViewpointLayer(): null {
     // map layer itself silently never gets created or updated.
     updateData()
   }, [map, viewpoints])
+
+  // Repaints the existing pin images in place when the theme changes -
+  // same size, so updateImage works and the layer itself is untouched.
+  useEffect(() => {
+    if (!map) return
+    const colors = CATEGORY_COLORS[theme]
+    for (const category of Object.keys(colors) as ViewpointCategory[]) {
+      const id = iconIdFor(category)
+      if (map.hasImage(id)) map.updateImage(id, buildPinIcon(colors[category], PIN_PIXEL_RATIO))
+    }
+  }, [map, theme])
 
   useEffect(() => {
     if (!map) return

@@ -114,6 +114,35 @@ interface ViewFinderStore {
 
   theme: ThemeName
   setTheme: (theme: ThemeName) => void
+
+  // Saved on this device only (localStorage) - no account needed.
+  savedSpots: Viewpoint[]
+  toggleSavedSpot: (spot: Viewpoint) => void
+}
+
+const SAVED_SPOTS_KEY = 'vf-saved-spots'
+
+function loadSavedSpots(): Viewpoint[] {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(SAVED_SPOTS_KEY) ?? '[]')
+    if (!Array.isArray(parsed)) return []
+    // Stored data is untrusted-ish (older versions, manual edits) - keep only
+    // entries that still have what the list and map need.
+    return parsed.filter(
+      (s): s is Viewpoint =>
+        typeof s?.id === 'string' && typeof s.lat === 'number' && typeof s.lng === 'number' && typeof s.category === 'string'
+    )
+  } catch {
+    return []
+  }
+}
+
+function persistSavedSpots(spots: Viewpoint[]): void {
+  try {
+    localStorage.setItem(SAVED_SPOTS_KEY, JSON.stringify(spots))
+  } catch {
+    // Storage full/blocked - the list still works for this session.
+  }
 }
 
 export const useViewFinderStore = create<ViewFinderStore>((set) => ({
@@ -204,7 +233,19 @@ export const useViewFinderStore = create<ViewFinderStore>((set) => ({
   setTheme: (theme) => {
     saveTheme(theme)
     set({ theme })
-  }
+  },
+
+  savedSpots: loadSavedSpots(),
+  toggleSavedSpot: (spot) =>
+    set((s) => {
+      const savedSpots = s.savedSpots.some((saved) => saved.id === spot.id)
+        ? s.savedSpots.filter((saved) => saved.id !== spot.id)
+        : // Newest first; raw OSM tags dropped - nothing reads them and they
+          // can be large.
+          [{ ...spot, tags: {} }, ...s.savedSpots]
+      persistSavedSpots(savedSpots)
+      return { savedSpots }
+    })
 }))
 
 export function selectActiveRoute(s: Pick<ViewFinderStore, 'route' | 'routeChoice'>): RouteResult | null {

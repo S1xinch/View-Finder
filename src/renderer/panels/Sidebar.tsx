@@ -1,11 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useViewFinderStore } from '../state/store'
-import { CATEGORY_LABEL } from '../map/categoryStyle'
-import { CATEGORY_COLORS, THEMES } from '../themes'
+import { THEMES } from '../themes'
 import { DirectionsView } from './DirectionsView'
 import { SearchBar } from './SearchBar'
 import { SavedLocations } from './SavedLocations'
-import { visibleCenterOffset } from '../map/mapInsets'
+import { SpotRow } from './SpotRow'
 import type { Viewpoint } from '@shared/ipcContract'
 
 // Most fetches (especially cache hits, common while re-panning over
@@ -44,12 +43,6 @@ const MANY_RESULTS_THRESHOLD = 40
 // what a typical viewport already produces well before MIN_ZOOM_FOR_VIEWPOINTS
 // (see useViewpoints.ts), so this only fires for real "too much at once" cases.
 const MANY_TILES_THRESHOLD = 4
-
-function formatDistance(meters: number | null | undefined): string {
-  if (meters == null) return 'distance to road unknown'
-  if (meters < 30) return 'right on a road'
-  return `${Math.round(meters)} m from road`
-}
 
 // Under this much movement a release is a tap, not a swipe (a real finger
 // never lands pointerup on the exact pointerdown pixel).
@@ -558,7 +551,6 @@ function friendlyMessage(error: string, tilesTotal: number | null): string {
 // replacing what used to be a separate brand card, spot list, and status
 // toast scattered around the screen.
 export function Sidebar(): React.JSX.Element {
-  const map = useViewFinderStore((s) => s.map)
   const viewpoints = useViewFinderStore((s) => s.viewpoints)
   const status = useViewFinderStore((s) => s.viewpointsStatus)
   const error = useViewFinderStore((s) => s.viewpointsError)
@@ -576,7 +568,6 @@ export function Sidebar(): React.JSX.Element {
   const showComputedPeaks = useViewFinderStore((s) => s.showComputedPeaks)
   const toggleShowComputedPeaks = useViewFinderStore((s) => s.toggleShowComputedPeaks)
   const routeDestination = useViewFinderStore((s) => s.routeDestination)
-  const requestRoute = useViewFinderStore((s) => s.requestRoute)
   const clearRoute = useViewFinderStore((s) => s.clearRoute)
   const requestViewpointsRefresh = useViewFinderStore((s) => s.requestViewpointsRefresh)
   const theme = useViewFinderStore((s) => s.theme)
@@ -668,16 +659,6 @@ export function Sidebar(): React.JSX.Element {
   // lazy-elevation skip) rather than because none exist.
   const osmCount = useMemo(() => viewpoints.filter((vp) => vp.category !== 'computed_peak').length, [viewpoints])
   const computedCount = viewpoints.length - osmCount
-
-  const flyTo = (vp: Viewpoint): void => {
-    if (!map) return
-    map.flyTo({
-      center: [vp.lng, vp.lat],
-      zoom: Math.max(map.getZoom(), 14),
-      offset: visibleCenterOffset(map),
-      duration: 800
-    })
-  }
 
   return (
     <>
@@ -800,6 +781,7 @@ export function Sidebar(): React.JSX.Element {
         // on the shorter mobile sheet. Also the overscroll-to-close
         // surface on phone portrait - see scrollHandlers/useSheetDrag.
         <div className="sidebar__scroll" ref={scrollRef} {...scrollHandlers}>
+          <SavedLocations />
           <div className="sidebar__filters">
             <label className="sidebar__filter">
               <span>Min elevation: {filters.minElevationMeters} m</span>
@@ -908,39 +890,13 @@ export function Sidebar(): React.JSX.Element {
                     </div>
                   )}
                   {filtered.map((vp) => (
-                    <div className="sidebar__row" key={vp.id}>
-                      <button type="button" className="sidebar__row-main" onClick={() => flyTo(vp)}>
-                        <span
-                          className="sidebar__badge"
-                          data-category={vp.category}
-                          style={{ backgroundColor: CATEGORY_COLORS[theme][vp.category] }}
-                          aria-hidden="true"
-                        />
-                        <span className="sidebar__row-text">
-                          <span className="sidebar__row-name">{vp.name ?? CATEGORY_LABEL[vp.category]}</span>
-                          <span className="sidebar__row-detail">
-                            {vp.elevationMeters != null ? `${Math.round(vp.elevationMeters)} m` : 'elevation unknown'}{' '}
-                            · {formatDistance(vp.distanceToRoadMeters)}
-                          </span>
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        className="sidebar__row-directions"
-                        onClick={() => requestRoute(vp)}
-                        aria-label={`Directions to ${vp.name ?? CATEGORY_LABEL[vp.category]}`}
-                        title="Directions"
-                      >
-                        →
-                      </button>
-                    </div>
+                    <SpotRow key={vp.id} spot={vp} />
                   ))}
                 </div>
               </>
             )}
           </div>
 
-          <SavedLocations />
         </div>
       )}
 

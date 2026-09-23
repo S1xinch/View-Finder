@@ -1391,9 +1391,41 @@ input[type='range'] {
   /* Opacity transitions handled by spring animations */
 }
 
-.sidebar__row:hover .sidebar__row-directions,
-.sidebar__row-directions:focus-visible {
+.sidebar__row:hover :is(.sidebar__row-directions, .sidebar__row-save),
+:is(.sidebar__row-directions, .sidebar__row-save):focus-visible {
   opacity: 1;
+}
+
+/* Save-to-device star, beside the directions arrow. Shown once saved so a
+   saved spot is recognisable at a glance, not just on hover. */
+.sidebar__row-save {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--vf-text-secondary);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.sidebar__row-save--saved {
+  color: var(--vf-accent);
+  opacity: 1;
+}
+
+/* A touchscreen never hovers, so hover-revealed row actions were invisible
+   on phones - always show them there. */
+@media (hover: none) {
+  .sidebar__row-directions,
+  .sidebar__row-save {
+    opacity: 1;
+  }
 }
 
 /* Category icon badge (list rows) - Apple Maps marks each place with a
@@ -1748,7 +1780,8 @@ input[type='range'] {
 }
 
 .vf-popup__directions,
-.vf-popup__open-in-maps {
+.vf-popup__open-in-maps,
+.vf-popup__save {
   padding: 6px 12px;
   font-family: var(--vf-font);
   font-size: 12px;
@@ -1770,13 +1803,15 @@ input[type='range'] {
 /* Secondary/outline style - hands off to the device's own maps app rather
    than staying in-app, so it reads as a different kind of action than the
    primary "Directions" button. */
-.vf-popup__open-in-maps {
+.vf-popup__open-in-maps,
+.vf-popup__save {
   color: var(--vf-accent);
   background: transparent;
   border: 1px solid var(--vf-accent);
 }
 
-.vf-popup__open-in-maps:hover {
+.vf-popup__open-in-maps:hover,
+.vf-popup__save:hover {
   background: var(--vf-hover);
 }
 
@@ -1856,45 +1891,10 @@ input[type='range'] {
   text-align: center;
 }
 
+/* Saved spots (SavedLocations.tsx) - top of the list area when any exist. */
 .saved-locations {
-  padding: 12px;
-  border-top: 1px solid var(--vf-divider);
-}
-
-.saved-locations__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.saved-locations__title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--vf-text-primary);
-  margin: 0;
-}
-
-.saved-locations__badge {
-  font-size: 11px;
-  padding: 4px 8px;
-  background: var(--vf-hover);
-  border-radius: var(--vf-radius-sm);
-  color: var(--vf-text-secondary);
-}
-
-.saved-locations__empty {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  opacity: 0.6;
-}
-
-.saved-locations__text {
-  font-size: 13px;
-  color: var(--vf-text-secondary);
-  margin: 0;
-  line-height: 1.4;
+  padding: 10px 10px 4px;
+  border-bottom: 1px solid var(--vf-divider);
 }
 
 /* ============================================================================
@@ -1963,17 +1963,6 @@ input[type='range'] {
   }
 }
 
-.saved-locations__signin {
-  padding: 10px 12px;
-  background: var(--vf-accent);
-  color: var(--vf-accent-text);
-  border: none;
-  border-radius: var(--vf-radius-md);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: not-allowed;
-  opacity: 0.5;
-}
 
 /* ============================================================================
    SETTINGS MENU (gear beside the search field - Sidebar.tsx)

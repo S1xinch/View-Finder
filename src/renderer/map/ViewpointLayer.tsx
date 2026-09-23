@@ -11,6 +11,9 @@ const SOURCE_ID = 'viewpoints'
 const LAYER_ID = 'viewpoints-pins'
 const DIRECTIONS_BUTTON_CLASS = 'vf-popup__directions'
 const OPEN_IN_MAPS_BUTTON_CLASS = 'vf-popup__open-in-maps'
+const SAVE_BUTTON_CLASS = 'vf-popup__save'
+
+const saveLabel = (saved: boolean): string => (saved ? '★ Saved' : '☆ Save')
 
 // Capped at 3x - a pin only needs to look crisp, not consume 4x+ the
 // raster memory on very-high-DPI devices for no visible benefit.
@@ -63,6 +66,8 @@ function buildPinIcon(color: string, pixelRatio: number): { width: number; heigh
   return { width, height, data: ctx.getImageData(0, 0, width, height).data }
 }
 
+const isSaved = (vp: Viewpoint): boolean => useViewFinderStore.getState().savedSpots.some((s) => s.id === vp.id)
+
 function toFeatureCollection(viewpoints: Viewpoint[]): GeoJSON.FeatureCollection {
   return {
     type: 'FeatureCollection',
@@ -79,14 +84,14 @@ function toFeatureCollection(viewpoints: Viewpoint[]): GeoJSON.FeatureCollection
   }
 }
 
-function buildPopupHtml(vp: Viewpoint): string {
+function buildPopupHtml(vp: Viewpoint, saved: boolean): string {
   const elevationLine =
     vp.elevationMeters != null ? `<div class="vf-popup__elevation">${Math.round(vp.elevationMeters)} m</div>` : ''
   const estimateNote =
     vp.category === 'computed_peak'
       ? '<div class="vf-popup__note">Estimated from elevation data, not confirmed on OpenStreetMap.</div>'
       : ''
-  return `<div class="vf-popup__title">${vp.name ?? CATEGORY_LABEL[vp.category]}</div><div class="vf-popup__category">${CATEGORY_LABEL[vp.category]}</div>${elevationLine}${estimateNote}<div class="vf-popup__actions"><button type="button" class="${DIRECTIONS_BUTTON_CLASS}">Directions</button><button type="button" class="${OPEN_IN_MAPS_BUTTON_CLASS}">Open in Maps</button></div>`
+  return `<div class="vf-popup__title">${vp.name ?? CATEGORY_LABEL[vp.category]}</div><div class="vf-popup__category">${CATEGORY_LABEL[vp.category]}</div>${elevationLine}${estimateNote}<div class="vf-popup__actions"><button type="button" class="${DIRECTIONS_BUTTON_CLASS}">Directions</button><button type="button" class="${OPEN_IN_MAPS_BUTTON_CLASS}">Open in Maps</button><button type="button" class="${SAVE_BUTTON_CLASS}" aria-pressed="${saved}">${saveLabel(saved)}</button></div>`
 }
 
 export function ViewpointLayer(): null {
@@ -156,13 +161,20 @@ export function ViewpointLayer(): null {
         e.originalEvent.stopPropagation()
         const popup = new Popup({ closeButton: true, className: 'vf-popup', offset: 26 })
           .setLngLat([vp.lng, vp.lat])
-          .setHTML(buildPopupHtml(vp))
+          .setHTML(buildPopupHtml(vp, isSaved(vp)))
           .addTo(map)
 
         const popupEl = popup.getElement()
         popupEl.querySelector(`.${DIRECTIONS_BUTTON_CLASS}`)?.addEventListener('click', () => {
           useViewFinderStore.getState().requestRoute(vp)
           popup.remove()
+        })
+        const saveButton = popupEl.querySelector<HTMLButtonElement>(`.${SAVE_BUTTON_CLASS}`)
+        saveButton?.addEventListener('click', () => {
+          useViewFinderStore.getState().toggleSavedSpot(vp)
+          const saved = isSaved(vp)
+          saveButton.textContent = saveLabel(saved)
+          saveButton.setAttribute('aria-pressed', String(saved))
         })
         popupEl.querySelector(`.${OPEN_IN_MAPS_BUTTON_CLASS}`)?.addEventListener('click', () => {
           window.open(buildExternalMapsUrl({ lat: vp.lat, lng: vp.lng }, vp.name), '_blank', 'noopener')

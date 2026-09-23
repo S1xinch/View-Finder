@@ -178,6 +178,28 @@ export function applyDarkMapTweaks(map: MapLibreMap): void {
   boostRoadContrast(map, DARK_ROAD_CONTRAST_COLOR)
 }
 
+// Trail Guide theme: parchment ground, sage vegetation, muted teal water
+// and brown roads - the printed topo-map palette the theme is named for.
+export function applyTrailMapTweaks(map: MapLibreMap): void {
+  const style = map.getStyle()
+  if (!style?.layers) return
+
+  for (const layer of style.layers) {
+    try {
+      if (layer.type === 'background') setTrackedPaint(map, layer.id, 'background-color', '#EDE5D1')
+      else if (layer.type === 'fill' && 'source-layer' in layer) {
+        const sourceLayer = layer['source-layer']
+        if (sourceLayer === 'water') setTrackedPaint(map, layer.id, 'fill-color', '#A7C4C2')
+        else if (sourceLayer === 'landcover' || sourceLayer === 'park') setTrackedPaint(map, layer.id, 'fill-color', '#D2DBBE')
+      }
+    } catch {
+      // Same tolerance as the other tweak passes.
+    }
+  }
+
+  boostRoadContrast(map, '#6E4F30')
+}
+
 export const SATELLITE_LAYER_ID = 'satellite-imagery-layer'
 const SATELLITE_SOURCE_ID = 'satellite-imagery'
 

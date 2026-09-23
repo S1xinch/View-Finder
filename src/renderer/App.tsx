@@ -11,14 +11,18 @@ import { usePrivateLandSync } from './hooks/usePrivateLand'
 import { useGeolocation } from './hooks/useGeolocation'
 import { useRoute } from './hooks/useRoute'
 import { useViewFinderStore } from './state/store'
+import { applyThemeToDocument } from './themes'
 import './styles/global.css'
 
 export function App(): React.JSX.Element {
   const map = useViewFinderStore((s) => s.map)
+  const theme = useViewFinderStore((s) => s.theme)
   useViewpointsSync(map)
   usePrivateLandSync(map)
   useGeolocation()
   useRoute()
+
+  useEffect(() => applyThemeToDocument(theme), [theme])
 
   // No-network sanity check for the preload/IPC bridge itself (getAppInfo
   // touches no external service), logged to the renderer console so it's

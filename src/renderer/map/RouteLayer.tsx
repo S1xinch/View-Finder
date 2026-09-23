@@ -3,6 +3,7 @@ import type { GeoJSONSource } from 'maplibre-gl'
 import { useViewFinderStore } from '../state/store'
 import type { RouteResult, Viewpoint } from '@shared/ipcContract'
 import { visiblePadding } from './mapInsets'
+import { ROUTE_COLORS } from '../themes'
 
 const SOURCE_ID = 'route'
 const CASING_LAYER_ID = 'route-casing'
@@ -77,6 +78,15 @@ export function RouteLayer(): null {
   const map = useViewFinderStore((s) => s.map)
   const route = useViewFinderStore((s) => s.route)
   const routeDestination = useViewFinderStore((s) => s.routeDestination)
+  const theme = useViewFinderStore((s) => s.theme)
+
+  useEffect(() => {
+    if (!map || !map.getLayer(LINE_LAYER_ID)) return
+    const colors = ROUTE_COLORS[theme]
+    map.setPaintProperty(CASING_LAYER_ID, 'line-color', colors.casing)
+    map.setPaintProperty(LINE_LAYER_ID, 'line-color', colors.line)
+    map.setPaintProperty(WALK_LAYER_ID, 'line-color', colors.line)
+  }, [map, theme])
 
   useEffect(() => {
     if (!map) return
@@ -85,6 +95,7 @@ export function RouteLayer(): null {
     const walkData = toWalkFeatureCollection(route, routeDestination)
 
     const addLayers = (): void => {
+      const colors = ROUTE_COLORS[useViewFinderStore.getState().theme]
       if (!map.getSource(SOURCE_ID)) {
         map.addSource(SOURCE_ID, { type: 'geojson', data: routeData })
         map.addLayer({
@@ -92,14 +103,14 @@ export function RouteLayer(): null {
           type: 'line',
           source: SOURCE_ID,
           layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-color': '#ffffff', 'line-width': 8, 'line-opacity': 0.9 }
+          paint: { 'line-color': colors.casing, 'line-width': 8, 'line-opacity': 0.9 }
         })
         map.addLayer({
           id: LINE_LAYER_ID,
           type: 'line',
           source: SOURCE_ID,
           layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-color': '#2f6fed', 'line-width': 5 }
+          paint: { 'line-color': colors.line, 'line-width': 5 }
         })
       }
 
@@ -110,7 +121,7 @@ export function RouteLayer(): null {
           type: 'line',
           source: WALK_SOURCE_ID,
           layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-color': '#2f6fed', 'line-width': 4, 'line-dasharray': [0.5, 1.5] }
+          paint: { 'line-color': colors.line, 'line-width': 4, 'line-dasharray': [0.5, 1.5] }
         })
       }
     }

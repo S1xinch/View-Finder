@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useViewFinderStore } from '../state/store'
-import { CATEGORY_COLOR, CATEGORY_LABEL } from '../map/categoryStyle'
+import { CATEGORY_LABEL } from '../map/categoryStyle'
+import { CATEGORY_COLORS, THEMES } from '../themes'
 import { DirectionsView } from './DirectionsView'
 import { SearchBar } from './SearchBar'
 import { SavedLocations } from './SavedLocations'
@@ -117,6 +118,10 @@ const SHEET_MAX_VIEWPORT_FRACTION = 0.65
 // responsiveness to close gestures - users can still scroll normally since
 // this only triggers when scroll is already at top AND they keep pulling.
 const OVERSCROLL_START_PX = 8
+
+// Real controls inside the sheet - never a drag surface, never a
+// sheet-toggle click.
+const INTERACTIVE_SELECTOR = 'input, button, a, textarea, select, summary, label'
 
 // Momentum for the manually-driven list scroll (see scrollHandlers) - the
 // browser's own inertia is gone once it no longer owns the scrolling, so a
@@ -342,7 +347,7 @@ function useSheetDrag(
     zoneHandlers: {
       onPointerDown: (e) => {
         const target = e.target as HTMLElement
-        if (target.closest('input, button, a, textarea, select')) return
+        if (target.closest(INTERACTIVE_SELECTOR)) return
         const onDragZone = target.closest('.sidebar__grabber, .sidebar__header, .sidebar__footer') != null
         if (!onDragZone && open) return
         try {
@@ -376,6 +381,10 @@ function useSheetDrag(
       onPointerCancel: (e) => cancelDrag(e.timeStamp),
       onClick: (e) => {
         if (e.timeStamp - pointerHandledAtRef.current < CLICK_FROM_POINTER_WINDOW_MS) return
+        // A keyboard/screen-reader activation of a real control inside the
+        // sheet bubbles a pointer-less click up here too - that's the
+        // control's click, not a request to toggle the sheet.
+        if ((e.target as HTMLElement).closest(INTERACTIVE_SELECTOR)) return
         setOpen(!open)
       }
     },
@@ -570,6 +579,8 @@ export function Sidebar(): React.JSX.Element {
   const requestRoute = useViewFinderStore((s) => s.requestRoute)
   const clearRoute = useViewFinderStore((s) => s.clearRoute)
   const requestViewpointsRefresh = useViewFinderStore((s) => s.requestViewpointsRefresh)
+  const theme = useViewFinderStore((s) => s.theme)
+  const setTheme = useViewFinderStore((s) => s.setTheme)
 
   // On phone portrait the sheet IS the collapsed bar - it just sits pushed
   // down to its peek height (see .sidebar--hidden in global.css) - so one
@@ -711,11 +722,43 @@ export function Sidebar(): React.JSX.Element {
           somewhere to go. */}
       {!routeDestination && (
         <div
+          className="sidebar__search-row"
           onFocus={() => {
             if (!sidebarOpen) setSidebarOpen(true)
           }}
         >
           <SearchBar />
+          <details className="settings">
+            <summary className="settings__toggle" aria-label="Settings" title="Settings">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" />
+                <path
+                  d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </summary>
+            <fieldset className="settings__panel">
+              <legend className="settings__legend">Style</legend>
+              {THEMES.map((t) => (
+                <label key={t.id} className="settings__option">
+                  <input
+                    type="radio"
+                    name="vf-theme"
+                    value={t.id}
+                    checked={theme === t.id}
+                    onChange={() => setTheme(t.id)}
+                  />
+                  <span className="settings__option-text">
+                    <span className="settings__option-name">{t.label}</span>
+                    <span className="settings__option-desc">{t.description}</span>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+          </details>
         </div>
       )}
 
@@ -844,7 +887,7 @@ export function Sidebar(): React.JSX.Element {
                         <span
                           className="sidebar__badge"
                           data-category={vp.category}
-                          style={{ backgroundColor: CATEGORY_COLOR[vp.category] }}
+                          style={{ backgroundColor: CATEGORY_COLORS[theme][vp.category] }}
                           aria-hidden="true"
                         />
                         <span className="sidebar__row-text">

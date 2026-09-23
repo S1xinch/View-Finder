@@ -1,16 +1,33 @@
+/* :root is the Apple theme (the default). Trail Guide and Night Summit
+   override these same variables under :root[data-theme=...] at the end of
+   this file - see renderer/themes.ts and the sidebar's settings menu. */
 :root {
-  --vf-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --vf-font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+  --vf-display-font: var(--vf-font);
+  --vf-number-font: var(--vf-font);
 
-  /* Core palette — Apple iOS HIG */
-  --vf-primary-accent: #5a8fd4;
+  /* Core palette — iOS system colours */
+  --vf-primary-accent: #007aff;
   --vf-secondary-accent: #34c759;
   --vf-warning-accent: #ff9500;
   --vf-danger-accent: #ff3b30;
 
   /* Materials — layer hierarchy */
   --vf-material-base: transparent;
-  --vf-material-fg: rgba(255, 255, 255, 0.72);
-  --vf-material-glass: rgba(255, 255, 255, 0.60);
+  /* iOS "regular material": translucent enough for the map to show
+     through the heavy blur below, like Apple Maps' own sheet. */
+  --vf-material-fg: rgba(255, 255, 255, 0.66);
+  --vf-material-glass: rgba(255, 255, 255, 0.56);
+  /* iOS tertiary system fill - search field, chips, round buttons. */
+  --vf-fill: rgba(118, 118, 128, 0.12);
+  --vf-field-bg: var(--vf-fill);
+  --vf-field-border: transparent;
+  --vf-chip-border: transparent;
+  --vf-badge-radius: 50%;
+  /* Menus/dropdowns sit on top of the already-blurred sheet, where their
+     own blur has nothing left to work on - so they need a thicker, near-
+     opaque material, like iOS context menus. */
+  --vf-popover-bg: rgba(255, 255, 255, 0.95);
   --vf-material-overlay: rgba(0, 0, 0, 0.3);
 
   /* Text */
@@ -28,8 +45,8 @@
   --vf-disabled-alpha: 0.5;
 
   /* Glass/Blur */
-  --vf-blur-standard: blur(24px) saturate(180%);
-  --vf-blur-light: blur(12px) saturate(140%);
+  --vf-blur-standard: blur(30px) saturate(190%);
+  --vf-blur-light: blur(16px) saturate(160%);
 
   /* Shadow system — Apple's layered floating effects */
   --vf-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
@@ -69,9 +86,13 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
+    --vf-primary-accent: #0a84ff;
+
     /* Materials */
-    --vf-material-fg: rgba(30, 30, 32, 0.78);
-    --vf-material-glass: rgba(30, 30, 32, 0.65);
+    --vf-material-fg: rgba(30, 30, 32, 0.68);
+    --vf-material-glass: rgba(30, 30, 32, 0.58);
+    --vf-fill: rgba(118, 118, 128, 0.24);
+    --vf-popover-bg: rgba(44, 44, 46, 0.95);
 
     /* Text */
     --vf-text-primary: #f5f5f7;
@@ -965,12 +986,9 @@ input[type='range'] {
   align-items: center;
   gap: var(--vf-space-sm);
   padding: var(--vf-space-md) var(--vf-space-md);
-  border: 1px solid var(--vf-divider);
+  border: 1px solid var(--vf-field-border);
   border-radius: var(--vf-radius-md);
-  background: var(--vf-material-fg);
-  box-shadow: var(--vf-shadow-sm);
-  backdrop-filter: var(--vf-blur-light);
-  -webkit-backdrop-filter: var(--vf-blur-light);
+  background: var(--vf-field-bg);
 }
 
 .search-bar__icon {
@@ -1022,7 +1040,7 @@ input[type='range'] {
   list-style: none;
   max-height: 240px;
   overflow-y: auto;
-  background: var(--vf-card-bg);
+  background: var(--vf-popover-bg);
   border: 1px solid var(--vf-card-border);
   border-radius: var(--vf-radius-md);
   box-shadow: var(--vf-card-shadow);
@@ -1196,9 +1214,9 @@ input[type='range'] {
   align-items: center;
   padding: 6px 12px;
   border-radius: 999px;
-  border: 1px solid var(--vf-card-border);
-  background: var(--vf-hover);
-  color: var(--vf-text-secondary);
+  border: 1px solid var(--vf-chip-border);
+  background: var(--vf-fill);
+  color: var(--vf-text-primary);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -1220,7 +1238,7 @@ input[type='range'] {
 .sidebar__checkbox:has(input:checked) {
   background: var(--vf-accent);
   border-color: var(--vf-accent);
-  color: #ffffff;
+  color: var(--vf-accent-text);
 }
 
 .sidebar__checkbox:has(input:focus-visible) {
@@ -1366,7 +1384,7 @@ input[type='range'] {
   border: none;
   border-radius: 50%;
   background: var(--vf-accent);
-  color: #ffffff;
+  color: var(--vf-accent-text);
   font-size: 12px;
   cursor: pointer;
   opacity: 0;
@@ -1387,7 +1405,7 @@ input[type='range'] {
   flex: 0 0 auto;
   width: 30px;
   height: 30px;
-  border-radius: var(--vf-radius-sm);
+  border-radius: var(--vf-badge-radius);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1596,7 +1614,7 @@ input[type='range'] {
   font-family: var(--vf-font);
   font-size: 13px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--vf-accent-text);
   background: var(--vf-accent);
   border: none;
   border-radius: var(--vf-radius-sm);
@@ -1617,7 +1635,7 @@ input[type='range'] {
   font-family: var(--vf-font);
   font-size: 15px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--vf-accent-text);
   background: var(--vf-accent);
   border: none;
   border-radius: var(--vf-radius-sm);
@@ -1637,7 +1655,7 @@ input[type='range'] {
   padding: 12px;
   border-radius: var(--vf-radius-md);
   background: var(--vf-accent);
-  color: #ffffff;
+  color: var(--vf-accent-text);
 }
 
 .sidebar__turn-card-icon {
@@ -1653,7 +1671,7 @@ input[type='range'] {
 }
 
 .sidebar__turn-card .sidebar__row-name {
-  color: #ffffff;
+  color: var(--vf-accent-text);
   font-weight: 600;
 }
 
@@ -1740,7 +1758,7 @@ input[type='range'] {
 }
 
 .vf-popup__directions {
-  color: #ffffff;
+  color: var(--vf-accent-text);
   background: var(--vf-accent);
   border: none;
 }
@@ -1948,11 +1966,237 @@ input[type='range'] {
 .saved-locations__signin {
   padding: 10px 12px;
   background: var(--vf-accent);
-  color: white;
+  color: var(--vf-accent-text);
   border: none;
   border-radius: var(--vf-radius-md);
   font-size: 13px;
   font-weight: 600;
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+/* ============================================================================
+   SETTINGS MENU (gear beside the search field - Sidebar.tsx)
+   ============================================================================ */
+.sidebar__search-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+}
+
+.sidebar__search-row > .search-bar {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings {
+  padding: 4px 14px 0 0;
+}
+
+.settings__toggle {
+  list-style: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--vf-field-bg);
+  border: 1px solid var(--vf-field-border);
+  color: var(--vf-text-secondary);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.settings__toggle::-webkit-details-marker {
+  display: none;
+}
+
+.settings[open] .settings__toggle {
+  color: var(--vf-accent);
+}
+
+.settings__panel {
+  position: absolute;
+  top: 100%;
+  right: 14px;
+  z-index: 7;
+  width: min(260px, calc(100% - 28px));
+  margin: 0;
+  padding: 6px;
+  border: 1px solid var(--vf-card-border);
+  border-radius: var(--vf-radius-md);
+  background: var(--vf-popover-bg);
+  box-shadow: var(--vf-card-shadow);
+  backdrop-filter: var(--vf-blur);
+  -webkit-backdrop-filter: var(--vf-blur);
+}
+
+/* Floated so the legend sits inside the panel instead of notching its border. */
+.settings__legend {
+  float: left;
+  width: 100%;
+  padding: 6px 8px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--vf-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.settings__option {
+  clear: both;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: var(--vf-radius-sm);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.settings__option:hover {
+  background: var(--vf-hover);
+}
+
+.settings__option input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--vf-accent);
+}
+
+.settings__option-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings__option-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--vf-text-primary);
+}
+
+.settings__option-desc {
+  font-size: 12px;
+  color: var(--vf-text-secondary);
+}
+
+@media (max-width: 600px), (max-height: 500px) and (orientation: landscape) {
+  .settings {
+    padding-top: 0;
+  }
+
+  .settings__toggle {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* ============================================================================
+   THEMES - Trail Guide and Night Summit. Apple is :root at the top.
+   Specificity (0,2,0) beats the prefers-color-scheme :root overrides, so
+   these two stay fixed regardless of the OS light/dark setting.
+   ============================================================================ */
+:root[data-theme='trail'] {
+  --vf-font: 'Work Sans', system-ui, sans-serif;
+  --vf-display-font: 'Zilla Slab', Georgia, serif;
+  --vf-primary-accent: #2e4636;
+  --vf-accent-text: #fbf7ee;
+  --vf-danger-accent: #9c3f28;
+  --vf-material-fg: rgba(251, 247, 238, 0.97);
+  --vf-material-glass: rgba(251, 247, 238, 0.94);
+  --vf-fill: transparent;
+  --vf-field-bg: #ffffff;
+  --vf-field-border: #2e4636;
+  --vf-chip-border: #8c8570;
+  --vf-badge-radius: 4px;
+  --vf-popover-bg: #fbf7ee;
+  --vf-text-primary: #1f2a22;
+  --vf-text-secondary: #5c5a4e;
+  --vf-text-tertiary: #8c8570;
+  --vf-divider: rgba(46, 70, 54, 0.22);
+  --vf-border-light: rgba(46, 70, 54, 0.12);
+  --vf-hover-bg: rgba(46, 70, 54, 0.07);
+  --vf-pressed-bg: rgba(46, 70, 54, 0.12);
+  --vf-blur-standard: none;
+  --vf-blur-light: none;
+  --vf-shadow-sm: 0 2px 0 rgba(31, 42, 34, 0.12);
+  --vf-shadow-md: 0 3px 0 rgba(31, 42, 34, 0.16);
+  --vf-shadow-lg: 0 4px 0 rgba(31, 42, 34, 0.18), 0 10px 24px rgba(31, 42, 34, 0.12);
+  --vf-radius-sm: 6px;
+  --vf-radius-md: 8px;
+  --vf-radius-lg: 12px;
+  --vf-radius-xl: 16px;
+}
+
+:root[data-theme='night'] {
+  --vf-font: 'Barlow', system-ui, sans-serif;
+  --vf-display-font: 'Barlow Condensed', 'Barlow', sans-serif;
+  --vf-number-font: 'IBM Plex Mono', ui-monospace, monospace;
+  --vf-primary-accent: #ffb547;
+  --vf-accent-text: #1a1206;
+  --vf-danger-accent: #e0473f;
+  --vf-material-fg: rgba(18, 26, 38, 0.94);
+  --vf-material-glass: rgba(18, 26, 38, 0.9);
+  --vf-fill: #1a2433;
+  --vf-field-bg: #1a2433;
+  --vf-field-border: #2a3648;
+  --vf-chip-border: #3a475b;
+  --vf-popover-bg: #121a26;
+  --vf-text-primary: #e8eef6;
+  --vf-text-secondary: #9aa7ba;
+  --vf-text-tertiary: #6b7890;
+  --vf-divider: #243042;
+  --vf-border-light: #1e2837;
+  --vf-hover-bg: rgba(255, 255, 255, 0.06);
+  --vf-pressed-bg: rgba(255, 255, 255, 0.1);
+  --vf-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --vf-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --vf-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.6);
+}
+
+:root[data-theme='trail'] body {
+  background: #ede5d1;
+}
+
+:root[data-theme='night'] body {
+  background: #0b1018;
+}
+
+:root[data-theme='trail']
+  :is(.sidebar__count, .sidebar__directions-title, .sidebar__directions-summary, .sidebar__turn-card .sidebar__row-name, .vf-popup__title) {
+  font-family: var(--vf-display-font);
+  font-weight: 700;
+}
+
+:root[data-theme='trail'] .sidebar__count {
+  font-size: 16px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--vf-text-primary);
+}
+
+:root[data-theme='night'] :is(.sidebar__count, .sidebar__row-detail, .sidebar__checkbox, .settings__legend) {
+  font-family: var(--vf-display-font);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+:root[data-theme='night'] :is(.sidebar__turn-card-distance, .sidebar__directions-summary) {
+  font-family: var(--vf-number-font);
+}
+
+/* MapLibre's zoom +/- glyphs are dark background-images - invisible on
+   the dark control buttons unless flipped. */
+:root[data-theme='night'] .maplibregl-ctrl-group .maplibregl-ctrl-icon {
+  filter: invert(1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='trail']) .maplibregl-ctrl-group .maplibregl-ctrl-icon {
+    filter: invert(1);
+  }
 }

@@ -8,6 +8,7 @@ import {
   addSatelliteLayer,
   applyAppleStyleTweaks,
   applyDarkMapTweaks,
+  applyTrailMapTweaks,
   boostRoadContrast,
   restoreBasePaint,
   setSatelliteVisible
@@ -31,11 +32,28 @@ import { useViewFinderStore } from '../state/store'
 // packaged (app://) alike.
 setWorkerUrl(maplibreWorkerUrl)
 
+// Apple follows the OS light/dark setting; Trail and Night are fixed.
+function applyThemeToMap(map: MapLibreMap): void {
+  const theme = useViewFinderStore.getState().theme
+  restoreBasePaint(map)
+  if (theme === 'trail') applyTrailMapTweaks(map)
+  else if (theme === 'night' || window.matchMedia('(prefers-color-scheme: dark)').matches) applyDarkMapTweaks(map)
+  else {
+    boostRoadContrast(map)
+    applyAppleStyleTweaks(map)
+  }
+}
+
 export function MapView(): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const setMap = useViewFinderStore((s) => s.setMap)
   const satelliteView = useViewFinderStore((s) => s.satelliteView)
+  const theme = useViewFinderStore((s) => s.theme)
+
+  useEffect(() => {
+    if (mapRef.current) applyThemeToMap(mapRef.current)
+  }, [theme])
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
@@ -58,15 +76,7 @@ export function MapView(): React.JSX.Element {
     map.addControl(new SatelliteControl(), 'bottom-right')
     map.addControl(new LocateControl(), 'bottom-right')
 
-    const applyBaseStyleTweaks = (): void => {
-      restoreBasePaint(map)
-      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        applyDarkMapTweaks(map)
-      } else {
-        boostRoadContrast(map)
-        applyAppleStyleTweaks(map)
-      }
-    }
+    const applyBaseStyleTweaks = (): void => applyThemeToMap(map)
     // Every other layer component (ViewpointLayer, PrivateLandLayer,
     // RouteLayer) reads `map` from the store and immediately calls
     // addSource/addLayer/source.setData on it - which only actually

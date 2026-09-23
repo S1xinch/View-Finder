@@ -1978,25 +1978,24 @@ input[type='range'] {
 /* ============================================================================
    SETTINGS MENU (gear beside the search field - Sidebar.tsx)
    ============================================================================ */
-.sidebar__search-row {
-  position: relative;
+/* The gear shares the search field's row, stretched to the field's height
+   and kept square - so the two always line up whatever the field's
+   padding/font size is on a given screen. */
+.search-bar__row {
   display: flex;
-  align-items: flex-start;
+  gap: 8px;
 }
 
-.sidebar__search-row > .search-bar {
+.search-bar__row > .search-bar__field {
   flex: 1;
   min-width: 0;
 }
 
-.settings {
-  padding: 4px 14px 0 0;
-}
-
 .settings__toggle {
   list-style: none;
-  width: 42px;
-  height: 42px;
+  height: 100%;
+  aspect-ratio: 1;
+  box-sizing: border-box;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -2081,17 +2080,6 @@ input[type='range'] {
 .settings__option-desc {
   font-size: 12px;
   color: var(--vf-text-secondary);
-}
-
-@media (max-width: 600px), (max-height: 500px) and (orientation: landscape) {
-  .settings {
-    padding-top: 0;
-  }
-
-  .settings__toggle {
-    width: 44px;
-    height: 44px;
-  }
 }
 
 /* ============================================================================

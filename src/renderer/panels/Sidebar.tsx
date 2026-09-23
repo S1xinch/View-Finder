@@ -582,6 +582,29 @@ export function Sidebar(): React.JSX.Element {
   const theme = useViewFinderStore((s) => s.theme)
   const setTheme = useViewFinderStore((s) => s.setTheme)
 
+  // <details> only closes by tapping its own summary again - on a phone the
+  // expected dismissal is tapping anywhere else (or Escape on desktop).
+  const settingsRef = useRef<HTMLDetailsElement>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  useEffect(() => {
+    if (!settingsOpen) return
+    const close = (): void => {
+      if (settingsRef.current) settingsRef.current.open = false
+    }
+    const onPointerDown = (e: PointerEvent): void => {
+      if (!settingsRef.current?.contains(e.target as Node)) close()
+    }
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') close()
+    }
+    document.addEventListener('pointerdown', onPointerDown, true)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [settingsOpen])
+
   // On phone portrait the sheet IS the collapsed bar - it just sits pushed
   // down to its peek height (see .sidebar--hidden in global.css) - so one
   // element and one drag hook cover both states. The separate corner
@@ -722,13 +745,12 @@ export function Sidebar(): React.JSX.Element {
           somewhere to go. */}
       {!routeDestination && (
         <div
-          className="sidebar__search-row"
           onFocus={() => {
             if (!sidebarOpen) setSidebarOpen(true)
           }}
         >
-          <SearchBar />
-          <details className="settings">
+          <SearchBar>
+          <details className="settings" ref={settingsRef} onToggle={(e) => setSettingsOpen(e.currentTarget.open)}>
             <summary className="settings__toggle" aria-label="Settings" title="Settings">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" />
@@ -759,6 +781,7 @@ export function Sidebar(): React.JSX.Element {
               ))}
             </fieldset>
           </details>
+          </SearchBar>
         </div>
       )}
 

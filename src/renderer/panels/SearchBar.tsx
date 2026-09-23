@@ -18,7 +18,9 @@ type SearchStatus = 'idle' | 'loading' | 'error'
 // When a place is selected, shows "Get directions" button to route to it.
 // Deliberately local component state, not the shared store - nothing else
 // in the app needs to know what's mid-type in this box.
-export function SearchBar(): React.JSX.Element {
+// `children` sits beside the field in the same row (the settings gear), so
+// it always shares the field's exact height.
+export function SearchBar({ children }: { children?: React.ReactNode }): React.JSX.Element {
   const map = useViewFinderStore((s) => s.map)
   const requestRoute = useViewFinderStore((s) => s.requestRoute)
   const [query, setQuery] = useState('')
@@ -117,6 +119,7 @@ export function SearchBar(): React.JSX.Element {
           </button>
         </div>
       )}
+      <div className="search-bar__row">
       <div className="search-bar__field">
         <svg
           width="14"
@@ -163,6 +166,8 @@ export function SearchBar(): React.JSX.Element {
             </svg>
           </button>
         )}
+      </div>
+      {children}
       </div>
 
       {showDropdown && (

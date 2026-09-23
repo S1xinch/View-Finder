@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { App } from '@renderer/App'
 import { webApi } from './webApi'
+import { applyDeviceCorners } from './screenCorners'
 
 // The renderer's App.tsx and every component under it only ever touch
 // window.viewFinderAPI - they don't know or care whether that's backed by
@@ -10,6 +11,9 @@ import { webApi } from './webApi'
 // the website build and the desktop app's UI code (App.tsx imports its
 // own CSS, so nothing else is needed here).
 window.viewFinderAPI = webApi
+// Before the first render, so the sheet's first layout/peek measurement
+// already accounts for the device-corner geometry.
+applyDeviceCorners()
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>

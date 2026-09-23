@@ -630,7 +630,12 @@ export function Sidebar(): React.JSX.Element {
       // Measured while open (the sheet's natural, un-shrunk layout), so
       // this is just "how far down the search field's bottom edge sits" -
       // the same number collapsed height needs to target.
-      const peek = search.getBoundingClientRect().bottom - sheet.getBoundingClientRect().top
+      // Plus the sheet's own bottom padding - non-zero only when it extends
+      // behind the home indicator (installed iPhone app, see global.css's
+      // vf-device-corners rules), where the collapsed card has to keep that
+      // strip as empty space under the search field.
+      const padBottom = Number.parseFloat(getComputedStyle(sheet).paddingBottom) || 0
+      const peek = search.getBoundingClientRect().bottom - sheet.getBoundingClientRect().top + padBottom
       if (peek > 0) sheet.style.setProperty('--vf-sheet-peek', `${Math.round(peek)}px`)
     }
 

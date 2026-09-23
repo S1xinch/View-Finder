@@ -8,6 +8,7 @@ import { useViewFinderStore } from '../state/store'
 // store.
 export function useRoute(): void {
   const routeDestination = useViewFinderStore((s) => s.routeDestination)
+  const routeRequestNonce = useViewFinderStore((s) => s.routeRequestNonce)
   const userLocation = useViewFinderStore((s) => s.userLocation)
   const setRouteLoading = useViewFinderStore((s) => s.setRouteLoading)
   const setRouteLoaded = useViewFinderStore((s) => s.setRouteLoaded)
@@ -60,8 +61,9 @@ export function useRoute(): void {
       setRouteError(error instanceof Error ? error.message : 'Failed to load directions')
     }
     // Deliberately NOT re-running on every userLocation update (a live GPS
-    // watch fires often) - only when the destination changes, or when
-    // location first becomes available after being missing.
+    // watch fires often) - only on a new request (routeRequestNonce, which
+    // also covers asking for the same spot again), or when location first
+    // becomes available after being missing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeDestination, Boolean(userLocation)])
+  }, [routeDestination, routeRequestNonce, Boolean(userLocation)])
 }

@@ -1978,24 +1978,33 @@ input[type='range'] {
 /* ============================================================================
    SETTINGS MENU (gear beside the search field - Sidebar.tsx)
    ============================================================================ */
-/* The gear shares the search field's row, stretched to the field's height
-   and kept square - so the two always line up whatever the field's
-   padding/font size is on a given screen. */
+/* Field and gear share one explicit height (Apple's 44px minimum tap
+   target). Deliberately not height:100% + aspect-ratio on the gear: iOS
+   Safari doesn't size a <details> to its summary's aspect-ratio width, so
+   the gear rendered oversized and overflowed the sheet. */
 .search-bar__row {
+  --vf-field-height: 44px;
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 
 .search-bar__row > .search-bar__field {
   flex: 1;
   min-width: 0;
+  height: var(--vf-field-height);
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.settings {
+  flex: none;
 }
 
 .settings__toggle {
   list-style: none;
-  height: 100%;
-  aspect-ratio: 1;
-  box-sizing: border-box;
+  width: var(--vf-field-height);
+  height: var(--vf-field-height);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -2093,8 +2102,8 @@ input[type='range'] {
   --vf-primary-accent: #2e4636;
   --vf-accent-text: #fbf7ee;
   --vf-danger-accent: #9c3f28;
-  --vf-material-fg: rgba(251, 247, 238, 0.97);
-  --vf-material-glass: rgba(251, 247, 238, 0.94);
+  --vf-material-fg: #fbf7ee;
+  --vf-material-glass: #fbf7ee;
   --vf-fill: transparent;
   --vf-field-bg: #ffffff;
   --vf-field-border: #2e4636;

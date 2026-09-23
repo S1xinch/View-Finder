@@ -1,6 +1,6 @@
 import { net } from 'electron'
 import type { LatLng } from '@core/routing/types'
-import { queryRoute } from '@core/routing/osrmClient'
+import { routeToSpot } from '@core/routing/osrmClient'
 
 // Same rationale as coolSpotService.ts: net.fetch (Chromium's network
 // stack) is the one that reliably connects on networks where Node's plain
@@ -20,7 +20,7 @@ export async function getRoute(from: LatLng, to: LatLng) {
   console.log(
     `[routeService] getRoute from=(${from.lat.toFixed(4)},${from.lng.toFixed(4)}) to=(${to.lat.toFixed(4)},${to.lng.toFixed(4)})`
   )
-  const route = await queryRoute(from, to, { fetchImpl, signal: request.signal })
+  const route = await routeToSpot(from, to, { fetchImpl, signal: request.signal })
   console.log(`[routeService] route: ${(route.distanceMeters / 1000).toFixed(1)} km, ${Math.round(route.durationSeconds / 60)} min, ${route.steps.length} step(s)`)
   return route
 }

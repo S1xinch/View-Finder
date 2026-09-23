@@ -1,4 +1,5 @@
 import type { LatLng, RouteResult, RouteStep } from './types'
+import { haversineDistanceMeters } from '../geo/units'
 
 // Free, no-API-key driving directions via OSRM's public demo server. Same
 // "free/open stack, no signup" philosophy as Overpass/elevation
@@ -140,4 +141,89 @@ export async function queryRoute(from: LatLng, to: LatLng, options?: QueryRouteO
     ...primaryRoute,
     alternatives: alternatives.length > 0 ? alternatives : undefined
   }
+}
+
+export const DEFAULT_OSRM_TABLE_ENDPOINT = 'https://router.project-osrm.org/table/v1/driving'
+
+// OSRM snaps a destination to the nearest road in its *connected* car
+// network - skipping nearer isolated/gated pieces - which for a lookout on
+// a cliff edge is often a road across the valley: a long drive to a spot a
+// short drive from a road a little further away. Scoring a ring of
+// candidate approach points by drive time + walking time (one /table
+// request) picks the approach a person would actually use.
+const APPROACH_RADII_M = [300, 800, 1600]
+const APPROACH_BEARINGS = 8
+const WALK_SPEED_MPS = 1.2
+// A second of walking is worth avoiding 3 seconds of extra driving.
+const WALK_PENALTY = 3
+
+interface OsrmTableResponse {
+  code: string
+  durations?: (number | null)[][]
+  destinations?: { location: [number, number] }[]
+}
+
+function offsetPoint(p: LatLng, meters: number, bearingDeg: number): LatLng {
+  const b = (bearingDeg * Math.PI) / 180
+  return {
+    lat: p.lat + (meters * Math.cos(b)) / 111_320,
+    lng: p.lng + (meters * Math.sin(b)) / (111_320 * Math.cos((p.lat * Math.PI) / 180))
+  }
+}
+
+export function approachCandidates(to: LatLng): LatLng[] {
+  const points = [to]
+  for (const radius of APPROACH_RADII_M) {
+    for (let i = 0; i < APPROACH_BEARINGS; i++) points.push(offsetPoint(to, radius, (360 / APPROACH_BEARINGS) * i))
+  }
+  return points
+}
+
+// Where to point the route at. Falls back to the spot itself (plain OSRM
+// snapping, the old behaviour) if the table request fails for any reason
+// other than being superseded.
+export async function findBestApproach(
+  from: LatLng,
+  to: LatLng,
+  options?: QueryRouteOptions & { tableEndpoint?: string }
+): Promise<LatLng> {
+  const endpoint = options?.tableEndpoint ?? DEFAULT_OSRM_TABLE_ENDPOINT
+  const fetchImpl = options?.fetchImpl ?? fetch
+  const timeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+  const signal = options?.signal ? AbortSignal.any([timeoutSignal, options.signal]) : timeoutSignal
+
+  const candidates = approachCandidates(to)
+  const coords = [from, ...candidates].map((p) => `${p.lng},${p.lat}`).join(';')
+
+  try {
+    const response = await fetchImpl(`${endpoint}/${coords}?sources=0&annotations=duration`, {
+      headers: { Accept: 'application/json' },
+      signal
+    })
+    if (!response.ok) return to
+    const data = (await response.json()) as OsrmTableResponse
+    const durations = data.durations?.[0]
+    if (data.code !== 'Ok' || !durations || !data.destinations) return to
+
+    let best: { score: number; point: LatLng } | null = null
+    for (let i = 1; i < data.destinations.length; i++) {
+      const duration = durations[i]
+      if (duration == null) continue
+      const [lng, lat] = data.destinations[i].location
+      const point = { lat, lng }
+      const score = duration + (haversineDistanceMeters(point, to) / WALK_SPEED_MPS) * WALK_PENALTY
+      if (!best || score < best.score) best = { score, point }
+    }
+    return best?.point ?? to
+  } catch (error) {
+    if (options?.signal?.aborted) throw error
+    return to
+  }
+}
+
+// What callers use for "directions to this spot": the route ends at the
+// best road approach, and the UI draws the remaining walk to the spot.
+export async function routeToSpot(from: LatLng, to: LatLng, options?: QueryRouteOptions): Promise<RouteResult> {
+  const approach = await findBestApproach(from, to, options)
+  return queryRoute(from, approach, options)
 }

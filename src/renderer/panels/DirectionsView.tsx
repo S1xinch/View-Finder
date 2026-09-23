@@ -192,6 +192,12 @@ export function DirectionsView(): React.JSX.Element {
     return Math.round(totalHours * 60)
   }, [selectedRoute, passedStepIndex])
 
+  const walkMeters = useMemo(() => {
+    const coords = selectedRoute?.coordinates
+    if (!coords?.length || !destination) return null
+    return haversineDistanceMeters(coords[coords.length - 1], [destination.lng, destination.lat])
+  }, [selectedRoute, destination])
+
   const openInMaps = (): void => {
     if (!destination) return
     window.open(
@@ -236,13 +242,11 @@ export function DirectionsView(): React.JSX.Element {
         <>
           <div className="sidebar__directions-summary">
             {formatRouteDistance(selectedRoute.distanceMeters)} · {formatDuration(selectedRoute.durationSeconds)} drive
-            {/* The route ends at the nearest road, not necessarily right on
-                top of the spot (see RouteLayer.tsx's dashed walk-in segment)
-                - distanceToRoadMeters is the same figure already shown in
-                the spot list, reused here so the two never disagree. */}
-            {destination?.distanceToRoadMeters != null && destination.distanceToRoadMeters >= 15 && (
-              <> · {formatRouteDistance(destination.distanceToRoadMeters)} walk</>
-            )}
+            {/* The real gap between where the drive ends and the spot - the
+                same stretch RouteLayer.tsx draws dashed. Not the spot list's
+                distanceToRoadMeters, which counts fire trails a car can't
+                use and so can read "12 m" for what's really a 3 km walk. */}
+            {walkMeters != null && walkMeters >= 15 && <> · {formatRouteDistance(walkMeters)} walk</>}
           </div>
           {route.alternatives && route.alternatives.length > 0 && (
             <div className="sidebar__route-switcher">

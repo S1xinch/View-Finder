@@ -1,7 +1,7 @@
 import { createCoolSpotOrchestrator } from '@core/services/coolSpotOrchestrator'
 import { MemoryCacheStore } from '@core/cache/MemoryCacheStore'
 import { TieredCacheStore } from '@core/cache/TieredCacheStore'
-import { queryRoute } from '@core/routing/osrmClient'
+import { routeToSpot } from '@core/routing/osrmClient'
 import { searchPlaces } from '@core/geocoding/nominatimClient'
 import { IndexedDbCacheStore } from './IndexedDbCacheStore'
 import type { AppInfo, LatLng, ViewFinderApi } from '@shared/ipcContract'
@@ -39,7 +39,7 @@ export const webApi: ViewFinderApi = {
     currentRouteRequest?.abort()
     const request = new AbortController()
     currentRouteRequest = request
-    return queryRoute(from, to, { fetchImpl: (input, init) => fetch(input, init), signal: request.signal })
+    return routeToSpot(from, to, { fetchImpl: (input, init) => fetch(input, init), signal: request.signal })
   },
   searchPlaces: async (query: string) => {
     currentPlaceSearchRequest?.abort()

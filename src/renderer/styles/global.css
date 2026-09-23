@@ -2193,25 +2193,57 @@ input[type='range'] {
    padding its content up clear of it. */
 @media (max-width: 600px) {
   :root.vf-device-corners .sidebar {
+    /* Fixed collapsed height (see the capsule below): 13 + 44px search row
+       + 13, with the grabber overlaying the top edge. A literal, not a
+       calc(), because Sidebar's drag reads it back with parseFloat. */
+    --vf-sheet-peek: 72px;
     left: 8px;
     right: 8px;
     bottom: 8px;
     /* All four corners, like Apple Maps' sheet - not just the bottom pair. */
     border-radius: calc(var(--vf-screen-radius) - 8px);
     padding-bottom: max(0px, calc(env(safe-area-inset-bottom) - 8px));
+    transition:
+      height 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      left 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      right 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      bottom 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      border-radius 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      padding 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  /* Collapsed: Apple Maps' closed search bar - a compact capsule floating
+     just above the home indicator, not the open sheet shrunk down. */
+  :root.vf-device-corners .sidebar--hidden {
+    left: 20px;
+    right: 20px;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    padding-bottom: 0;
+    border-radius: 36px;
+  }
+
+  :root.vf-device-corners .sidebar--hidden .sidebar__grabber {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 5px 0 0;
+  }
+
+  :root.vf-device-corners .sidebar--hidden .search-bar {
+    padding: 13px 14px;
+  }
+
+  /* The main view's header row is empty (just a drag strip) - collapsed,
+     its padding would push the search row off-centre in the capsule. */
+  :root.vf-device-corners .sidebar--hidden .sidebar__header:not(.sidebar__header--directions) {
+    display: none;
   }
 
   /* Capsule search field, so it nests inside the sheet's big curve rather
      than meeting it with a small square-ish corner. */
   :root.vf-device-corners .search-bar__row > .search-bar__field {
     border-radius: calc(var(--vf-field-height) / 2);
-  }
-
-  /* Collapsed, that padding is empty space under the search field (the
-     peek height includes it - see Sidebar's measure) - keep the list out
-     of it rather than peeking through below the search field. */
-  :root.vf-device-corners .sidebar--hidden :is(.sidebar__scroll, .sidebar__body, .sidebar__footer) {
-    visibility: hidden;
   }
 }
 

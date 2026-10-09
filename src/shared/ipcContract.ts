@@ -33,6 +33,13 @@ export interface ExcludedLandArea {
   ring: [number, number][]
 }
 
+// A gate on a car-accessible road - see core/osm/roadQueries.ts.
+export interface Gate {
+  lat: number
+  lng: number
+  closed: boolean
+}
+
 export type AppPlatform = 'win32' | 'darwin' | 'linux' | 'web'
 
 export interface AppInfo {
@@ -90,6 +97,7 @@ export interface ViewFinderApi {
   getAppInfo: () => Promise<AppInfo>
   getViewpoints: (bbox: BBox, onProgress?: (progress: ViewpointsProgress) => void) => Promise<Viewpoint[]>
   getExcludedLand: (bbox: BBox) => Promise<ExcludedLandArea[]>
+  getGates: (bbox: BBox) => Promise<Gate[]>
   getRoute: (from: LatLng, to: LatLng) => Promise<RouteResult>
   searchPlaces: (query: string) => Promise<PlaceResult[]>
 }

@@ -31,6 +31,7 @@ const viewFinderAPI: ViewFinderApi = {
   getAppInfo: () => ipcRenderer.invoke(IpcChannels.getAppInfo),
   getViewpoints,
   getExcludedLand: (bbox: BBox) => ipcRenderer.invoke(IpcChannels.getExcludedLand, bbox),
+  getGates: (bbox: BBox) => ipcRenderer.invoke(IpcChannels.getGates, bbox),
   getRoute: (from: LatLng, to: LatLng) => ipcRenderer.invoke(IpcChannels.getRoute, from, to),
   searchPlaces: (query: string) => ipcRenderer.invoke(IpcChannels.searchPlaces, query)
 }

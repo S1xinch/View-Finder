@@ -2,8 +2,8 @@ import type { BBox } from '../geo/types'
 import { splitBBox, snapBBoxToGrid, isPointInBBox } from '../geo/tiling'
 import { queryOverpass, type FetchLike } from '../osm/overpassClient'
 import { buildViewpointQuery, parseViewpoints } from '../osm/viewpointQueries'
-import { buildRoadQuery, parseRoads } from '../osm/roadQueries'
-import type { RoadSegment } from '../osm/roadQueries'
+import { buildGateQuery, buildRoadQuery, parseGates, parseRoads } from '../osm/roadQueries'
+import type { Gate, RoadSegment } from '../osm/roadQueries'
 import { buildLandUseQuery, parseExcludedLandAreas } from '../osm/landUseQueries'
 import type { ExcludedLandArea } from '../osm/landUseQueries'
 import type { Viewpoint } from '../osm/types'
@@ -64,6 +64,7 @@ export type ViewpointsProgressCallback = (progress: ViewpointsProgress) => void
 export interface CoolSpotOrchestrator {
   getViewpoints: (bbox: BBox, onProgress?: ViewpointsProgressCallback) => Promise<Viewpoint[]>
   getExcludedLand: (bbox: BBox) => Promise<ExcludedLandArea[]>
+  getGates: (bbox: BBox) => Promise<Gate[]>
 }
 
 // The full "cool spots to drive to" pipeline: tiled Overpass viewpoint
@@ -443,5 +444,17 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
     return getExcludedLandAreas(bbox, controller.signal)
   }
 
-  return { getViewpoints, getExcludedLand }
+  // Map overlay only, cached per snapped tile like roads. A failed query
+  // throws so the caller keeps whatever gates it was already showing.
+  async function getGates(bbox: BBox): Promise<Gate[]> {
+    const snapped = snapBBoxToGrid(bbox)
+    const key = bboxKey('gates', snapped)
+    const cached = await cache.get<Gate[]>(key)
+    if (cached) return cached
+    const gates = parseGates(await queryOverpass(buildGateQuery(snapped), { fetchImpl }))
+    await cache.set(key, gates, OSM_CACHE_TTL_MS)
+    return gates
+  }
+
+  return { getViewpoints, getExcludedLand, getGates }
 }

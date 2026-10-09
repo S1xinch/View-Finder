@@ -4,7 +4,7 @@ import type { LatLng } from '@core/routing/types'
 import type { ViewpointsProgress } from '@core/services/coolSpotOrchestrator'
 import type { AppInfo, AppPlatform } from '@shared/ipcContract'
 import { IpcChannels } from './channels'
-import { getExcludedLand, getViewpoints } from '../services/coolSpotService'
+import { getExcludedLand, getGates, getViewpoints } from '../services/coolSpotService'
 import { getRoute } from '../services/routeService'
 import { searchPlaces } from '../services/placeSearchService'
 
@@ -53,6 +53,8 @@ export function registerIpcHandlers(): void {
       throw error
     }
   })
+
+  ipcMain.handle(IpcChannels.getGates, (_event, bbox: BBox) => getGates(bbox))
 
   ipcMain.handle(IpcChannels.getRoute, async (_event, from: LatLng, to: LatLng) => {
     try {

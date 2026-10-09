@@ -1,4 +1,4 @@
-import type { Map as MapLibreMap } from 'maplibre-gl'
+import type { ExpressionSpecification, Map as MapLibreMap } from 'maplibre-gl'
 
 // OpenFreeMap (openfreemap.org) — free, no API key, no rate limits, donation-funded
 // OSM vector tiles. "positron"-family light/muted base gives the clean, restrained
@@ -72,6 +72,7 @@ export function boostRoadContrast(map: MapLibreMap, color = ROAD_CONTRAST_COLOR)
   for (const layer of style.layers) {
     if (layer.type !== 'line') continue
     if (!('source-layer' in layer) || layer['source-layer'] !== 'transportation') continue
+    if (layer.id.endsWith(UNPAVED_SUFFIX)) continue
 
     try {
       setTrackedPaint(map, layer.id, 'line-color', color)
@@ -198,6 +199,46 @@ export function applyTrailMapTweaks(map: MapLibreMap): void {
   }
 
   boostRoadContrast(map, '#6E4F30')
+}
+
+// Unpaved roads (OpenMapTiles' "surface" attribute), drawn the way Organic
+// Maps does: the road line broken into dashes. Each overlay is a copy of
+// a base road layer, filtered to unpaved and laid directly on top of it,
+// with dashes in the ground color so the road shows only in the gaps.
+const UNPAVED_SUFFIX = '_unpaved'
+const UNPAVED_BASE_LAYERS = ['highway_minor', 'highway_major_inner']
+
+export function addUnpavedRoadLayers(map: MapLibreMap): void {
+  const layers = map.getStyle()?.layers ?? []
+  for (const baseId of UNPAVED_BASE_LAYERS) {
+    const index = layers.findIndex((l) => l.id === baseId)
+    const base = layers[index]
+    if (!base || base.type !== 'line' || map.getLayer(baseId + UNPAVED_SUFFIX)) continue
+    map.addLayer(
+      {
+        id: baseId + UNPAVED_SUFFIX,
+        type: 'line',
+        source: base.source,
+        'source-layer': base['source-layer'],
+        minzoom: 12,
+        // OpenFreeMap's road filters are expressions (not legacy filters).
+        filter: ['all', (base.filter ?? true) as ExpressionSpecification, ['==', ['get', 'surface'], 'unpaved']],
+        layout: base.layout,
+        paint: { 'line-width': base.paint?.['line-width'] ?? 1, 'line-dasharray': [1.5, 1.5] }
+      },
+      layers[index + 1]?.id
+    )
+  }
+}
+
+// Call after any theme pass, so the dashes match the ground they sit on.
+export function syncUnpavedRoadColor(map: MapLibreMap): void {
+  const background = map.getStyle()?.layers?.find((l) => l.type === 'background')
+  if (!background) return
+  const ground = map.getPaintProperty(background.id, 'background-color') as string
+  for (const baseId of UNPAVED_BASE_LAYERS) {
+    if (map.getLayer(baseId + UNPAVED_SUFFIX)) map.setPaintProperty(baseId + UNPAVED_SUFFIX, 'line-color', ground)
+  }
 }
 
 export const SATELLITE_LAYER_ID = 'satellite-imagery-layer'

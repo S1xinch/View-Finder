@@ -29,4 +29,4 @@ const cache: CacheStore = new TieredCacheStore(new MemoryCacheStore(), new DiskC
 // in the Electron-specific network/cache implementations.
 const orchestrator = createCoolSpotOrchestrator({ fetchImpl, cache })
 
-export const { getViewpoints, getExcludedLand } = orchestrator
+export const { getViewpoints, getExcludedLand, getGates } = orchestrator

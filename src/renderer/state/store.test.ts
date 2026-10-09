@@ -6,7 +6,8 @@ function installStorage(initial: Record<string, string> = {}): Map<string, strin
   const data = new Map(Object.entries(initial))
   vi.stubGlobal('localStorage', {
     getItem: (k: string) => data.get(k) ?? null,
-    setItem: (k: string, v: string) => void data.set(k, v)
+    setItem: (k: string, v: string) => void data.set(k, v),
+    removeItem: (k: string) => void data.delete(k)
   })
   return data
 }
@@ -79,5 +80,31 @@ describe('access reports', () => {
     installStorage({ 'vf-access-reports': JSON.stringify({ a: 'open', b: 'maybe', c: 3 }) })
     const store = await freshStore()
     expect(store.getState().accessReports).toEqual({ a: 'open' })
+  })
+})
+
+describe('active drive', () => {
+  beforeEach(() => vi.unstubAllGlobals())
+  const route = { coordinates: [[150.3, -33.6]] as [number, number][], distanceMeters: 1000, durationSeconds: 60, steps: [] }
+
+  it('keeps the loaded route across a reload and forgets it when cleared', async () => {
+    const data = installStorage()
+    let store = await freshStore()
+    store.getState().requestRoute(spot)
+    store.getState().setRouteLoaded(route)
+
+    store = await freshStore()
+    expect(store.getState().routeDestination?.id).toBe(spot.id)
+    expect(store.getState().route).toEqual(route)
+    expect(store.getState().routeStatus).toBe('ready')
+
+    store.getState().clearRoute()
+    expect(data.has('vf-active-drive')).toBe(false)
+  })
+
+  it('drops a drive saved more than half a day ago', async () => {
+    installStorage({ 'vf-active-drive': JSON.stringify({ at: Date.now() - 13 * 3600_000, destination: spot, route }) })
+    const store = await freshStore()
+    expect(store.getState().route).toBeNull()
   })
 })

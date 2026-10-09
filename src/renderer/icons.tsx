@@ -45,3 +45,9 @@ export const DirectionsIcon = (p: IconProps): React.JSX.Element => (
     <path d="M5 19v-6a3 3 0 0 1 3-3h11M15 6l4 4-4 4" />
   </Icon>
 )
+
+export const DownloadIcon = (p: IconProps): React.JSX.Element => (
+  <Icon {...p}>
+    <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />
+  </Icon>
+)

@@ -26,8 +26,9 @@ export function useRoute(): void {
       // requestRoute() already turns location tracking on, so this is
       // ordinarily just "waiting for the first GPS fix to arrive", not a
       // real failure - setRouteLoading() keeps the UI in a loading state
-      // rather than flashing an error the user didn't cause.
-      setRouteLoading()
+      // rather than flashing an error the user didn't cause. A drive restored
+      // from the device (store.ts) stays on screen meanwhile.
+      if (!useViewFinderStore.getState().route) setRouteLoading()
       return
     }
 
@@ -52,6 +53,12 @@ export function useRoute(): void {
         })
         .catch((error: unknown) => {
           if (isStale()) return
+          // No signal mid-drive: keep following the saved route rather than
+          // replacing it with an error.
+          if (useViewFinderStore.getState().route) {
+            useViewFinderStore.setState({ routeStatus: 'ready', routeError: null })
+            return
+          }
           console.error('[useRoute] IPC call rejected', error)
           setRouteError(error instanceof Error ? error.message : 'Failed to load directions')
         })

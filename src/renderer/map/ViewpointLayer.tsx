@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Popup } from 'maplibre-gl'
 import type { GeoJSONSource, Map as MapLibreMap, MapLayerMouseEvent, MapMouseEvent, MapTouchEvent } from 'maplibre-gl'
-import { useViewFinderStore } from '../state/store'
+import { useViewFinderStore, useWithAccessReports } from '../state/store'
 import { CATEGORY_LABEL, formatCoordinates } from './categoryStyle'
 import { CATEGORY_COLORS } from '../themes'
 import { buildMapsAppLinks } from '../utils/mapLinks'
@@ -15,6 +15,7 @@ const OPEN_IN_CLASS = 'vf-popup__open-in'
 const SAVE_BUTTON_CLASS = 'vf-popup__save'
 const REMOVE_BUTTON_CLASS = 'vf-popup__remove'
 const CONDITIONS_CLASS = 'vf-popup__conditions'
+const ACCESS_BUTTON_CLASS = 'vf-popup__access-button'
 
 // Press and hold (mouse or touch) drops a pin; a plain click/tap stays one.
 const LONG_PRESS_MS = 500
@@ -123,6 +124,11 @@ function openSpotPopup(map: MapLibreMap, vp: Viewpoint, closeOnClick = true): Po
   // Picking an app closes the chooser again.
   const openIn = popupEl.querySelector<HTMLDetailsElement>(`.${OPEN_IN_CLASS}`)
   openIn?.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => (openIn.open = false)))
+  popupEl.querySelector<HTMLButtonElement>(`.${ACCESS_BUTTON_CLASS}`)?.addEventListener('click', (e) => {
+    const report = (e.currentTarget as HTMLButtonElement).dataset.report
+    useViewFinderStore.getState().setAccessReport(vp.id, report === 'open' || report === 'closed' ? report : null)
+    popup.remove()
+  })
   const conditionsEl = popupEl.querySelector(`.${CONDITIONS_CLASS}`)
   if (conditionsEl) {
     fetchConditions(vp.lat, vp.lng)
@@ -163,8 +169,24 @@ function conditionsHtml(c: Conditions): string {
 
 const RESTRICTED_NOTE = {
   private_land: 'On private land or farmland - you may need permission.',
-  gated: 'The roads near here are behind a locked or private gate.'
+  gated: 'The roads near here are behind a locked or private gate.',
+  reported: 'You marked this as no access.'
 } as const
+
+// Why a spot is (or isn't) flagged, plus the user's way to correct it.
+function accessHtml(vp: Viewpoint): string {
+  if (vp.category === 'dropped_pin') return ''
+  const report = useViewFinderStore.getState().accessReports[vp.id]
+  const [note, action, label] =
+    report === 'open'
+      ? ['You marked this as accessible.', 'undo', 'Undo']
+      : report === 'closed'
+        ? [RESTRICTED_NOTE.reported, 'undo', 'Undo']
+        : vp.restricted
+          ? [RESTRICTED_NOTE[vp.restricted], 'open', "It's accessible"]
+          : ['', 'closed', 'Report no access']
+  return `<div class="vf-popup__access">${note ? `<span class="vf-popup__note">${note}</span> ` : ''}<button type="button" class="${ACCESS_BUTTON_CLASS}" data-report="${action}">${label}</button></div>`
+}
 
 function buildPopupHtml(vp: Viewpoint, saved: boolean): string {
   const dropped = vp.category === 'dropped_pin'
@@ -174,13 +196,12 @@ function buildPopupHtml(vp: Viewpoint, saved: boolean): string {
     vp.category === 'computed_peak'
       ? '<div class="vf-popup__note">Estimated from elevation data, not confirmed on OpenStreetMap.</div>'
       : ''
-  const restrictedNote = vp.restricted ? `<div class="vf-popup__note">${RESTRICTED_NOTE[vp.restricted]}</div>` : ''
-  return `<div class="vf-popup__title">${vp.name ?? CATEGORY_LABEL[vp.category]}</div><div class="vf-popup__category">${dropped ? formatCoordinates(vp) : CATEGORY_LABEL[vp.category]}</div>${elevationLine}${estimateNote}${restrictedNote}<div class="${CONDITIONS_CLASS}" aria-live="polite">Checking conditions…</div><div class="vf-popup__actions"><button type="button" class="${DIRECTIONS_BUTTON_CLASS}">Directions</button>${openInHtml(vp)}<button type="button" class="${SAVE_BUTTON_CLASS}" aria-pressed="${saved}">${saveLabel(saved)}</button>${dropped ? `<button type="button" class="${REMOVE_BUTTON_CLASS}">Remove</button>` : ''}</div>`
+  return `<div class="vf-popup__title">${vp.name ?? CATEGORY_LABEL[vp.category]}</div><div class="vf-popup__category">${dropped ? formatCoordinates(vp) : CATEGORY_LABEL[vp.category]}</div>${elevationLine}${estimateNote}${accessHtml(vp)}<div class="${CONDITIONS_CLASS}" aria-live="polite">Checking conditions…</div><div class="vf-popup__actions"><button type="button" class="${DIRECTIONS_BUTTON_CLASS}">Directions</button>${openInHtml(vp)}<button type="button" class="${SAVE_BUTTON_CLASS}" aria-pressed="${saved}">${saveLabel(saved)}</button>${dropped ? `<button type="button" class="${REMOVE_BUTTON_CLASS}">Remove</button>` : ''}</div>`
 }
 
 export function ViewpointLayer(): null {
   const map = useViewFinderStore((s) => s.map)
-  const viewpoints = useViewFinderStore((s) => s.viewpoints)
+  const viewpoints = useWithAccessReports(useViewFinderStore((s) => s.viewpoints))
   const theme = useViewFinderStore((s) => s.theme)
   const showPrivateLand = useViewFinderStore((s) => s.showPrivateLand)
   const droppedPin = useViewFinderStore((s) => s.droppedPin)

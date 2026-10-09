@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useViewFinderStore } from '../state/store'
+import { useViewFinderStore, useWithAccessReports } from '../state/store'
 import { THEMES } from '../themes'
 import { DirectionsView } from './DirectionsView'
 import { SearchBar } from './SearchBar'
@@ -563,7 +563,7 @@ function friendlyMessage(error: string, tilesTotal: number | null): string {
 // replacing what used to be a separate brand card, spot list, and status
 // toast scattered around the screen.
 export function Sidebar(): React.JSX.Element {
-  const viewpoints = useViewFinderStore((s) => s.viewpoints)
+  const viewpoints = useWithAccessReports(useViewFinderStore((s) => s.viewpoints))
   const status = useViewFinderStore((s) => s.viewpointsStatus)
   const error = useViewFinderStore((s) => s.viewpointsError)
   const progress = useViewFinderStore((s) => s.viewpointsProgress)

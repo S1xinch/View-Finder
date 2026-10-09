@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { create } from 'zustand'
 import type { Map as MapLibreMap } from 'maplibre-gl'
 import type { ExcludedLandArea, RouteResult, Viewpoint, ViewpointsProgress } from '@shared/ipcContract'
@@ -124,6 +125,35 @@ interface ViewFinderStore {
   // Saved on this device only (localStorage) - no account needed.
   savedSpots: Viewpoint[]
   toggleSavedSpot: (spot: Viewpoint) => void
+
+  // The user's own corrections to a spot's access flag, by spot id - also
+  // device-only. Applied on display (withAccessReports), so clearing one
+  // brings back whatever the data said.
+  accessReports: Record<string, AccessReport>
+  setAccessReport: (id: string, report: AccessReport | null) => void
+}
+
+export type AccessReport = 'open' | 'closed'
+
+const ACCESS_REPORTS_KEY = 'vf-access-reports'
+
+function loadAccessReports(): Record<string, AccessReport> {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(ACCESS_REPORTS_KEY) ?? '{}')
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {}
+    return Object.fromEntries(
+      Object.entries(parsed).filter((e): e is [string, AccessReport] => e[1] === 'open' || e[1] === 'closed')
+    )
+  } catch {
+    return {}
+  }
+}
+
+export function withAccessReport(vp: Viewpoint, reports: Record<string, AccessReport>): Viewpoint {
+  const report = reports[vp.id]
+  if (report === 'open') return { ...vp, restricted: undefined }
+  if (report === 'closed') return { ...vp, restricted: vp.restricted ?? 'reported' }
+  return vp
 }
 
 const SAVED_SPOTS_KEY = 'vf-saved-spots'
@@ -265,8 +295,28 @@ export const useViewFinderStore = create<ViewFinderStore>((set) => ({
           [{ ...spot, tags: {} }, ...s.savedSpots]
       persistSavedSpots(savedSpots)
       return { savedSpots }
+    }),
+
+  accessReports: loadAccessReports(),
+  setAccessReport: (id, report) =>
+    set((s) => {
+      const accessReports = { ...s.accessReports }
+      if (report) accessReports[id] = report
+      else delete accessReports[id]
+      try {
+        localStorage.setItem(ACCESS_REPORTS_KEY, JSON.stringify(accessReports))
+      } catch {
+        // Storage full/blocked - still applies for this session.
+      }
+      return { accessReports }
     })
 }))
+
+// A spot list with the user's access corrections applied.
+export function useWithAccessReports(spots: Viewpoint[]): Viewpoint[] {
+  const reports = useViewFinderStore((s) => s.accessReports)
+  return useMemo(() => spots.map((vp) => withAccessReport(vp, reports)), [spots, reports])
+}
 
 export function selectActiveRoute(s: Pick<ViewFinderStore, 'route' | 'routeChoice'>): RouteResult | null {
   if (!s.route || s.routeChoice === 0) return s.route

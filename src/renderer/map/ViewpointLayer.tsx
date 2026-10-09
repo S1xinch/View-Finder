@@ -5,6 +5,7 @@ import { useViewFinderStore } from '../state/store'
 import { CATEGORY_LABEL, formatCoordinates } from './categoryStyle'
 import { CATEGORY_COLORS } from '../themes'
 import { buildMapsAppLinks } from '../utils/mapLinks'
+import { describeSunset, fetchConditions, formatClock, type Conditions } from '../utils/conditions'
 import type { Viewpoint, ViewpointCategory } from '@shared/ipcContract'
 
 const SOURCE_ID = 'viewpoints'
@@ -13,6 +14,7 @@ const DIRECTIONS_BUTTON_CLASS = 'vf-popup__directions'
 const OPEN_IN_CLASS = 'vf-popup__open-in'
 const SAVE_BUTTON_CLASS = 'vf-popup__save'
 const REMOVE_BUTTON_CLASS = 'vf-popup__remove'
+const CONDITIONS_CLASS = 'vf-popup__conditions'
 
 // Press and hold (mouse or touch) drops a pin; a plain click/tap stays one.
 const LONG_PRESS_MS = 500
@@ -121,6 +123,12 @@ function openSpotPopup(map: MapLibreMap, vp: Viewpoint, closeOnClick = true): Po
   // Picking an app closes the chooser again.
   const openIn = popupEl.querySelector<HTMLDetailsElement>(`.${OPEN_IN_CLASS}`)
   openIn?.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => (openIn.open = false)))
+  const conditionsEl = popupEl.querySelector(`.${CONDITIONS_CLASS}`)
+  if (conditionsEl) {
+    fetchConditions(vp.lat, vp.lng)
+      .then((c) => (conditionsEl.innerHTML = conditionsHtml(c)))
+      .catch(() => (conditionsEl.textContent = 'Weather unavailable right now'))
+  }
   popupEl.querySelector(`.${REMOVE_BUTTON_CLASS}`)?.addEventListener('click', () => {
     useViewFinderStore.getState().setDroppedPin(null)
     popup.remove()
@@ -141,6 +149,23 @@ function openInHtml(vp: Viewpoint): string {
   return `<details class="${OPEN_IN_CLASS}"><summary class="vf-popup__open-in-maps">Open in…</summary><div class="vf-popup__open-in-menu">${links}</div></details>`
 }
 
+// Built only from numbers and fixed strings - no API text reaches the HTML.
+function conditionsHtml(c: Conditions): string {
+  const visibility = c.visibilityM < 1000 ? 'fog' : `${Math.round(c.visibilityM / 1000)} km visibility`
+  const sunsets = c.sunsets.map((s) => `${s.label} ${describeSunset(s)}`).join(' · ')
+  return (
+    `<div>${Math.round(c.tempC)}°C · ${Math.round(c.cloudPct)}% cloud · ${visibility} · wind ${Math.round(c.windKmh)} km/h</div>` +
+    `<div>Sunrise ${formatClock(c.sunrise)} · sunset ${formatClock(c.sunset)}</div>` +
+    `<div>Golden hour from ${formatClock(c.sunset, -60)}</div>` +
+    `<div>Sunsets: ${sunsets}</div>`
+  )
+}
+
+const RESTRICTED_NOTE = {
+  private_land: 'On private land or farmland - you may need permission.',
+  gated: 'The roads near here are behind a locked or private gate.'
+} as const
+
 function buildPopupHtml(vp: Viewpoint, saved: boolean): string {
   const dropped = vp.category === 'dropped_pin'
   const elevationLine =
@@ -149,7 +174,8 @@ function buildPopupHtml(vp: Viewpoint, saved: boolean): string {
     vp.category === 'computed_peak'
       ? '<div class="vf-popup__note">Estimated from elevation data, not confirmed on OpenStreetMap.</div>'
       : ''
-  return `<div class="vf-popup__title">${vp.name ?? CATEGORY_LABEL[vp.category]}</div><div class="vf-popup__category">${dropped ? formatCoordinates(vp) : CATEGORY_LABEL[vp.category]}</div>${elevationLine}${estimateNote}<div class="vf-popup__actions"><button type="button" class="${DIRECTIONS_BUTTON_CLASS}">Directions</button>${openInHtml(vp)}<button type="button" class="${SAVE_BUTTON_CLASS}" aria-pressed="${saved}">${saveLabel(saved)}</button>${dropped ? `<button type="button" class="${REMOVE_BUTTON_CLASS}">Remove</button>` : ''}</div>`
+  const restrictedNote = vp.restricted ? `<div class="vf-popup__note">${RESTRICTED_NOTE[vp.restricted]}</div>` : ''
+  return `<div class="vf-popup__title">${vp.name ?? CATEGORY_LABEL[vp.category]}</div><div class="vf-popup__category">${dropped ? formatCoordinates(vp) : CATEGORY_LABEL[vp.category]}</div>${elevationLine}${estimateNote}${restrictedNote}<div class="${CONDITIONS_CLASS}" aria-live="polite">Checking conditions…</div><div class="vf-popup__actions"><button type="button" class="${DIRECTIONS_BUTTON_CLASS}">Directions</button>${openInHtml(vp)}<button type="button" class="${SAVE_BUTTON_CLASS}" aria-pressed="${saved}">${saveLabel(saved)}</button>${dropped ? `<button type="button" class="${REMOVE_BUTTON_CLASS}">Remove</button>` : ''}</div>`
 }
 
 export function ViewpointLayer(): null {

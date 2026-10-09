@@ -1,5 +1,5 @@
 import { useViewFinderStore } from '../state/store'
-import { CATEGORY_LABEL } from '../map/categoryStyle'
+import { CATEGORY_LABEL, formatCoordinates } from '../map/categoryStyle'
 import { visibleCenterOffset } from '../map/mapInsets'
 import { CATEGORY_COLORS } from '../themes'
 import type { Viewpoint } from '@shared/ipcContract'
@@ -18,6 +18,8 @@ export function SpotRow({ spot }: { spot: Viewpoint }): React.JSX.Element {
   const requestRoute = useViewFinderStore((s) => s.requestRoute)
   const saved = useViewFinderStore((s) => s.savedSpots.some((v) => v.id === spot.id))
   const toggleSavedSpot = useViewFinderStore((s) => s.toggleSavedSpot)
+  const setDroppedPin = useViewFinderStore((s) => s.setDroppedPin)
+  const isDroppedPin = spot.category === 'dropped_pin'
   const label = spot.name ?? CATEGORY_LABEL[spot.category]
 
   const flyTo = (): void => {
@@ -28,6 +30,8 @@ export function SpotRow({ spot }: { spot: Viewpoint }): React.JSX.Element {
       offset: visibleCenterOffset(map),
       duration: 800
     })
+    // A saved dropped pin isn't part of any search - put it back on the map.
+    if (isDroppedPin) setDroppedPin(spot)
   }
 
   return (
@@ -42,8 +46,9 @@ export function SpotRow({ spot }: { spot: Viewpoint }): React.JSX.Element {
         <span className="sidebar__row-text">
           <span className="sidebar__row-name">{label}</span>
           <span className="sidebar__row-detail">
-            {spot.elevationMeters != null ? `${Math.round(spot.elevationMeters)} m` : 'elevation unknown'} ·{' '}
-            {formatDistance(spot.distanceToRoadMeters)}
+            {isDroppedPin
+              ? formatCoordinates(spot)
+              : `${spot.elevationMeters != null ? `${Math.round(spot.elevationMeters)} m` : 'elevation unknown'} · ${formatDistance(spot.distanceToRoadMeters)}`}
           </span>
         </span>
       </button>

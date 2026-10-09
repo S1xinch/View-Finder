@@ -341,6 +341,11 @@ input[type='range'] {
 .map-view {
   position: absolute;
   inset: 0;
+  /* Press-and-hold drops a pin (ViewpointLayer) - keep iOS's own long-press
+     callout/text-selection loupe from popping up over it. */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 /* Floating translucent card, Apple Maps-style panel language shared by the
@@ -1461,6 +1466,11 @@ input[type='range'] {
   font-size: 12px;
 }
 
+.sidebar__badge[data-category='dropped_pin']::before {
+  content: 'CF';
+  font-size: 13px;
+}
+
 .sidebar__badge[data-category='alpine_hut']::before {
   content: '\2302';
   font-size: 15px;
@@ -1775,14 +1785,17 @@ input[type='range'] {
    (ViewpointLayer.tsx). */
 .vf-popup__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   margin-top: 8px;
 }
 
 .vf-popup__directions,
 .vf-popup__open-in-maps,
-.vf-popup__save {
+.vf-popup__save,
+.vf-popup__remove {
   padding: 6px 12px;
+  white-space: nowrap;
   font-family: var(--vf-font);
   font-size: 12px;
   font-weight: 600;
@@ -1810,8 +1823,15 @@ input[type='range'] {
   border: 1px solid var(--vf-accent);
 }
 
+.vf-popup__remove {
+  color: var(--vf-danger);
+  background: transparent;
+  border: 1px solid var(--vf-danger);
+}
+
 .vf-popup__open-in-maps:hover,
-.vf-popup__save:hover {
+.vf-popup__save:hover,
+.vf-popup__remove:hover {
   background: var(--vf-hover);
 }
 

@@ -11,9 +11,9 @@ export const THEMES: { id: ThemeName; label: string; description: string }[] = [
 ]
 
 export const CATEGORY_COLORS: Record<ThemeName, Record<ViewpointCategory, string>> = {
-  apple: { viewpoint: '#007AFF', peak: '#C2543F', alpine_hut: '#34A853', computed_peak: '#E08A00' },
-  trail: { viewpoint: '#2E4636', peak: '#9C3F28', alpine_hut: '#5B3A29', computed_peak: '#B8742A' },
-  night: { viewpoint: '#5CC8FF', peak: '#FF9F5A', alpine_hut: '#7BE0A6', computed_peak: '#B9A3FF' }
+  apple: { viewpoint: '#007AFF', peak: '#C2543F', alpine_hut: '#34A853', computed_peak: '#E08A00', dropped_pin: '#FF3B30' },
+  trail: { viewpoint: '#2E4636', peak: '#9C3F28', alpine_hut: '#5B3A29', computed_peak: '#B8742A', dropped_pin: '#B23A48' },
+  night: { viewpoint: '#5CC8FF', peak: '#FF9F5A', alpine_hut: '#7BE0A6', computed_peak: '#B9A3FF', dropped_pin: '#FF6B8B' }
 }
 
 export const ROUTE_COLORS: Record<ThemeName, { line: string; casing: string }> = {

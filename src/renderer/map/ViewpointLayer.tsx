@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react'
 import { Popup } from 'maplibre-gl'
-import type { GeoJSONSource, MapLayerMouseEvent } from 'maplibre-gl'
+import type { GeoJSONSource, Map as MapLibreMap, MapLayerMouseEvent, MapTouchEvent } from 'maplibre-gl'
 import { useViewFinderStore } from '../state/store'
-import { CATEGORY_LABEL } from './categoryStyle'
+import { CATEGORY_LABEL, formatCoordinates } from './categoryStyle'
 import { CATEGORY_COLORS } from '../themes'
 import { buildExternalMapsUrl } from '../utils/mapLinks'
 import type { Viewpoint, ViewpointCategory } from '@shared/ipcContract'
@@ -12,6 +12,13 @@ const LAYER_ID = 'viewpoints-pins'
 const DIRECTIONS_BUTTON_CLASS = 'vf-popup__directions'
 const OPEN_IN_MAPS_BUTTON_CLASS = 'vf-popup__open-in-maps'
 const SAVE_BUTTON_CLASS = 'vf-popup__save'
+const REMOVE_BUTTON_CLASS = 'vf-popup__remove'
+
+// Press and hold on a touchscreen drops a pin; a plain tap stays a tap.
+const LONG_PRESS_MS = 500
+const LONG_PRESS_SLOP_PX = 10
+// A click this soon after a touch came from that touch, not a mouse.
+const TOUCH_CLICK_WINDOW_MS = 800
 
 const saveLabel = (saved: boolean): string => (saved ? '★ Saved' : '☆ Save')
 
@@ -84,20 +91,57 @@ function toFeatureCollection(viewpoints: Viewpoint[]): GeoJSON.FeatureCollection
   }
 }
 
+// The card for a spot or the dropped pin. closeOnClick is off for the dropped
+// pin's own card: on touch, the press-and-hold that dropped it can be
+// followed by a click that would close it straight away - the map click
+// handler below closes it instead.
+function openSpotPopup(map: MapLibreMap, vp: Viewpoint, closeOnClick = true): Popup {
+  const popup = new Popup({ closeButton: true, closeOnClick, className: 'vf-popup', offset: 26 })
+    .setLngLat([vp.lng, vp.lat])
+    .setHTML(buildPopupHtml(vp, isSaved(vp)))
+    .addTo(map)
+
+  const popupEl = popup.getElement()
+  popupEl.querySelector(`.${DIRECTIONS_BUTTON_CLASS}`)?.addEventListener('click', () => {
+    useViewFinderStore.getState().requestRoute(vp)
+    popup.remove()
+  })
+  const saveButton = popupEl.querySelector<HTMLButtonElement>(`.${SAVE_BUTTON_CLASS}`)
+  saveButton?.addEventListener('click', () => {
+    useViewFinderStore.getState().toggleSavedSpot(vp)
+    const saved = isSaved(vp)
+    saveButton.textContent = saveLabel(saved)
+    saveButton.setAttribute('aria-pressed', String(saved))
+  })
+  popupEl.querySelector(`.${OPEN_IN_MAPS_BUTTON_CLASS}`)?.addEventListener('click', () => {
+    window.open(buildExternalMapsUrl({ lat: vp.lat, lng: vp.lng }, vp.name), '_blank', 'noopener')
+  })
+  popupEl.querySelector(`.${REMOVE_BUTTON_CLASS}`)?.addEventListener('click', () => {
+    useViewFinderStore.getState().setDroppedPin(null)
+    popup.remove()
+  })
+  return popup
+}
+
 function buildPopupHtml(vp: Viewpoint, saved: boolean): string {
+  const dropped = vp.category === 'dropped_pin'
   const elevationLine =
     vp.elevationMeters != null ? `<div class="vf-popup__elevation">${Math.round(vp.elevationMeters)} m</div>` : ''
   const estimateNote =
     vp.category === 'computed_peak'
       ? '<div class="vf-popup__note">Estimated from elevation data, not confirmed on OpenStreetMap.</div>'
       : ''
-  return `<div class="vf-popup__title">${vp.name ?? CATEGORY_LABEL[vp.category]}</div><div class="vf-popup__category">${CATEGORY_LABEL[vp.category]}</div>${elevationLine}${estimateNote}<div class="vf-popup__actions"><button type="button" class="${DIRECTIONS_BUTTON_CLASS}">Directions</button><button type="button" class="${OPEN_IN_MAPS_BUTTON_CLASS}">Open in Maps</button><button type="button" class="${SAVE_BUTTON_CLASS}" aria-pressed="${saved}">${saveLabel(saved)}</button></div>`
+  return `<div class="vf-popup__title">${vp.name ?? CATEGORY_LABEL[vp.category]}</div><div class="vf-popup__category">${dropped ? formatCoordinates(vp) : CATEGORY_LABEL[vp.category]}</div>${elevationLine}${estimateNote}<div class="vf-popup__actions"><button type="button" class="${DIRECTIONS_BUTTON_CLASS}">Directions</button><button type="button" class="${OPEN_IN_MAPS_BUTTON_CLASS}">Open in Maps</button><button type="button" class="${SAVE_BUTTON_CLASS}" aria-pressed="${saved}">${saveLabel(saved)}</button>${dropped ? `<button type="button" class="${REMOVE_BUTTON_CLASS}">Remove</button>` : ''}</div>`
 }
 
 export function ViewpointLayer(): null {
   const map = useViewFinderStore((s) => s.map)
   const viewpoints = useViewFinderStore((s) => s.viewpoints)
   const theme = useViewFinderStore((s) => s.theme)
+  const droppedPin = useViewFinderStore((s) => s.droppedPin)
+  const droppedPinRef = useRef(droppedPin)
+  droppedPinRef.current = droppedPin
+  const droppedPopupRef = useRef<Popup | null>(null)
   // The click/hover listeners below are registered once (inside the
   // layer-creation branch, which only runs the first time) rather than
   // re-subscribed on every viewpoints change - they read the *current*
@@ -109,7 +153,7 @@ export function ViewpointLayer(): null {
   useEffect(() => {
     if (!map) return
 
-    const data = toFeatureCollection(viewpoints)
+    const data = toFeatureCollection(droppedPin ? [...viewpoints, droppedPin] : viewpoints)
 
     const addLayer = (): void => {
       if (map.getSource(SOURCE_ID)) return
@@ -146,6 +190,8 @@ export function ViewpointLayer(): null {
         }
       })
 
+      registerDropPin()
+
       map.on('mousemove', LAYER_ID, () => {
         map.getCanvas().style.cursor = 'pointer'
       })
@@ -155,30 +201,63 @@ export function ViewpointLayer(): null {
 
       map.on('click', LAYER_ID, (e: MapLayerMouseEvent) => {
         const id = e.features?.[0]?.properties?.id as string | undefined
-        const vp = id == null ? undefined : viewpointsRef.current.find((v) => v.id === id)
+        const dropped = droppedPinRef.current
+        const vp = id == null ? undefined : (dropped?.id === id ? dropped : viewpointsRef.current.find((v) => v.id === id))
         if (!vp) return
 
         e.originalEvent.stopPropagation()
-        const popup = new Popup({ closeButton: true, className: 'vf-popup', offset: 26 })
-          .setLngLat([vp.lng, vp.lat])
-          .setHTML(buildPopupHtml(vp, isSaved(vp)))
-          .addTo(map)
+        droppedPopupRef.current?.remove()
+        openSpotPopup(map, vp)
+      })
+    }
 
-        const popupEl = popup.getElement()
-        popupEl.querySelector(`.${DIRECTIONS_BUTTON_CLASS}`)?.addEventListener('click', () => {
-          useViewFinderStore.getState().requestRoute(vp)
-          popup.remove()
-        })
-        const saveButton = popupEl.querySelector<HTMLButtonElement>(`.${SAVE_BUTTON_CLASS}`)
-        saveButton?.addEventListener('click', () => {
-          useViewFinderStore.getState().toggleSavedSpot(vp)
-          const saved = isSaved(vp)
-          saveButton.textContent = saveLabel(saved)
-          saveButton.setAttribute('aria-pressed', String(saved))
-        })
-        popupEl.querySelector(`.${OPEN_IN_MAPS_BUTTON_CLASS}`)?.addEventListener('click', () => {
-          window.open(buildExternalMapsUrl({ lat: vp.lat, lng: vp.lng }, vp.name), '_blank', 'noopener')
-        })
+    // Dropping a pin: a mouse click anywhere that isn't a spot pin (website /
+    // desktop), or press and hold on a touchscreen (the phone web app) - a
+    // touch tap is left alone, it's how you open pins and dismiss cards.
+    const registerDropPin = (): void => {
+      let lastTouchAt = 0
+      let longPressAt = 0
+      let pressTimer: ReturnType<typeof setTimeout> | undefined
+      let pressStart: { x: number; y: number } | null = null
+      const onSpotPin = (point: { x: number; y: number }): boolean =>
+        map.queryRenderedFeatures([point.x, point.y], { layers: [LAYER_ID] }).length > 0
+      const cancelPress = (): void => {
+        clearTimeout(pressTimer)
+        pressStart = null
+      }
+
+      map.on('touchstart', (e: MapTouchEvent) => {
+        lastTouchAt = Date.now()
+        cancelPress()
+        if (e.points.length !== 1) return
+        const start = e.point
+        const { lat, lng } = e.lngLat
+        pressStart = start
+        pressTimer = setTimeout(() => {
+          pressStart = null
+          if (onSpotPin(start)) return
+          longPressAt = Date.now()
+          useViewFinderStore.getState().dropPin(lat, lng)
+        }, LONG_PRESS_MS)
+      })
+      map.on('touchmove', (e: MapTouchEvent) => {
+        if (!pressStart) return
+        const moved = Math.hypot(e.point.x - pressStart.x, e.point.y - pressStart.y)
+        if (e.points.length !== 1 || moved > LONG_PRESS_SLOP_PX) cancelPress()
+      })
+      map.on('touchend', cancelPress)
+      map.on('touchcancel', cancelPress)
+      map.on('movestart', cancelPress)
+
+      map.on('click', (e) => {
+        if (onSpotPin(e.point)) return
+        if (Date.now() - lastTouchAt < TOUCH_CLICK_WINDOW_MS) {
+          // A tap elsewhere dismisses the dropped pin's card - except the
+          // click a press-and-hold itself can produce.
+          if (Date.now() - longPressAt > TOUCH_CLICK_WINDOW_MS) droppedPopupRef.current?.remove()
+          return
+        }
+        useViewFinderStore.getState().dropPin(e.lngLat.lat, e.lngLat.lng)
       })
     }
 
@@ -203,7 +282,13 @@ export function ViewpointLayer(): null {
     // is what the sidebar list reads from, so it stayed correct) but the
     // map layer itself silently never gets created or updated.
     updateData()
-  }, [map, viewpoints])
+  }, [map, viewpoints, droppedPin])
+
+  useEffect(() => {
+    droppedPopupRef.current?.remove()
+    droppedPopupRef.current = null
+    if (map && droppedPin) droppedPopupRef.current = openSpotPopup(map, droppedPin, false)
+  }, [map, droppedPin])
 
   // Repaints the existing pin images in place when the theme changes -
   // same size, so updateImage works and the layer itself is untouched.

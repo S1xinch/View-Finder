@@ -115,6 +115,12 @@ interface ViewFinderStore {
   theme: ThemeName
   setTheme: (theme: ThemeName) => void
 
+  // The one marker the user placed themselves (click on desktop, press and
+  // hold on touch - see ViewpointLayer). A new drop replaces it.
+  droppedPin: Viewpoint | null
+  dropPin: (lat: number, lng: number) => void
+  setDroppedPin: (pin: Viewpoint | null) => void
+
   // Saved on this device only (localStorage) - no account needed.
   savedSpots: Viewpoint[]
   toggleSavedSpot: (spot: Viewpoint) => void
@@ -234,6 +240,20 @@ export const useViewFinderStore = create<ViewFinderStore>((set) => ({
     saveTheme(theme)
     set({ theme })
   },
+
+  droppedPin: null,
+  dropPin: (lat, lng) =>
+    set({
+      droppedPin: {
+        id: `pin:${lat.toFixed(5)},${lng.toFixed(5)}`,
+        name: 'Dropped pin',
+        lat,
+        lng,
+        category: 'dropped_pin',
+        tags: {}
+      }
+    }),
+  setDroppedPin: (droppedPin) => set({ droppedPin }),
 
   savedSpots: loadSavedSpots(),
   toggleSavedSpot: (spot) =>

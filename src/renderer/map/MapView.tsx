@@ -6,11 +6,13 @@ import {
   DEFAULT_VIEW,
   MAP_STYLE_URL,
   addSatelliteLayer,
+  addUnpavedRoadLayers,
   applyAppleStyleTweaks,
   applyDarkMapTweaks,
   applyTrailMapTweaks,
   boostRoadContrast,
   restoreBasePaint,
+  syncUnpavedRoadColor,
   setSatelliteVisible
 } from './mapStyle'
 import { LocateControl } from './LocateControl'
@@ -42,6 +44,7 @@ function applyThemeToMap(map: MapLibreMap): void {
     boostRoadContrast(map)
     applyAppleStyleTweaks(map)
   }
+  syncUnpavedRoadColor(map)
 }
 
 export function MapView(): React.JSX.Element {
@@ -98,6 +101,7 @@ export function MapView(): React.JSX.Element {
     // store is always safe to add sources/layers to immediately, with no
     // isStyleLoaded()/once('load') guard of their own needed at all.
     const markMapReady = (): void => {
+      addUnpavedRoadLayers(map)
       applyBaseStyleTweaks()
       addSatelliteLayer(map)
       setSatelliteVisible(map, useViewFinderStore.getState().satelliteView)

@@ -7,6 +7,7 @@ export const IpcChannels = {
   // riding along on getViewpoints' eventual resolved value.
   viewpointsProgress: 'coolspot:viewpoints-progress',
   getExcludedLand: 'coolspot:get-excluded-land',
+  getGates: 'coolspot:get-gates',
   getRoute: 'route:get-route',
   searchPlaces: 'place:search'
 } as const

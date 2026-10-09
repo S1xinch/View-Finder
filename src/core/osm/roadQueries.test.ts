@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildRoadQuery, parseRoads } from './roadQueries'
+import { buildRoadQuery, parseGates, parseRoads } from './roadQueries'
 
 describe('buildRoadQuery', () => {
   it('embeds the bbox and restricts to car-accessible highway classes', () => {
@@ -38,6 +38,24 @@ describe('parseRoads', () => {
     expect(roads[0].coordinates).toEqual([
       [150.3, -33.7],
       [150.31, -33.71]
+    ])
+  })
+})
+
+describe('parseGates', () => {
+  it('keeps gate nodes and flags locked or no-access ones as closed', () => {
+    const gates = parseGates({
+      elements: [
+        { type: 'node', id: 1, lat: -33.6, lon: 150.3, tags: { barrier: 'gate' } },
+        { type: 'node', id: 2, lat: -33.7, lon: 150.4, tags: { barrier: 'gate', locked: 'yes' } },
+        { type: 'node', id: 3, lat: -33.8, lon: 150.5, tags: { barrier: 'lift_gate', access: 'yes', motor_vehicle: 'private' } },
+        { type: 'way', id: 4, geometry: [] }
+      ]
+    })
+    expect(gates).toEqual([
+      { lat: -33.6, lng: 150.3, closed: false },
+      { lat: -33.7, lng: 150.4, closed: true },
+      { lat: -33.8, lng: 150.5, closed: true }
     ])
   })
 })

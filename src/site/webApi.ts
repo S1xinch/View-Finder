@@ -35,6 +35,7 @@ export const webApi: ViewFinderApi = {
   }),
   getViewpoints: orchestrator.getViewpoints,
   getExcludedLand: orchestrator.getExcludedLand,
+  getGates: orchestrator.getGates,
   getRoute: async (from: LatLng, to: LatLng) => {
     currentRouteRequest?.abort()
     const request = new AbortController()

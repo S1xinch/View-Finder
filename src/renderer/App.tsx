@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { MapView } from './map/MapView'
 import { ViewpointLayer } from './map/ViewpointLayer'
 import { PrivateLandLayer } from './map/PrivateLandLayer'
+import { GateLayer } from './map/GateLayer'
 import { LocationLayer } from './map/LocationLayer'
 import { RouteLayer } from './map/RouteLayer'
 import { Sidebar } from './panels/Sidebar'
@@ -48,6 +49,7 @@ export function App(): React.JSX.Element {
           which always sat above every canvas layer regardless of mount
           order. */}
       <RouteLayer />
+      <GateLayer />
       <ViewpointLayer />
       <LocationLayer />
       <Sidebar />

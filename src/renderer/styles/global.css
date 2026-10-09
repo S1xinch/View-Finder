@@ -2408,3 +2408,67 @@ input[type='range'] {
 :root[data-theme='trail'] :is(.sidebar__skeleton-badge, .sidebar__skeleton-lines span) {
   background: var(--vf-hover-bg);
 }
+
+/* "Open in…" chooser (pin popup + directions panel): a native <details>
+   disclosure listing one link per maps app - see utils/mapLinks.ts. */
+:is(.open-in, .vf-popup__open-in) > summary {
+  list-style: none;
+  text-align: center;
+}
+
+:is(.open-in, .vf-popup__open-in) > summary::-webkit-details-marker {
+  display: none;
+}
+
+.open-in__menu {
+  display: flex;
+  flex-direction: column;
+  margin-top: 6px;
+  border: 1px solid var(--vf-divider);
+  border-radius: var(--vf-radius-sm);
+  overflow: hidden;
+  animation: vf-materialize var(--vf-dur-quick) var(--vf-ease-spring) both;
+  transform-origin: 50% 0;
+}
+
+.open-in__link,
+.vf-popup__open-in-link {
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--vf-text-primary);
+  text-decoration: none;
+}
+
+.open-in__link + .open-in__link,
+.vf-popup__open-in-link + .vf-popup__open-in-link {
+  border-top: 1px solid var(--vf-divider);
+}
+
+.open-in__link:active,
+.vf-popup__open-in-link:active {
+  background: var(--vf-pressed-bg);
+}
+
+/* In the popup the list floats under the button rather than reflowing the
+   action row. */
+.vf-popup__open-in {
+  position: relative;
+}
+
+.vf-popup__open-in-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 2;
+  min-width: 150px;
+  display: flex;
+  flex-direction: column;
+  background: var(--vf-popover-bg);
+  border: 1px solid var(--vf-card-border);
+  border-radius: var(--vf-radius-sm);
+  box-shadow: var(--vf-shadow-md);
+  overflow: hidden;
+  animation: vf-materialize var(--vf-dur-quick) var(--vf-ease-spring) both;
+  transform-origin: 0 0;
+}

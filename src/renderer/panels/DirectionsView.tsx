@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { selectActiveRoute, useViewFinderStore } from '../state/store'
 import { CATEGORY_LABEL } from '../map/categoryStyle'
-import { buildExternalMapsUrl } from '../utils/mapLinks'
+import { buildMapsAppLinks } from '../utils/mapLinks'
 import { useWakeLock } from '../hooks/useWakeLock'
 import { ChevronLeftIcon, ChevronRightIcon } from '../icons'
 import type { RouteResult, RouteStep } from '@shared/ipcContract'
@@ -213,14 +213,6 @@ export function DirectionsView(): React.JSX.Element {
     return haversineDistanceMeters(coords[coords.length - 1], [destination.lng, destination.lat])
   }, [selectedRoute, destination])
 
-  const openInMaps = (): void => {
-    if (!destination) return
-    window.open(
-      buildExternalMapsUrl({ lat: destination.lat, lng: destination.lng }, destination.name ?? undefined),
-      '_blank',
-      'noopener'
-    )
-  }
 
   return (
     <div className="sidebar__directions">
@@ -239,9 +231,23 @@ export function DirectionsView(): React.JSX.Element {
       {/* Independent of our own route status - only needs the destination,
           not a fetched OSRM route - so it's available immediately and
           doesn't depend on location tracking either. */}
-      <button type="button" className="sidebar__open-in-maps" onClick={openInMaps}>
-        Open in Maps
-      </button>
+      {destination && (
+        <details className="open-in">
+          <summary className="sidebar__open-in-maps">Open in…</summary>
+          <div className="open-in__menu">
+            {buildMapsAppLinks(destination, destination.name, userLocation).map((link) => (
+              <a
+                key={link.label}
+                className="open-in__link"
+                href={link.href}
+                {...(link.newTab ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
+        </details>
+      )}
 
       {status === 'loading' && !userLocation && locationError && (
         <div className="sidebar__status sidebar__status--error">{locationError}</div>

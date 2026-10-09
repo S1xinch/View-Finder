@@ -85,7 +85,12 @@ function toFeatureCollection(viewpoints: Viewpoint[]): GeoJSON.FeatureCollection
       // non-integer id with an auto-generated sequential one, so a real click
       // handler reading e.features[0].id back would never see this value.
       // Carried in properties instead, which preserve arbitrary strings as-is.
-      properties: { id: vp.id, icon: iconIdFor(vp.category), estimated: vp.category === 'computed_peak' },
+      properties: {
+        id: vp.id,
+        icon: iconIdFor(vp.category),
+        estimated: vp.category === 'computed_peak',
+        restricted: vp.restricted !== undefined
+      },
       geometry: { type: 'Point', coordinates: [vp.lng, vp.lat] }
     }))
   }
@@ -151,6 +156,7 @@ export function ViewpointLayer(): null {
   const map = useViewFinderStore((s) => s.map)
   const viewpoints = useViewFinderStore((s) => s.viewpoints)
   const theme = useViewFinderStore((s) => s.theme)
+  const showPrivateLand = useViewFinderStore((s) => s.showPrivateLand)
   const droppedPin = useViewFinderStore((s) => s.droppedPin)
   const droppedPinRef = useRef(droppedPin)
   droppedPinRef.current = droppedPin
@@ -166,7 +172,9 @@ export function ViewpointLayer(): null {
   useEffect(() => {
     if (!map) return
 
-    const data = toFeatureCollection(droppedPin ? [...viewpoints, droppedPin] : viewpoints)
+    // Private/gated spots only show while the Private land toggle is on.
+    const shown = showPrivateLand ? viewpoints : viewpoints.filter((vp) => !vp.restricted)
+    const data = toFeatureCollection(droppedPin ? [...shown, droppedPin] : shown)
 
     const addLayer = (): void => {
       if (map.getSource(SOURCE_ID)) return
@@ -197,9 +205,9 @@ export function ViewpointLayer(): null {
           // sufficient affordance without touching a restricted property.
         },
         paint: {
-          // Matches the old .vf-pin--estimated { opacity: 0.88 } for
-          // computed (not OSM-tagged) peaks.
-          'icon-opacity': ['case', ['get', 'estimated'], 0.88, 1]
+          // Faded for private/gated spots; 0.88 matches the old
+          // .vf-pin--estimated for computed (not OSM-tagged) peaks.
+          'icon-opacity': ['case', ['get', 'restricted'], 0.5, ['get', 'estimated'], 0.88, 1]
         }
       })
 
@@ -295,7 +303,7 @@ export function ViewpointLayer(): null {
     // is what the sidebar list reads from, so it stayed correct) but the
     // map layer itself silently never gets created or updated.
     updateData()
-  }, [map, viewpoints, droppedPin])
+  }, [map, viewpoints, droppedPin, showPrivateLand])
 
   useEffect(() => {
     droppedPopupRef.current?.remove()

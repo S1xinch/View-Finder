@@ -663,6 +663,10 @@ export function Sidebar(): React.JSX.Element {
       ),
     [viewpoints, filters, showOsmViewpoints, showComputedPeaks]
   )
+  // On private land or behind a locked gate - listed separately, and only
+  // while the Private land toggle is on.
+  const open = useMemo(() => filtered.filter((vp) => !vp.restricted), [filtered])
+  const restricted = useMemo(() => filtered.filter((vp) => vp.restricted), [filtered])
 
   // Raw (pre-filter) counts by category, for the empty/ready-state
   // breakdowns below - lets a message say *which* category came up short
@@ -905,11 +909,12 @@ export function Sidebar(): React.JSX.Element {
             {status === 'ready' && (
               <>
                 <div className="sidebar__count">
-                  {filtered.length} spot{filtered.length === 1 ? '' : 's'}
+                  {open.length} spot{open.length === 1 ? '' : 's'}
                   {viewpoints.length > 0 && (
                     <span className="sidebar__count-meta">
                       {osmCount} mapped · {computedCount} estimated
-                      {filtered.length > MANY_RESULTS_THRESHOLD && ' · zoom in to narrow down'}
+                      {restricted.length > 0 && ` · ${restricted.length} private`}
+                      {open.length > MANY_RESULTS_THRESHOLD && ' · zoom in to narrow down'}
                     </span>
                   )}
                 </div>
@@ -923,10 +928,27 @@ export function Sidebar(): React.JSX.Element {
                       {computedCount} computed peak{computedCount === 1 ? '' : 's'} here, all filtered out
                     </div>
                   )}
-                  {filtered.map((vp) => (
+                  {open.length === 0 && restricted.length > 0 && (
+                    <div className="sidebar__empty">
+                      {restricted.length === 1 ? 'The only spot' : `All ${restricted.length} spots`} here{' '}
+                      {restricted.length === 1 ? 'is' : 'are'} on private land or behind a locked gate
+                      {!showPrivateLand && ' — turn on Private land to see them'}
+                    </div>
+                  )}
+                  {open.map((vp) => (
                     <SpotRow key={vp.id} spot={vp} />
                   ))}
                 </div>
+                {showPrivateLand && restricted.length > 0 && (
+                  <section aria-label="Private access spots">
+                    <div className="sidebar__count">Private access</div>
+                    <div className="sidebar__rows">
+                      {restricted.map((vp) => (
+                        <SpotRow key={vp.id} spot={vp} />
+                      ))}
+                    </div>
+                  </section>
+                )}
               </>
             )}
           </div>

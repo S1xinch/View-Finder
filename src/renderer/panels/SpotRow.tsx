@@ -5,6 +5,8 @@ import { CATEGORY_COLORS } from '../themes'
 import { DirectionsIcon } from '../icons'
 import type { Viewpoint } from '@shared/ipcContract'
 
+const RESTRICTED_LABEL = { private_land: 'private land', gated: 'behind a locked gate' } as const
+
 function formatDistance(meters: number | null | undefined): string {
   if (meters == null) return 'distance to road unknown'
   if (meters < 30) return 'right on a road'
@@ -49,7 +51,7 @@ export function SpotRow({ spot }: { spot: Viewpoint }): React.JSX.Element {
           <span className="sidebar__row-detail">
             {isDroppedPin
               ? formatCoordinates(spot)
-              : `${spot.elevationMeters != null ? `${Math.round(spot.elevationMeters)} m` : 'elevation unknown'} · ${formatDistance(spot.distanceToRoadMeters)}`}
+              : `${spot.elevationMeters != null ? `${Math.round(spot.elevationMeters)} m` : 'elevation unknown'} · ${formatDistance(spot.distanceToRoadMeters)}${spot.restricted ? ` · ${RESTRICTED_LABEL[spot.restricted]}` : ''}`}
           </span>
         </span>
       </button>

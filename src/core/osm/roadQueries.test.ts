@@ -53,9 +53,9 @@ describe('parseGates', () => {
       ]
     })
     expect(gates).toEqual([
-      { lat: -33.6, lng: 150.3, closed: false },
-      { lat: -33.7, lng: 150.4, closed: true },
-      { lat: -33.8, lng: 150.5, closed: true }
+      { id: 1, lat: -33.6, lng: 150.3, closed: false },
+      { id: 2, lat: -33.7, lng: 150.4, closed: true },
+      { id: 3, lat: -33.8, lng: 150.5, closed: true }
     ])
   })
 })

@@ -24,6 +24,7 @@ export interface Viewpoint {
   tags: Record<string, string>
   score?: number
   distanceToRoadMeters?: number | null
+  restricted?: 'private_land' | 'gated'
 }
 
 // A closed ring of [lng, lat] pairs (first and last point equal) - a
@@ -35,6 +36,7 @@ export interface ExcludedLandArea {
 
 // A gate on a car-accessible road - see core/osm/roadQueries.ts.
 export interface Gate {
+  id: number
   lat: number
   lng: number
   closed: boolean

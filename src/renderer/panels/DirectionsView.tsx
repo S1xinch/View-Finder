@@ -3,6 +3,7 @@ import { selectActiveRoute, useViewFinderStore } from '../state/store'
 import { CATEGORY_LABEL } from '../map/categoryStyle'
 import { buildExternalMapsUrl } from '../utils/mapLinks'
 import { useWakeLock } from '../hooks/useWakeLock'
+import { ChevronLeftIcon, ChevronRightIcon } from '../icons'
 import type { RouteResult, RouteStep } from '@shared/ipcContract'
 
 function formatRouteDistance(meters: number): string {
@@ -225,7 +226,7 @@ export function DirectionsView(): React.JSX.Element {
     <div className="sidebar__directions">
       <div className="sidebar__directions-header">
         <button type="button" className="sidebar__back" onClick={clearRoute} aria-label="Back to spot list">
-          ‹
+          <ChevronLeftIcon />
         </button>
         <div className="sidebar__row-text">
           <span className="sidebar__row-name">
@@ -270,7 +271,7 @@ export function DirectionsView(): React.JSX.Element {
                 onClick={() => setRouteChoice(routeChoice - 1)}
                 aria-label="Previous route"
               >
-                ‹
+                <ChevronLeftIcon size={16} />
               </button>
               <span className="sidebar__route-counter">{routeChoice + 1} of {1 + route.alternatives.length}</span>
               <button
@@ -279,7 +280,7 @@ export function DirectionsView(): React.JSX.Element {
                 onClick={() => setRouteChoice(routeChoice + 1)}
                 aria-label="Next route"
               >
-                ›
+                <ChevronRightIcon size={16} />
               </button>
             </div>
           )}

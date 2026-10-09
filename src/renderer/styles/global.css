@@ -82,6 +82,18 @@
 
   /* Bottom sheet peek height for mobile */
   --vf-sheet-peek: 132px;
+
+  /* Motion - one vocabulary for the whole app. Springs are sampled into
+     linear() curves: --vf-ease-spring is critically damped (no overshoot)
+     and is the default for anything that moves; --vf-ease-spring-bounce
+     overshoots ~1.5% and is only used when a flick released the sheet. */
+  --vf-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --vf-ease-spring: linear(0, 0.032, 0.108, 0.204, 0.306, 0.405, 0.497, 0.579, 0.652, 0.713, 0.766, 0.81, 0.846, 0.876, 0.9, 0.92, 0.936, 0.949, 0.96, 0.968, 0.975, 0.98, 0.984, 0.988, 1);
+  --vf-ease-spring-bounce: linear(0, 0.054, 0.179, 0.329, 0.48, 0.616, 0.73, 0.82, 0.889, 0.938, 0.972, 0.993, 1.006, 1.013, 1.015, 1.015, 1.013, 1.011, 1.009, 1.007, 1.005, 1.003, 1.002, 1.001, 1);
+  --vf-dur-press: 120ms;
+  --vf-dur-quick: 200ms;
+  --vf-dur-settle: 340ms;
+  --vf-dur-bounce: 500ms;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -177,7 +189,7 @@ button {
      needs no JS. Applies to every real <button> in the app (map
      controls, filter/search buttons, popup actions, list rows) in one
      place instead of per-component. */
-  transition: transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform var(--vf-dur-press) var(--vf-ease-out);
 }
 
 button:not(:disabled):active {
@@ -203,7 +215,7 @@ input[type='range'] {
    button, so the generic rule above doesn't reach it. */
 .sidebar__checkbox {
   touch-action: manipulation;
-  transition: transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform var(--vf-dur-press) var(--vf-ease-out);
 }
 
 .sidebar__checkbox:active {
@@ -223,7 +235,6 @@ input[type='range'] {
   font-weight: 500;
   cursor: pointer;
   transition: none;
-  /* Spring animations via Motion library, no CSS transitions */
 }
 
 .vf-button--primary {
@@ -587,18 +598,13 @@ input[type='range'] {
 }
 
 .version-badge {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  padding: 3px 8px;
+  clear: both;
+  margin-top: 6px;
+  padding: 8px 8px 2px;
+  border-top: 1px solid var(--vf-divider);
   font-size: 11px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color: var(--vf-text-secondary);
-  background: var(--vf-card-bg);
-  border: 1px solid var(--vf-card-border);
-  border-radius: var(--vf-radius-sm);
-  pointer-events: none;
-  z-index: 10;
+  color: var(--vf-text-tertiary);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Same breakpoint as .sidebar's mobile rule below. Kept visible here
@@ -611,14 +617,6 @@ input[type='range'] {
    edge instead, clear of the map controls that now live in this same
    corner (they start lower - see .maplibregl-ctrl-bottom-right's own
    mobile rule below - specifically to leave this room). */
-@media (max-width: 600px), (max-height: 500px) and (orientation: landscape) {
-  .version-badge {
-    top: max(6px, env(safe-area-inset-top));
-    right: max(6px, env(safe-area-inset-right));
-    padding: 2px 6px;
-    font-size: 9px;
-  }
-}
 
 .sidebar-reopen {
   position: absolute;
@@ -637,7 +635,7 @@ input[type='range'] {
   cursor: pointer;
   /* Same drag-driven transition as .sidebar above - both elements are
      always mounted now, each with its own useDraggableSheet instance. */
-  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform var(--vf-dur-settle) var(--vf-ease-spring);
 }
 
 /* Desktop: instant swap, same as .sidebar--hidden above - see its comment. */
@@ -683,8 +681,10 @@ input[type='range'] {
   box-shadow: var(--vf-shadow-lg);
   backdrop-filter: var(--vf-blur-standard);
   -webkit-backdrop-filter: var(--vf-blur-standard);
-  /* Drives the snap-to-rest after a drag release on phone portrait */
-  transition: height 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* Drives the snap-to-rest after a drag release on phone portrait. The
+     sheet-ease/-dur variables are set inline by Sidebar's drag after a
+     flick (bounce); otherwise the critically damped default applies. */
+  transition: height var(--vf-sheet-dur, var(--vf-dur-settle)) var(--vf-sheet-ease, var(--vf-ease-spring));
 }
 
 /* Desktop (and landscape) genuinely hide the sheet and show the small
@@ -793,7 +793,7 @@ input[type='range'] {
   .maplibregl-ctrl-bottom-right {
     top: 0;
     bottom: auto;
-    margin-top: calc(56px + env(safe-area-inset-top, 0px));
+    margin-top: calc(12px + env(safe-area-inset-top, 0px));
     margin-bottom: 0;
   }
 
@@ -1217,15 +1217,14 @@ input[type='range'] {
 .sidebar__checkbox {
   display: inline-flex;
   align-items: center;
-  padding: 6px 12px;
+  padding: 7px 13px;
   border-radius: 999px;
   border: 1px solid var(--vf-chip-border);
   background: var(--vf-fill);
   color: var(--vf-text-primary);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  /* Transitions removed for spring animations via Motion library */
 }
 
 .sidebar__checkbox input[type='checkbox'] {
@@ -1328,12 +1327,23 @@ input[type='range'] {
 }
 
 .sidebar__count {
-  padding: 2px 4px 8px;
-  font-size: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 8px;
+  padding: 6px 4px 8px;
+  font-size: 15px;
   font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--vf-text-primary);
+}
+
+.sidebar__count-meta {
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
   color: var(--vf-text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
 }
 
 .sidebar__rows {
@@ -1367,33 +1377,43 @@ input[type='range'] {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 8px;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 10px;
   border: none;
+  border-radius: var(--vf-radius-sm);
   background: transparent;
   cursor: pointer;
   text-align: left;
   font-family: var(--vf-font);
+  transition: background-color var(--vf-dur-press) var(--vf-ease-out);
+}
+
+/* A whole row shrinking on press reads as a toy - rows highlight instead,
+   like a native list cell. */
+.sidebar__row-main:not(:disabled):active {
+  transform: none;
+  background: var(--vf-pressed-bg);
 }
 
 /* Hidden until the row is hovered/focused - a quiet secondary action next
    to the row's primary "fly to this spot" click target. */
 .sidebar__row-directions {
   flex: 0 0 auto;
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   margin-right: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
   border: none;
   border-radius: 50%;
   background: var(--vf-accent);
   color: var(--vf-accent-text);
-  font-size: 12px;
   cursor: pointer;
   opacity: 0;
-  /* Opacity transitions handled by spring animations */
+  transition: opacity var(--vf-dur-quick) var(--vf-ease-out);
 }
 
 .sidebar__row:hover :is(.sidebar__row-directions, .sidebar__row-save),
@@ -1440,8 +1460,8 @@ input[type='range'] {
    step, matching the pin colors already defined in categoryStyle.ts. */
 .sidebar__badge {
   flex: 0 0 auto;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   border-radius: var(--vf-badge-radius);
   display: flex;
   align-items: center;
@@ -1451,29 +1471,32 @@ input[type='range'] {
   line-height: 1;
 }
 
-.sidebar__badge[data-category='viewpoint']::before {
-  content: '\1F441';
-  /* Emoji glyphs render in full color regardless of CSS `color` - a plain
-     monochrome triangle/hut/eye shape reads more like a native map-pin
-     glyph than a color emoji would sitting on top of an already-colored
-     badge, so peak/alpine_hut use plain characters instead (below). */
-  filter: grayscale(1) brightness(2.2);
+/* Category icons, drawn white on the badge's own colour via a mask - one
+   consistent filled icon set instead of emoji/text characters. */
+.sidebar__badge::before {
+  content: '';
+  width: 17px;
+  height: 17px;
+  background: currentColor;
+  -webkit-mask: var(--vf-badge-icon) center / contain no-repeat;
+  mask: var(--vf-badge-icon) center / contain no-repeat;
 }
 
-.sidebar__badge[data-category='peak']::before,
-.sidebar__badge[data-category='computed_peak']::before {
-  content: '\25B2';
-  font-size: 12px;
+.sidebar__badge[data-category='viewpoint'] {
+  --vf-badge-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill-rule='evenodd' d='M12 5C6.5 5 2.6 9.4 1.5 12c1.1 2.6 5 7 10.5 7s9.4-4.4 10.5-7C21.4 9.4 17.5 5 12 5zm0 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8z'/></svg>");
 }
 
-.sidebar__badge[data-category='dropped_pin']::before {
-  content: 'CF';
-  font-size: 13px;
+.sidebar__badge[data-category='peak'],
+.sidebar__badge[data-category='computed_peak'] {
+  --vf-badge-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill-rule='evenodd' d='M2 20L9.5 6.5l4.3 7.5 2.4-3.4L22 20z'/></svg>");
 }
 
-.sidebar__badge[data-category='alpine_hut']::before {
-  content: '\2302';
-  font-size: 15px;
+.sidebar__badge[data-category='alpine_hut'] {
+  --vf-badge-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill-rule='evenodd' d='M12 3L2 11h3v10h5v-6h4v6h5V11h3z'/></svg>");
+}
+
+.sidebar__badge[data-category='dropped_pin'] {
+  --vf-badge-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill-rule='evenodd' d='M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7zm0 4.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z'/></svg>");
 }
 
 .sidebar__row-text {
@@ -1484,10 +1507,10 @@ input[type='range'] {
 }
 
 .sidebar__row-name {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 15px;
+  font-weight: 600;
   line-height: 1.3;
-  letter-spacing: -0.003em;
+  letter-spacing: -0.01em;
   color: var(--vf-text-primary);
   white-space: nowrap;
   overflow: hidden;
@@ -1495,10 +1518,10 @@ input[type='range'] {
 }
 
 .sidebar__row-detail {
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.35;
-  letter-spacing: 0.01em;
   color: var(--vf-text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
 .sidebar__status {
@@ -1573,7 +1596,7 @@ input[type='range'] {
   transform: none;
   opacity: 0.7;
   animation: none;
-  /* Width transitions handled by spring animations when needed */
+  transition: width var(--vf-dur-settle) var(--vf-ease-spring);
 }
 
 .sidebar__status-progress--determinate::after {
@@ -2213,12 +2236,12 @@ input[type='range'] {
     border-radius: calc(var(--vf-screen-radius) - 8px);
     padding-bottom: max(0px, calc(env(safe-area-inset-bottom) - 8px));
     transition:
-      height 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
-      left 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
-      right 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
-      bottom 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
-      border-radius 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
-      padding 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+      height var(--vf-sheet-dur, var(--vf-dur-settle)) var(--vf-sheet-ease, var(--vf-ease-spring)),
+      left var(--vf-sheet-dur, var(--vf-dur-settle)) var(--vf-sheet-ease, var(--vf-ease-spring)),
+      right var(--vf-sheet-dur, var(--vf-dur-settle)) var(--vf-sheet-ease, var(--vf-ease-spring)),
+      bottom var(--vf-sheet-dur, var(--vf-dur-settle)) var(--vf-sheet-ease, var(--vf-ease-spring)),
+      border-radius var(--vf-sheet-dur, var(--vf-dur-settle)) var(--vf-sheet-ease, var(--vf-ease-spring)),
+      padding var(--vf-sheet-dur, var(--vf-dur-settle)) var(--vf-sheet-ease, var(--vf-ease-spring));
   }
 
   /* Collapsed: Apple Maps' closed search bar - a compact capsule floating
@@ -2266,4 +2289,122 @@ input[type='range'] {
   :root:not([data-theme='trail']) .maplibregl-ctrl-group .maplibregl-ctrl-icon {
     filter: invert(1);
   }
+}
+
+/* ============================================================================
+   CRAFT - filter values, entrances, loading placeholders
+   ============================================================================ */
+.sidebar__filter-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.sidebar__filter-value {
+  color: var(--vf-text-primary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Surfaces materialise from where they come from - a card from its pin, the
+   settings menu from the gear, results from the field - rather than
+   popping in. Quick and critically damped: present, never showy. */
+@keyframes vf-materialize {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+
+@keyframes vf-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes vf-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+}
+
+.vf-popup .maplibregl-popup-content {
+  animation: vf-materialize var(--vf-dur-quick) var(--vf-ease-spring) both;
+  transform-origin: 50% 100%;
+}
+
+:is(.maplibregl-popup-anchor-top, .maplibregl-popup-anchor-top-left, .maplibregl-popup-anchor-top-right)
+  .maplibregl-popup-content {
+  transform-origin: 50% 0;
+}
+
+.settings[open] .settings__panel {
+  animation: vf-materialize var(--vf-dur-quick) var(--vf-ease-spring) both;
+  transform-origin: 100% 0;
+}
+
+.search-bar__results {
+  animation: vf-materialize var(--vf-dur-quick) var(--vf-ease-spring) both;
+  transform-origin: 50% 0;
+}
+
+/* Directions go "one level deeper", so they arrive from the side. */
+.sidebar__directions {
+  animation: vf-slide-in var(--vf-dur-settle) var(--vf-ease-spring) both;
+}
+
+.sidebar__row,
+.sidebar__status,
+.sidebar__empty,
+.sidebar__count {
+  animation: vf-fade-in var(--vf-dur-quick) var(--vf-ease-out) both;
+}
+
+/* Loading placeholders: the shape of the rows to come, gently pulsing. */
+@keyframes vf-skeleton-pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.sidebar__skeleton {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 10px;
+  animation: vf-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.sidebar__skeleton-badge {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--vf-badge-radius);
+  background: var(--vf-fill);
+}
+
+.sidebar__skeleton-lines {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.sidebar__skeleton-lines span {
+  height: 10px;
+  width: 62%;
+  border-radius: 5px;
+  background: var(--vf-fill);
+}
+
+.sidebar__skeleton-lines span + span {
+  width: 38%;
+}
+
+/* Themes whose --vf-fill is transparent (Trail) still need visible bars. */
+:root[data-theme='trail'] :is(.sidebar__skeleton-badge, .sidebar__skeleton-lines span) {
+  background: var(--vf-hover-bg);
 }

@@ -4,7 +4,6 @@ import { ViewpointLayer } from './map/ViewpointLayer'
 import { PrivateLandLayer } from './map/PrivateLandLayer'
 import { LocationLayer } from './map/LocationLayer'
 import { RouteLayer } from './map/RouteLayer'
-import { VersionBadge } from './VersionBadge'
 import { Sidebar } from './panels/Sidebar'
 import { useViewpointsSync } from './hooks/useViewpoints'
 import { usePrivateLandSync } from './hooks/usePrivateLand'
@@ -52,7 +51,6 @@ export function App(): React.JSX.Element {
       <ViewpointLayer />
       <LocationLayer />
       <Sidebar />
-      <VersionBadge />
     </div>
   )
 }

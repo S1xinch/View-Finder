@@ -2,6 +2,7 @@ import { useViewFinderStore } from '../state/store'
 import { CATEGORY_LABEL, formatCoordinates } from '../map/categoryStyle'
 import { visibleCenterOffset } from '../map/mapInsets'
 import { CATEGORY_COLORS } from '../themes'
+import { DirectionsIcon } from '../icons'
 import type { Viewpoint } from '@shared/ipcContract'
 
 function formatDistance(meters: number | null | undefined): string {
@@ -77,7 +78,7 @@ export function SpotRow({ spot }: { spot: Viewpoint }): React.JSX.Element {
         aria-label={`Directions to ${label}`}
         title="Directions"
       >
-        →
+        <DirectionsIcon size={16} />
       </button>
     </div>
   )

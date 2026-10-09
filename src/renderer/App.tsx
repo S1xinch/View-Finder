@@ -10,6 +10,7 @@ import { useViewpointsSync } from './hooks/useViewpoints'
 import { usePrivateLandSync } from './hooks/usePrivateLand'
 import { useGeolocation } from './hooks/useGeolocation'
 import { useRoute } from './hooks/useRoute'
+import { useOfflineDrive } from './hooks/useOfflineDrive'
 import { useViewFinderStore } from './state/store'
 import { applyThemeToDocument } from './themes'
 import './styles/global.css'
@@ -21,6 +22,7 @@ export function App(): React.JSX.Element {
   usePrivateLandSync(map)
   useGeolocation()
   useRoute()
+  useOfflineDrive()
 
   useEffect(() => applyThemeToDocument(theme), [theme])
 

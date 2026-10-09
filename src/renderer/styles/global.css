@@ -535,6 +535,31 @@ input[type='range'] {
   color: var(--vf-text-secondary);
 }
 
+/* Save for offline (OfflineSave.tsx). */
+.offline-save {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.offline-save__status {
+  font-size: 11px;
+  color: var(--vf-text-secondary);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.offline-save__clear {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--vf-accent);
+  cursor: pointer;
+}
+
 /* Access flag + the user's correction (accessHtml in ViewpointLayer.tsx). */
 .vf-popup__access {
   margin-top: 4px;

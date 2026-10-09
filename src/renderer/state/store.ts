@@ -156,6 +156,46 @@ export function withAccessReport(vp: Viewpoint, reports: Record<string, AccessRe
   return vp
 }
 
+// The current drive, kept so it survives the app being closed or losing
+// signal (useRoute keeps it on screen when re-routing fails offline). Ends
+// with clearRoute, or goes stale after half a day.
+const ACTIVE_DRIVE_KEY = 'vf-active-drive'
+const DRIVE_MAX_AGE_MS = 12 * 60 * 60 * 1000
+
+interface SavedDrive {
+  at: number
+  destination: Viewpoint
+  route: RouteResult
+}
+
+function loadActiveDrive(): SavedDrive | null {
+  try {
+    const d = JSON.parse(localStorage.getItem(ACTIVE_DRIVE_KEY) ?? 'null') as SavedDrive | null
+    const valid =
+      typeof d?.at === 'number' &&
+      Date.now() - d.at < DRIVE_MAX_AGE_MS &&
+      typeof d.destination?.id === 'string' &&
+      typeof d.destination.lat === 'number' &&
+      typeof d.destination.lng === 'number' &&
+      Array.isArray(d.route?.coordinates) &&
+      Array.isArray(d.route.steps)
+    return valid ? d : null
+  } catch {
+    return null
+  }
+}
+
+function persistActiveDrive(drive: SavedDrive | null): void {
+  try {
+    if (drive) localStorage.setItem(ACTIVE_DRIVE_KEY, JSON.stringify(drive))
+    else localStorage.removeItem(ACTIVE_DRIVE_KEY)
+  } catch {
+    // Storage full/blocked - the drive just won't survive a reload.
+  }
+}
+
+const restoredDrive = loadActiveDrive()
+
 const SAVED_SPOTS_KEY = 'vf-saved-spots'
 
 function loadSavedSpots(): Viewpoint[] {
@@ -222,7 +262,8 @@ export const useViewFinderStore = create<ViewFinderStore>((set) => ({
   showComputedPeaks: true,
   toggleShowComputedPeaks: () => set((s) => ({ showComputedPeaks: !s.showComputedPeaks })),
 
-  locationTracking: false,
+  // A restored drive needs the live location, same as requestRoute.
+  locationTracking: restoredDrive !== null,
   toggleLocationTracking: () =>
     set((s) => ({ locationTracking: !s.locationTracking, locationError: null })),
   userLocation: null,
@@ -230,9 +271,9 @@ export const useViewFinderStore = create<ViewFinderStore>((set) => ({
   setLocation: (userLocation) => set({ userLocation, locationError: null }),
   setLocationError: (message) => set({ locationError: message }),
 
-  routeDestination: null,
-  route: null,
-  routeStatus: 'idle',
+  routeDestination: restoredDrive?.destination ?? null,
+  route: restoredDrive?.route ?? null,
+  routeStatus: restoredDrive ? 'ready' : 'idle',
   routeError: null,
   // Actually fetching happens in useRoute.ts (keyed on routeDestination +
   // userLocation) - this just records what was asked for, the same
@@ -254,10 +295,16 @@ export const useViewFinderStore = create<ViewFinderStore>((set) => ({
       routeError: null,
       navigating: false
     })),
-  clearRoute: () =>
-    set({ routeDestination: null, route: null, routeChoice: 0, routeStatus: 'idle', routeError: null, navigating: false }),
+  clearRoute: () => {
+    persistActiveDrive(null)
+    set({ routeDestination: null, route: null, routeChoice: 0, routeStatus: 'idle', routeError: null, navigating: false })
+  },
   setRouteLoading: () => set({ routeStatus: 'loading', routeError: null }),
-  setRouteLoaded: (route) => set({ route, routeChoice: 0, routeStatus: 'ready', routeError: null }),
+  setRouteLoaded: (route) =>
+    set((s) => {
+      if (s.routeDestination) persistActiveDrive({ at: Date.now(), destination: s.routeDestination, route })
+      return { route, routeChoice: 0, routeStatus: 'ready', routeError: null }
+    }),
   setRouteError: (message) => set({ routeStatus: 'error', routeError: message }),
   navigating: false,
   startNavigation: () => set({ navigating: true }),

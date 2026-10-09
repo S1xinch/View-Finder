@@ -5,6 +5,8 @@ import { DirectionsView } from './DirectionsView'
 import { SearchBar } from './SearchBar'
 import { SavedLocations } from './SavedLocations'
 import { SpotRow } from './SpotRow'
+import { OfflineSave } from './OfflineSave'
+import { saveTilesOffline, tilesForBounds, viewBounds } from '../utils/offlineArea'
 import { VersionBadge } from '../VersionBadge'
 import { ChevronRightIcon, CloseIcon } from '../icons'
 import type { Viewpoint } from '@shared/ipcContract'
@@ -564,6 +566,7 @@ function friendlyMessage(error: string, tilesTotal: number | null): string {
 // toast scattered around the screen.
 export function Sidebar(): React.JSX.Element {
   const viewpoints = useWithAccessReports(useViewFinderStore((s) => s.viewpoints))
+  const map = useViewFinderStore((s) => s.map)
   const status = useViewFinderStore((s) => s.viewpointsStatus)
   const error = useViewFinderStore((s) => s.viewpointsError)
   const progress = useViewFinderStore((s) => s.viewpointsProgress)
@@ -854,6 +857,12 @@ export function Sidebar(): React.JSX.Element {
               <RefreshIcon spinning={status === 'loading'} />
               Search this area
             </button>
+            {map && (
+              <OfflineSave
+                label="Save this area for offline"
+                save={(onProgress) => saveTilesOffline(map, tilesForBounds(viewBounds(map)), onProgress)}
+              />
+            )}
           </div>
 
           <div className="sidebar__body">

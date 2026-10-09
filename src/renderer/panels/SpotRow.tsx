@@ -5,7 +5,7 @@ import { CATEGORY_COLORS } from '../themes'
 import { DirectionsIcon } from '../icons'
 import type { Viewpoint } from '@shared/ipcContract'
 
-const RESTRICTED_LABEL = { private_land: 'private land', gated: 'behind a locked gate' } as const
+const RESTRICTED_LABEL = { private_land: 'private land', gated: 'behind a locked gate', reported: 'you marked no access' } as const
 
 function formatDistance(meters: number | null | undefined): string {
   if (meters == null) return 'distance to road unknown'

@@ -24,7 +24,9 @@ export interface Viewpoint {
   tags: Record<string, string>
   score?: number
   distanceToRoadMeters?: number | null
-  restricted?: 'private_land' | 'gated'
+  // 'reported' only ever comes from the user's own correction (renderer
+  // state/store.ts accessReports), never from core/.
+  restricted?: 'private_land' | 'gated' | 'reported'
 }
 
 // A closed ring of [lng, lat] pairs (first and last point equal) - a

@@ -1,10 +1,10 @@
-import { useViewFinderStore } from '../state/store'
+import { useViewFinderStore, useWithAccessReports } from '../state/store'
 import { SpotRow } from './SpotRow'
 
 // Spots starred on this device (see savedSpots in state/store.ts). Hidden
 // while empty - the star on every spot row is the way in.
 export function SavedLocations(): React.JSX.Element | null {
-  const savedSpots = useViewFinderStore((s) => s.savedSpots)
+  const savedSpots = useWithAccessReports(useViewFinderStore((s) => s.savedSpots))
   if (savedSpots.length === 0) return null
 
   return (

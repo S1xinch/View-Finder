@@ -535,6 +535,27 @@ input[type='range'] {
   color: var(--vf-text-secondary);
 }
 
+/* Access flag + the user's correction (accessHtml in ViewpointLayer.tsx). */
+.vf-popup__access {
+  margin-top: 4px;
+  max-width: 240px;
+}
+
+.vf-popup__access .vf-popup__note {
+  display: inline;
+}
+
+.vf-popup__access-button {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--vf-accent);
+  cursor: pointer;
+}
+
 /* Weather and light (utils/conditions.ts), filled in once the card opens. */
 .vf-popup__conditions {
   margin-top: 8px;

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { Popup } from 'maplibre-gl'
-import type { GeoJSONSource, Map as MapLibreMap, MapLayerMouseEvent, MapTouchEvent } from 'maplibre-gl'
+import type { GeoJSONSource, Map as MapLibreMap, MapLayerMouseEvent, MapMouseEvent, MapTouchEvent } from 'maplibre-gl'
 import { useViewFinderStore } from '../state/store'
 import { CATEGORY_LABEL, formatCoordinates } from './categoryStyle'
 import { CATEGORY_COLORS } from '../themes'
@@ -14,10 +14,10 @@ const OPEN_IN_CLASS = 'vf-popup__open-in'
 const SAVE_BUTTON_CLASS = 'vf-popup__save'
 const REMOVE_BUTTON_CLASS = 'vf-popup__remove'
 
-// Press and hold on a touchscreen drops a pin; a plain tap stays a tap.
+// Press and hold (mouse or touch) drops a pin; a plain click/tap stays one.
 const LONG_PRESS_MS = 500
 const LONG_PRESS_SLOP_PX = 10
-// A click this soon after a touch came from that touch, not a mouse.
+// A mouse event this soon after a touch came from that touch, not a mouse.
 const TOUCH_CLICK_WINDOW_MS = 800
 
 const saveLabel = (saved: boolean): string => (saved ? '★ Saved' : '☆ Save')
@@ -232,12 +232,13 @@ export function ViewpointLayer(): null {
       })
     }
 
-    // Dropping a pin: a mouse click anywhere that isn't a spot pin (website /
-    // desktop), or press and hold on a touchscreen (the phone web app) - a
-    // touch tap is left alone, it's how you open pins and dismiss cards.
+    // Dropping a pin: press and hold anywhere that isn't a spot pin, with a
+    // mouse or a finger. A plain click/tap is left alone - it's how you open
+    // pins and dismiss cards - and dragging the map cancels the hold.
     const registerDropPin = (): void => {
       let lastTouchAt = 0
-      let longPressAt = 0
+      // The click that ends a hold shouldn't also dismiss the card it opened.
+      let suppressClick = false
       let pressTimer: ReturnType<typeof setTimeout> | undefined
       let pressStart: { x: number; y: number } | null = null
       const onSpotPin = (point: { x: number; y: number }): boolean =>
@@ -246,39 +247,45 @@ export function ViewpointLayer(): null {
         clearTimeout(pressTimer)
         pressStart = null
       }
-
-      map.on('touchstart', (e: MapTouchEvent) => {
-        lastTouchAt = Date.now()
+      const startPress = (e: MapMouseEvent | MapTouchEvent): void => {
         cancelPress()
-        if (e.points.length !== 1) return
+        suppressClick = false
         const start = e.point
         const { lat, lng } = e.lngLat
         pressStart = start
         pressTimer = setTimeout(() => {
           pressStart = null
           if (onSpotPin(start)) return
-          longPressAt = Date.now()
+          suppressClick = true
           useViewFinderStore.getState().dropPin(lat, lng)
         }, LONG_PRESS_MS)
-      })
-      map.on('touchmove', (e: MapTouchEvent) => {
+      }
+      const onMove = (e: MapMouseEvent | MapTouchEvent): void => {
         if (!pressStart) return
         const moved = Math.hypot(e.point.x - pressStart.x, e.point.y - pressStart.y)
-        if (e.points.length !== 1 || moved > LONG_PRESS_SLOP_PX) cancelPress()
+        if (moved > LONG_PRESS_SLOP_PX || ('points' in e && e.points.length !== 1)) cancelPress()
+      }
+
+      map.on('touchstart', (e: MapTouchEvent) => {
+        lastTouchAt = Date.now()
+        if (e.points.length === 1) startPress(e)
+        else cancelPress()
       })
+      // Browsers also fire mouse events after a touch - ignore those.
+      map.on('mousedown', (e: MapMouseEvent) => {
+        if (e.originalEvent.button === 0 && Date.now() - lastTouchAt > TOUCH_CLICK_WINDOW_MS) startPress(e)
+      })
+      map.on('touchmove', onMove)
+      map.on('mousemove', onMove)
       map.on('touchend', cancelPress)
       map.on('touchcancel', cancelPress)
+      map.on('mouseup', cancelPress)
       map.on('movestart', cancelPress)
 
       map.on('click', (e) => {
         if (onSpotPin(e.point)) return
-        if (Date.now() - lastTouchAt < TOUCH_CLICK_WINDOW_MS) {
-          // A tap elsewhere dismisses the dropped pin's card - except the
-          // click a press-and-hold itself can produce.
-          if (Date.now() - longPressAt > TOUCH_CLICK_WINDOW_MS) droppedPopupRef.current?.remove()
-          return
-        }
-        useViewFinderStore.getState().dropPin(e.lngLat.lat, e.lngLat.lng)
+        if (suppressClick) suppressClick = false
+        else droppedPopupRef.current?.remove()
       })
     }
 

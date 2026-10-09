@@ -17,13 +17,20 @@ export function distanceToNearestRoadMeters(
 ): number | null {
   if (roads.length === 0) return null
 
+  // An exact turf distance per road is the slow part (~1ms each, thousands
+  // of roads per tile). A road's bounding box gives a cheap lower bound on
+  // its distance, so check the closest boxes first and stop once no
+  // remaining box could beat the best real distance found.
   const candidatePoint = point([candidate.lng, candidate.lat])
-  let minDistance = Infinity
+  const byLowerBound = roads
+    .map((road) => ({ road, bound: lowerBoundMeters(candidate, road) }))
+    .sort((a, b) => a.bound - b.bound)
 
-  for (const road of roads) {
+  let minDistance = Infinity
+  for (const { road, bound } of byLowerBound) {
+    if (bound >= minDistance) break
     if (road.coordinates.length < 2) continue
-    const line = lineString(road.coordinates)
-    const nearest = nearestPointOnLine(line, candidatePoint, { units: 'meters' })
+    const nearest = nearestPointOnLine(lineString(road.coordinates), candidatePoint, { units: 'meters' })
     const distance = nearest.properties.dist
     if (typeof distance === 'number' && distance < minDistance) {
       minDistance = distance
@@ -31,6 +38,28 @@ export function distanceToNearestRoadMeters(
   }
 
   return Number.isFinite(minDistance) ? minDistance : null
+}
+
+const METERS_PER_DEGREE = 111_320
+const roadBounds = new WeakMap<RoadSegment, [number, number, number, number]>()
+
+// Straight-line distance from the point to the road's bounding box,
+// shrunk slightly so it never exceeds the true (haversine) distance.
+function lowerBoundMeters(p: { lat: number; lng: number }, road: RoadSegment): number {
+  let bounds = roadBounds.get(road)
+  if (!bounds) {
+    const lngs = road.coordinates.map((c) => c[0])
+    const lats = road.coordinates.map((c) => c[1])
+    bounds = [Math.min(...lngs), Math.min(...lats), Math.max(...lngs), Math.max(...lats)]
+    roadBounds.set(road, bounds)
+  }
+  const [west, south, east, north] = bounds
+  const dLat = Math.max(0, south - p.lat, p.lat - north) * METERS_PER_DEGREE
+  // Longitude degrees shrink toward the poles - use the most poleward
+  // latitude involved so the bound stays a lower bound.
+  const maxAbsLat = Math.max(Math.abs(p.lat), Math.abs(south), Math.abs(north))
+  const dLng = Math.max(0, west - p.lng, p.lng - east) * METERS_PER_DEGREE * Math.cos((maxAbsLat * Math.PI) / 180)
+  return Math.hypot(dLat, dLng) * 0.99
 }
 
 // Whether a candidate should be kept. Unknown (null) road data errs

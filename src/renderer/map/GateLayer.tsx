@@ -11,37 +11,51 @@ const MIN_ZOOM = 13
 const DEBOUNCE_MS = 1000
 const ICON_PIXEL_RATIO = 2
 
-// Small rounded badge with a white two-bar gate, Organic Maps style.
+// Small rounded badge with a white farm gate, Organic Maps style.
 // Amber = gate, red = locked / no public access.
 function buildGateIcon(color: string): { width: number; height: number; data: Uint8ClampedArray } {
-  const size = 18 * ICON_PIXEL_RATIO
+  // Wider than tall, so the gate leaf reads as a gate rather than a ladder.
+  const width = 26 * ICON_PIXEL_RATIO
+  const height = 18 * ICON_PIXEL_RATIO
   const canvas = document.createElement('canvas')
-  canvas.width = canvas.height = size
+  canvas.width = width
+  canvas.height = height
   const ctx = canvas.getContext('2d')
-  if (!ctx) return { width: size, height: size, data: new Uint8ClampedArray(size * size * 4) }
+  if (!ctx) return { width, height, data: new Uint8ClampedArray(width * height * 4) }
 
   ctx.scale(ICON_PIXEL_RATIO, ICON_PIXEL_RATIO)
   ctx.fillStyle = color
   ctx.strokeStyle = '#ffffff'
   ctx.lineWidth = 1.5
   ctx.beginPath()
-  ctx.roundRect(1, 1, 16, 16, 4)
+  ctx.roundRect(1, 1, 24, 16, 5)
   ctx.fill()
   ctx.stroke()
 
+  // Farm gate: hinge and latch posts, and a braced leaf that stops just
+  // short of the latch post.
   ctx.lineCap = 'round'
+  ctx.lineWidth = 2
   ctx.beginPath()
-  for (const x of [5, 13]) {
-    ctx.moveTo(x, 4.5)
-    ctx.lineTo(x, 13.5)
-  }
-  for (const y of [7, 11]) {
-    ctx.moveTo(5, y)
-    ctx.lineTo(13, y)
+  for (const x of [5, 21]) {
+    ctx.moveTo(x, 4)
+    ctx.lineTo(x, 14)
   }
   ctx.stroke()
 
-  return { width: size, height: size, data: ctx.getImageData(0, 0, size, size).data }
+  ctx.lineWidth = 1.25
+  ctx.beginPath()
+  for (const y of [6, 12]) {
+    ctx.moveTo(5, y)
+    ctx.lineTo(18, y)
+  }
+  ctx.moveTo(18, 6)
+  ctx.lineTo(18, 12)
+  ctx.moveTo(5, 12)
+  ctx.lineTo(18, 6)
+  ctx.stroke()
+
+  return { width, height, data: ctx.getImageData(0, 0, width, height).data }
 }
 
 function toFeatureCollection(gates: Gate[]): GeoJSON.FeatureCollection {

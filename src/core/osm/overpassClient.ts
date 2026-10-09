@@ -53,6 +53,8 @@ export interface OverpassElement {
   // without a separate resolution step, which is what road/land-use
   // queries need to build LineStrings/polygons.
   geometry?: { lat: number; lon: number }[]
+  // Node ids along a way, in the same order as geometry.
+  nodes?: number[]
 }
 
 export interface OverpassResponse {

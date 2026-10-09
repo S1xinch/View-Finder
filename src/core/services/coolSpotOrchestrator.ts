@@ -2,7 +2,7 @@ import type { BBox } from '../geo/types'
 import { splitBBox, snapBBoxToGrid, isPointInBBox } from '../geo/tiling'
 import { queryOverpass, type FetchLike } from '../osm/overpassClient'
 import { buildViewpointQuery, parseViewpoints } from '../osm/viewpointQueries'
-import { buildGateQuery, buildRoadQuery, parseGates, parseRoads } from '../osm/roadQueries'
+import { buildRoadQuery, parseGates, parseRoads } from '../osm/roadQueries'
 import type { Gate, RoadSegment } from '../osm/roadQueries'
 import { buildLandUseQuery, parseExcludedLandAreas } from '../osm/landUseQueries'
 import type { ExcludedLandArea } from '../osm/landUseQueries'
@@ -11,7 +11,8 @@ import { queryElevations } from '../elevation/elevationClient'
 import { buildSampleGrid, findLocalMaxima } from '../elevation/prominence'
 import type { PeakCandidate } from '../elevation/types'
 import { mergeCandidates } from '../scoring/candidateBuilder'
-import { filterExcludedLand, filterExcludedTenure, tenureCacheKey } from '../scoring/landUseFilter'
+import { markExcludedLand, markExcludedTenure, tenureCacheKey } from '../scoring/landUseFilter'
+import { buildGatedCheck } from '../scoring/gateReachability'
 import { queryTenureClass, type NswTenureClass } from '../landTenure/nswLandTenureClient'
 import { scoreCandidates } from '../scoring/coolSpotScore'
 import { isReachableByRoad } from '../scoring/roadReachability'
@@ -61,6 +62,11 @@ export interface ViewpointsProgress {
 
 export type ViewpointsProgressCallback = (progress: ViewpointsProgress) => void
 
+interface RoadNetwork {
+  roads: RoadSegment[]
+  gates: Gate[]
+}
+
 export interface CoolSpotOrchestrator {
   getViewpoints: (bbox: BBox, onProgress?: ViewpointsProgressCallback) => Promise<Viewpoint[]>
   getExcludedLand: (bbox: BBox) => Promise<ExcludedLandArea[]>
@@ -102,6 +108,7 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
   // superseded just stops waiting on it, but the fetch itself keeps
   // running and still populates the cache for whoever asks next.
   const inFlightExcludedLand = new Map<string, Promise<ExcludedLandArea[]>>()
+  const inFlightRoads = new Map<string, Promise<RoadNetwork>>()
 
   async function fetchTile(tile: BBox, label: string, signal: AbortSignal): Promise<Viewpoint[]> {
     const key = bboxKey('viewpoints', tile)
@@ -256,27 +263,30 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
   // viewpoints' own tiles - and firing that many requests at once in a
   // single burst is exactly what triggers fresh rate-limiting on a pan
   // into brand new territory, the opposite of the goal.)
-  async function getRoads(bbox: BBox, signal: AbortSignal): Promise<RoadSegment[]> {
+  // Roads and the gates on them come from one query (see buildRoadQuery).
+  // getViewpoints and the gate overlay both ask for the same tile off the
+  // same pan, so a second caller joins the in-flight fetch - same pattern
+  // as inFlightExcludedLand. Throws on failure; callers decide the fallback.
+  async function getRoadNetwork(bbox: BBox): Promise<RoadNetwork> {
     const snapped = snapBBoxToGrid(bbox)
-    const key = bboxKey('roads', snapped)
-    const cached = await cache.get<RoadSegment[]>(key)
-    if (cached) {
-      console.log(`[coolSpotOrchestrator] roads: cache hit (${cached.length})`)
-      return cached
-    }
+    const key = bboxKey('roadNetwork', snapped)
+    const cached = await cache.get<RoadNetwork>(key)
+    if (cached) return cached
 
-    try {
-      console.log('[coolSpotOrchestrator] querying roads...')
-      const response = await queryOverpass(buildRoadQuery(snapped), { fetchImpl, signal })
-      const roads = parseRoads(response)
-      console.log(`[coolSpotOrchestrator] roads: ${roads.length} segment(s)`)
-      await cache.set(key, roads, OSM_CACHE_TTL_MS)
-      return roads
-    } catch (error) {
-      if (isAbortError(error)) throw error
-      console.warn('[coolSpotOrchestrator] road query failed (continuing without road-reachability filtering):', error)
-      return []
+    let fetchPromise = inFlightRoads.get(key)
+    if (!fetchPromise) {
+      fetchPromise = (async () => {
+        console.log('[coolSpotOrchestrator] querying roads...')
+        const response = await queryOverpass(buildRoadQuery(snapped), { fetchImpl })
+        const network = { roads: parseRoads(response), gates: parseGates(response) }
+        console.log(`[coolSpotOrchestrator] roads: ${network.roads.length} segment(s), ${network.gates.length} gate(s)`)
+        await cache.set(key, network, OSM_CACHE_TTL_MS)
+        return network
+      })()
+      inFlightRoads.set(key, fetchPromise)
+      fetchPromise.finally(() => inFlightRoads.delete(key)).catch(() => {})
     }
+    return fetchPromise
   }
 
   async function getExcludedLandAreas(bbox: BBox, signal: AbortSignal): Promise<ExcludedLandArea[]> {
@@ -322,7 +332,7 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
   // identify lookup instead of one bulk fetch. Best-effort like every other
   // deferred fetch here: a candidate a lookup couldn't resolve for (cache
   // miss + a failed request) just doesn't appear in the returned map, and
-  // filterExcludedTenure treats that as "don't exclude".
+  // markExcludedTenure treats that as "don't exclude".
   async function getTenureForCandidates(
     candidates: Viewpoint[],
     signal: AbortSignal
@@ -414,14 +424,21 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
     // "distance to road unknown" instead of a filtering miss. Folding roads
     // into this same Promise.all fixes it while keeping the three fetches
     // running in parallel, same total latency as the two-way version before.
-    const [landUse, tenureByKey, roads] = await Promise.all([
+    const [landUse, tenureByKey, { roads, gates }] = await Promise.all([
       getExcludedLandAreas(bbox, request.signal),
       getTenureForCandidates(merged, request.signal),
-      getRoads(bbox, request.signal).catch((): RoadSegment[] => [])
+      getRoadNetwork(bbox).catch((error: unknown): RoadNetwork => {
+        console.warn('[coolSpotOrchestrator] road query failed (continuing without road-reachability filtering):', error)
+        return { roads: [], gates: [] }
+      })
     ])
-
-    const landFiltered = filterExcludedTenure(filterExcludedLand(merged, landUse), tenureByKey)
-    const scored = scoreCandidates(landFiltered, roads)
+    // Private/gated spots are flagged, not dropped - the UI lists them
+    // under its "Private land" toggle.
+    const landMarked = markExcludedTenure(markExcludedLand(merged, landUse), tenureByKey)
+    const isGated = buildGatedCheck(roads, gates, snapBBoxToGrid(bbox))
+    const scored = scoreCandidates(landMarked, roads).map((c) =>
+      !c.restricted && c.distanceToRoadMeters !== null && isGated(c) ? { ...c, restricted: 'gated' as const } : c
+    )
     const ranked = scored
       .filter((candidate) => isReachableByRoad(candidate.distanceToRoadMeters ?? null))
       .sort((a, b) => b.score - a.score)
@@ -444,16 +461,10 @@ export function createCoolSpotOrchestrator(deps: CoolSpotOrchestratorDeps): Cool
     return getExcludedLandAreas(bbox, controller.signal)
   }
 
-  // Map overlay only, cached per snapped tile like roads. A failed query
-  // throws so the caller keeps whatever gates it was already showing.
+  // For the map's gate overlay. A failed query throws so the caller keeps
+  // whatever gates it was already showing.
   async function getGates(bbox: BBox): Promise<Gate[]> {
-    const snapped = snapBBoxToGrid(bbox)
-    const key = bboxKey('gates', snapped)
-    const cached = await cache.get<Gate[]>(key)
-    if (cached) return cached
-    const gates = parseGates(await queryOverpass(buildGateQuery(snapped), { fetchImpl }))
-    await cache.set(key, gates, OSM_CACHE_TTL_MS)
-    return gates
+    return (await getRoadNetwork(bbox)).gates
   }
 
   return { getViewpoints, getExcludedLand, getGates }

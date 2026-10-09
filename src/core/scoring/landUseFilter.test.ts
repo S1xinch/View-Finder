@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { filterExcludedLand, filterExcludedTenure, tenureCacheKey } from './landUseFilter'
+import { markExcludedLand, markExcludedTenure, tenureCacheKey } from './landUseFilter'
 import type { Viewpoint } from '../osm/types'
 import type { NswTenureClass } from '../landTenure/nswLandTenureClient'
 
 function makeViewpoint(id: string, lat: number, lng: number): Viewpoint {
   return { id, lat, lng, category: 'viewpoint', tags: {} }
 }
+
+// The mark* functions flag rather than drop - these keep the unflagged
+// ones, so each case below reads as "what stays a normal result".
+const unflagged = (vps: Viewpoint[]): Viewpoint[] => vps.filter((vp) => !vp.restricted)
+const filterExcludedLand: typeof markExcludedLand = (c, a) => unflagged(markExcludedLand(c, a))
+const filterExcludedTenure: typeof markExcludedTenure = (c, t) => unflagged(markExcludedTenure(c, t))
 
 const farmSquare = {
   ring: [
@@ -28,6 +34,11 @@ describe('filterExcludedLand', () => {
     const outside = makeViewpoint('b', 5, 5)
     const result = filterExcludedLand([inside, outside], [farmSquare])
     expect(result).toEqual([outside])
+  })
+
+  it('flags the candidate as private land instead of dropping it', () => {
+    const [inside] = markExcludedLand([makeViewpoint('a', 0.5, 0.5)], [farmSquare])
+    expect(inside.restricted).toBe('private_land')
   })
 })
 

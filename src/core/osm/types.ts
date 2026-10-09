@@ -14,4 +14,8 @@ export interface Viewpoint {
   // constructs plain Viewpoints without them.
   score?: number
   distanceToRoadMeters?: number | null
+  // Set instead of dropping the spot, so the UI can still list it under
+  // "Private land": on farmland/private land, or behind a locked/private
+  // gate (core/scoring/gateReachability.ts).
+  restricted?: 'private_land' | 'gated'
 }

@@ -3,11 +3,11 @@ import type { ExcludedLandArea } from '../osm/landUseQueries'
 import type { Viewpoint } from '../osm/types'
 import type { NswTenureClass } from '../landTenure/nswLandTenureClient'
 
-// Drops any candidate that falls inside a farmland/private-access polygon.
+// Flags any candidate that falls inside a farmland/private-access polygon.
 // Best-effort, not a guarantee: OSM tagging coverage varies a lot by
 // region, so this can't catch every real property boundary - see the
 // architecture notes on this in the plan doc.
-export function filterExcludedLand(candidates: Viewpoint[], excludedAreas: ExcludedLandArea[]): Viewpoint[] {
+export function markExcludedLand(candidates: Viewpoint[], excludedAreas: ExcludedLandArea[]): Viewpoint[] {
   if (excludedAreas.length === 0) return candidates
 
   const polygons = excludedAreas.flatMap((area) => {
@@ -20,9 +20,10 @@ export function filterExcludedLand(candidates: Viewpoint[], excludedAreas: Exclu
     }
   })
 
-  return candidates.filter((candidate) => {
+  return candidates.map((candidate) => {
     const candidatePoint = point([candidate.lng, candidate.lat])
-    return !polygons.some((poly) => booleanPointInPolygon(candidatePoint, poly))
+    const inside = polygons.some((poly) => booleanPointInPolygon(candidatePoint, poly))
+    return inside ? { ...candidate, restricted: 'private_land' as const } : candidate
   })
 }
 
@@ -41,7 +42,7 @@ export function tenureCacheKey(point: { lat: number; lng: number }): string {
   return `${point.lat.toFixed(4)},${point.lng.toFixed(4)}`
 }
 
-// Second, independent exclusion signal alongside filterExcludedLand's OSM-
+// Second, independent exclusion signal alongside markExcludedLand's OSM-
 // tagged polygons above, not a replacement: OSM coverage is real-time but
 // patchy in Australia, while NSW's own Land Tenure dataset is authoritative
 // but NSW-only and raster-coarse. tenureByKey is populated by
@@ -50,14 +51,14 @@ export function tenureCacheKey(point: { lat: number; lng: number }): string {
 // map (network failure, or a lookup that hasn't resolved yet) is left
 // alone rather than excluded, since a missed exclusion is a far safer
 // failure than hiding a legitimate peak.
-export function filterExcludedTenure(
+export function markExcludedTenure(
   candidates: Viewpoint[],
   tenureByKey: ReadonlyMap<string, NswTenureClass | null>
 ): Viewpoint[] {
   if (tenureByKey.size === 0) return candidates
 
-  return candidates.filter((candidate) => {
+  return candidates.map((candidate) => {
     const tenure = tenureByKey.get(tenureCacheKey(candidate))
-    return !tenure || !EXCLUDED_TENURE_CLASSES.has(tenure)
+    return tenure && EXCLUDED_TENURE_CLASSES.has(tenure) ? { ...candidate, restricted: 'private_land' as const } : candidate
   })
 }

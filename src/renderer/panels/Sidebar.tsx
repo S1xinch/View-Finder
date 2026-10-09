@@ -5,6 +5,8 @@ import { DirectionsView } from './DirectionsView'
 import { SearchBar } from './SearchBar'
 import { SavedLocations } from './SavedLocations'
 import { SpotRow } from './SpotRow'
+import { VersionBadge } from '../VersionBadge'
+import { ChevronRightIcon, CloseIcon } from '../icons'
 import type { Viewpoint } from '@shared/ipcContract'
 
 // Most fetches (especially cache hits, common while re-panning over
@@ -64,7 +66,7 @@ const CLICK_FROM_POINTER_WINDOW_MS = 500
 // Kept a little longer than the CSS transform transition (see .sidebar in
 // global.css) so the inline transform is only dropped once the snap has
 // finished playing out.
-const SNAP_SETTLE_MS = 320
+const SNAP_SETTLE_MS = 520
 
 // How tall the sheet is when collapsed. Declared in CSS as --vf-sheet-peek
 // (which is what the collapsed rule sets max-height to) and read back here
@@ -284,9 +286,19 @@ function useSheetDrag(
     }
 
     el.style.transition = ''
+    // Thrown open: the momentum earns a slight overshoot. Everything else
+    // settles with the critically damped default (see --vf-ease-spring).
+    if (toOpen && velocity <= -FLICK_VELOCITY_PX_PER_MS) {
+      el.style.setProperty('--vf-sheet-ease', 'var(--vf-ease-spring-bounce)')
+      el.style.setProperty('--vf-sheet-dur', 'var(--vf-dur-bounce)')
+    }
     el.style.height = `${toOpen ? openHeightRef.current : peekHeightRef.current}px`
     settleTimerRef.current = setTimeout(() => {
-      if (sheetRef.current) sheetRef.current.style.height = ''
+      const sheet = sheetRef.current
+      if (!sheet) return
+      sheet.style.height = ''
+      sheet.style.removeProperty('--vf-sheet-ease')
+      sheet.style.removeProperty('--vf-sheet-dur')
     }, SNAP_SETTLE_MS)
     if (toOpen !== open) setOpen(toOpen)
   }
@@ -672,7 +684,7 @@ export function Sidebar(): React.JSX.Element {
         aria-label={status === 'loading' ? 'Show sidebar (loading viewpoints)' : 'Show sidebar'}
       >
         <span className="sidebar-reopen__arrow" aria-hidden="true">
-          ›
+          <ChevronRightIcon size={16} />
         </span>
       </button>
       {/* Phone-portrait drag surface (hidden elsewhere, see global.css):
@@ -714,7 +726,7 @@ export function Sidebar(): React.JSX.Element {
             {routeDestination.name || 'Directions'}
           </div>
           <button type="button" className="sidebar__cancel-route" onClick={clearRoute} aria-label="Cancel directions">
-            ×
+            <CloseIcon size={16} />
           </button>
         </header>
       ) : (
@@ -763,6 +775,7 @@ export function Sidebar(): React.JSX.Element {
                   </span>
                 </label>
               ))}
+              <VersionBadge />
             </fieldset>
           </details>
           </SearchBar>
@@ -784,7 +797,9 @@ export function Sidebar(): React.JSX.Element {
           <SavedLocations />
           <div className="sidebar__filters">
             <label className="sidebar__filter">
-              <span>Min elevation: {filters.minElevationMeters} m</span>
+              <span className="sidebar__filter-label">
+                Min elevation <span className="sidebar__filter-value">{filters.minElevationMeters} m</span>
+              </span>
               <input
                 type="range"
                 min={0}
@@ -795,7 +810,9 @@ export function Sidebar(): React.JSX.Element {
               />
             </label>
             <label className="sidebar__filter">
-              <span>Max distance to road: {filters.maxDistanceToRoadMeters} m</span>
+              <span className="sidebar__filter-label">
+                Max distance to road <span className="sidebar__filter-value">{filters.maxDistanceToRoadMeters} m</span>
+              </span>
               <input
                 type="range"
                 min={0}
@@ -808,15 +825,15 @@ export function Sidebar(): React.JSX.Element {
             <div className="sidebar__chip-row">
               <label className="sidebar__checkbox">
                 <input type="checkbox" checked={showOsmViewpoints} onChange={toggleShowOsmViewpoints} />
-                <span>Tagged viewpoints</span>
+                <span>Mapped spots</span>
               </label>
               <label className="sidebar__checkbox">
                 <input type="checkbox" checked={showComputedPeaks} onChange={toggleShowComputedPeaks} />
-                <span>Computed peaks</span>
+                <span>Estimated peaks</span>
               </label>
               <label className="sidebar__checkbox">
                 <input type="checkbox" checked={showPrivateLand} onChange={togglePrivateLand} />
-                <span>Private/farmland</span>
+                <span>Private land</span>
               </label>
             </div>
 
@@ -862,6 +879,19 @@ export function Sidebar(): React.JSX.Element {
                 )}
               </div>
             )}
+            {status === 'loading' && showLoading && (
+              <div aria-hidden="true">
+                {[0, 1, 2].map((i) => (
+                  <div className="sidebar__skeleton" key={i}>
+                    <span className="sidebar__skeleton-badge" />
+                    <span className="sidebar__skeleton-lines">
+                      <span />
+                      <span />
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {status === 'error' && (
               <div className="sidebar__status sidebar__status--error" title={error ?? undefined}>
@@ -875,9 +905,13 @@ export function Sidebar(): React.JSX.Element {
             {status === 'ready' && (
               <>
                 <div className="sidebar__count">
-                  {filtered.length} cool spot{filtered.length === 1 ? '' : 's'}
-                  {viewpoints.length > 0 && ` (${osmCount} tagged · ${computedCount} computed)`}
-                  {filtered.length > MANY_RESULTS_THRESHOLD && ' — zoom in for a clearer view'}
+                  {filtered.length} spot{filtered.length === 1 ? '' : 's'}
+                  {viewpoints.length > 0 && (
+                    <span className="sidebar__count-meta">
+                      {osmCount} mapped · {computedCount} estimated
+                      {filtered.length > MANY_RESULTS_THRESHOLD && ' · zoom in to narrow down'}
+                    </span>
+                  )}
                 </div>
                 <div className="sidebar__rows">
                   {viewpoints.length === 0 && (

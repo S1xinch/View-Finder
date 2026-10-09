@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useViewFinderStore } from '../state/store'
 import type { PlaceResult } from '@shared/ipcContract'
 import { visibleCenterOffset, visiblePadding } from '../map/mapInsets'
+import { DirectionsIcon } from '../icons'
 
 // A real network request per keystroke would hammer Nominatim's free
 // public instance well past its 1-request/second fair-use policy - this
@@ -115,7 +116,7 @@ export function SearchBar({ children }: { children?: React.ReactNode }): React.J
         <div className="search-bar__action">
           <span className="search-bar__selected">{selectedPlace.name}</span>
           <button type="button" className="search-bar__directions" onClick={getDirections} aria-label={`Get directions to ${selectedPlace.name}`}>
-            →
+            <DirectionsIcon size={16} />
           </button>
         </div>
       )}

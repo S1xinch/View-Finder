@@ -4,13 +4,13 @@ import type { GeoJSONSource, Map as MapLibreMap, MapLayerMouseEvent, MapTouchEve
 import { useViewFinderStore } from '../state/store'
 import { CATEGORY_LABEL, formatCoordinates } from './categoryStyle'
 import { CATEGORY_COLORS } from '../themes'
-import { buildExternalMapsUrl } from '../utils/mapLinks'
+import { buildMapsAppLinks } from '../utils/mapLinks'
 import type { Viewpoint, ViewpointCategory } from '@shared/ipcContract'
 
 const SOURCE_ID = 'viewpoints'
 const LAYER_ID = 'viewpoints-pins'
 const DIRECTIONS_BUTTON_CLASS = 'vf-popup__directions'
-const OPEN_IN_MAPS_BUTTON_CLASS = 'vf-popup__open-in-maps'
+const OPEN_IN_CLASS = 'vf-popup__open-in'
 const SAVE_BUTTON_CLASS = 'vf-popup__save'
 const REMOVE_BUTTON_CLASS = 'vf-popup__remove'
 
@@ -113,14 +113,27 @@ function openSpotPopup(map: MapLibreMap, vp: Viewpoint, closeOnClick = true): Po
     saveButton.textContent = saveLabel(saved)
     saveButton.setAttribute('aria-pressed', String(saved))
   })
-  popupEl.querySelector(`.${OPEN_IN_MAPS_BUTTON_CLASS}`)?.addEventListener('click', () => {
-    window.open(buildExternalMapsUrl({ lat: vp.lat, lng: vp.lng }, vp.name), '_blank', 'noopener')
-  })
+  // Picking an app closes the chooser again.
+  const openIn = popupEl.querySelector<HTMLDetailsElement>(`.${OPEN_IN_CLASS}`)
+  openIn?.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => (openIn.open = false)))
   popupEl.querySelector(`.${REMOVE_BUTTON_CLASS}`)?.addEventListener('click', () => {
     useViewFinderStore.getState().setDroppedPin(null)
     popup.remove()
   })
   return popup
+}
+
+// Plain links, not window.open() calls, so no popup blocker gets in the way;
+// the hrefs are built only from numbers and encodeURIComponent output, and
+// '&' is escaped for the attribute.
+function openInHtml(vp: Viewpoint): string {
+  const links = buildMapsAppLinks(vp, vp.name, useViewFinderStore.getState().userLocation)
+    .map(
+      (l) =>
+        `<a class="vf-popup__open-in-link" href="${l.href.replace(/&/g, '&amp;')}"${l.newTab ? ' target="_blank" rel="noopener noreferrer"' : ''}>${l.label}</a>`
+    )
+    .join('')
+  return `<details class="${OPEN_IN_CLASS}"><summary class="vf-popup__open-in-maps">Open in…</summary><div class="vf-popup__open-in-menu">${links}</div></details>`
 }
 
 function buildPopupHtml(vp: Viewpoint, saved: boolean): string {
@@ -131,7 +144,7 @@ function buildPopupHtml(vp: Viewpoint, saved: boolean): string {
     vp.category === 'computed_peak'
       ? '<div class="vf-popup__note">Estimated from elevation data, not confirmed on OpenStreetMap.</div>'
       : ''
-  return `<div class="vf-popup__title">${vp.name ?? CATEGORY_LABEL[vp.category]}</div><div class="vf-popup__category">${dropped ? formatCoordinates(vp) : CATEGORY_LABEL[vp.category]}</div>${elevationLine}${estimateNote}<div class="vf-popup__actions"><button type="button" class="${DIRECTIONS_BUTTON_CLASS}">Directions</button><button type="button" class="${OPEN_IN_MAPS_BUTTON_CLASS}">Open in Maps</button><button type="button" class="${SAVE_BUTTON_CLASS}" aria-pressed="${saved}">${saveLabel(saved)}</button>${dropped ? `<button type="button" class="${REMOVE_BUTTON_CLASS}">Remove</button>` : ''}</div>`
+  return `<div class="vf-popup__title">${vp.name ?? CATEGORY_LABEL[vp.category]}</div><div class="vf-popup__category">${dropped ? formatCoordinates(vp) : CATEGORY_LABEL[vp.category]}</div>${elevationLine}${estimateNote}<div class="vf-popup__actions"><button type="button" class="${DIRECTIONS_BUTTON_CLASS}">Directions</button>${openInHtml(vp)}<button type="button" class="${SAVE_BUTTON_CLASS}" aria-pressed="${saved}">${saveLabel(saved)}</button>${dropped ? `<button type="button" class="${REMOVE_BUTTON_CLASS}">Remove</button>` : ''}</div>`
 }
 
 export function ViewpointLayer(): null {

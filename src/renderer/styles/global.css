@@ -1940,63 +1940,6 @@ input[type='range'] {
   border-bottom: 1px solid var(--vf-divider);
 }
 
-/* ============================================================================
-   PLATFORM-SPECIFIC RESPONSIVE DESIGN
-   Desktop, Tablet, Mobile Portrait/Landscape layouts
-   ============================================================================ */
-
-/* Desktop layout (1200px+) — persistent, resizable sidebar */
-@media (min-width: 1200px) {
-  /* Allow viewport > 100% to accommodate resizable sidebar + map side-by-side */
-  .app {
-    display: flex;
-    flex-direction: row;
-  }
-
-  .sidebar {
-    position: relative;
-    flex: 0 0 auto;
-    width: 320px;
-    min-width: 280px;
-    max-width: 600px;
-    height: 100%;
-    border: none;
-    border-right: 1px solid var(--vf-divider);
-    border-radius: 0;
-    bottom: auto;
-    box-shadow: none;
-  }
-
-  .sidebar--hidden {
-    display: none;
-  }
-
-  .sidebar-reopen {
-    display: none;
-  }
-
-  .map-view {
-    position: relative;
-    flex: 1;
-  }
-
-  /* Sidebar resizing handle (right edge) */
-  .sidebar::after {
-    content: '';
-    position: absolute;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    width: 4px;
-    cursor: col-resize;
-    transition: background 0.2s ease;
-  }
-
-  .sidebar::after:hover {
-    background: var(--vf-accent);
-  }
-}
-
 /* Reduced motion: respect user preference */
 @media (prefers-reduced-motion: reduce) {
   * {
